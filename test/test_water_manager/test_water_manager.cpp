@@ -41,7 +41,9 @@ WaterManager makeWM() {
 void goToDraining(WaterManager &wm) {
   mock_pulseIn_value = 400; // ~6.9cm — water very high, far from 20cm target
   wm.startTPA();
-  wm.update(); // CANISTER_OFF → delay(3s) → DRAINING
+  wm.update(); // CANISTER_OFF: first call sets _waitUntilMs = millis() + 3000
+  mock_millis_value += 3001; // Advance past the 3s wait
+  wm.update();               // CANISTER_OFF: wait elapsed → DRAINING
 }
 
 // Helper: advance to FILLING_RESERVOIR
@@ -69,7 +71,9 @@ void goToDosingPrime(WaterManager &wm) {
 // Helper: advance to REFILLING
 void goToRefilling(WaterManager &wm) {
   goToDosingPrime(wm);
-  wm.update(); // Doses prime → REFILLING
+  wm.update();               // Doses prime, sets _waitUntilMs = millis() + 2000
+  mock_millis_value += 2001; // Advance past the 2s mixing wait
+  wm.update();               // Wait elapsed → REFILLING
   TEST_ASSERT_EQUAL(TPAState::REFILLING, wm.getState());
 }
 
@@ -110,12 +114,16 @@ void test_double_start_ignored() {
 
 void test_canister_off_disables_relay() {
   WaterManager wm = makeWM();
-  digitalWrite(PIN_CANISTER, HIGH);
+  digitalWrite(PIN_CANISTER, LOW); // Start with canister ON (LOW = ON)
   mock_pulseIn_value = 400;
   wm.startTPA();
-  wm.update();
-  // SSR relay: HIGH = OFF
+  wm.update(); // First call: sets canister HIGH (OFF) and starts 3s wait
+  // SSR relay: HIGH = OFF (canister disabled)
   TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_CANISTER]);
+  TEST_ASSERT_EQUAL(TPAState::CANISTER_OFF, wm.getState()); // Still waiting
+
+  mock_millis_value += 3001;
+  wm.update(); // Wait elapsed → DRAINING
   TEST_ASSERT_EQUAL(TPAState::DRAINING, wm.getState());
 }
 

@@ -101,6 +101,33 @@ graph LR
 
 ---
 
+## 🛡️ Safety & Reliability
+
+The system is designed with a **safety-first** approach to prevent flooding, equipment damage, and fish loss.
+
+### Software Protections
+
+| Protection | Description |
+|---|---|
+| **Hardware Watchdog (WDT)** | ESP32 Task WDT with 10-second timeout. If the main loop freezes for any reason, the ESP32 automatically reboots. |
+| **SafetyWatchdog** | Runs at highest priority every loop iteration. Detects overflow (optical sensor), emergency conditions, and triggers full shutdown of all actuators. |
+| **Non-blocking loops** | All wait states (canister settle, prime mixing) use `millis()` instead of `delay()`, so the safety watchdog keeps running during waits. |
+| **State machine timeouts** | Each TPA state (`DRAINING`, `FILLING`, `REFILLING`) has a configurable timeout. Exceeding it triggers an error state and shuts down all actuators. |
+| **NVS deduplication** | Prevents double-dosing fertilizers on the same day, even after unexpected reboots. |
+| **Emergency shutdown** | `emergency_stop` command turns off ALL actuators immediately. |
+| **CPU throttle** | Main loop runs at ~100 Hz (`delay(10)`), preventing overheating and leaving CPU headroom for WiFi/TCP stack. |
+
+### Hardware Recommendations
+
+| Protection | Description |
+|---|---|
+| **Overflow float switch** | NC (normally closed) float switch at max water level, wired in series with the refill pump power. Cuts the pump physically if water rises too high — independent of firmware. |
+| **Flyback diodes** | FR154 on pumps, 1N5822 on solenoid — absorb voltage spikes from inductive loads. |
+| **Decoupling capacitors** | 1000µF near ESP32, 470µF near MOSFET module — absorb brownout transients. |
+| **Voltage divider (ECHO)** | 5V → 3.3V for JSN-SR04T echo pin — protects ESP32 GPIO. |
+
+---
+
 ## 🖥️ Wokwi Simulation
 
 The project includes full support for [Wokwi](https://wokwi.com) simulation, allowing you to test the firmware **without physical hardware**.

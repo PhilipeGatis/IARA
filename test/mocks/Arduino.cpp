@@ -32,6 +32,7 @@ unsigned long mock_millis_value = 0;
 unsigned long millis() { return mock_millis_value; }
 void delay(unsigned long ms) { mock_millis_value += ms; }
 void delayMicroseconds(unsigned int us) { /* no-op */ }
+void yield() { /* no-op */ }
 
 // ---- pulseIn ----
 unsigned long mock_pulseIn_value = 0;

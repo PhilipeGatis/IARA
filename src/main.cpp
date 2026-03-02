@@ -22,6 +22,7 @@
 #include "WebManager.h"
 #include <Arduino.h>
 #include <LittleFS.h>
+#include <esp_task_wdt.h>
 #include <esp_wifi.h>
 
 // ---- Global instances ----
@@ -236,6 +237,11 @@ void setup() {
   // --- Step 9: Notifications ---
   notifyMgr.begin();
 
+  // --- Step 10: Hardware Watchdog (10s timeout, auto-reboot on freeze) ---
+  esp_task_wdt_init(10, true); // 10 seconds, panic (reboot) on timeout
+  esp_task_wdt_add(NULL);      // Register main task
+  Serial.println("[WDT] Hardware watchdog enabled (10s timeout).");
+
   Serial.println("[Main] === System Ready ===\n");
 }
 
@@ -420,6 +426,7 @@ void loop() {
   // ---- 7. OLED DISPLAY ----
   displayMgr.update();
 
-  // ---- 8. YIELD ----
-  delay(50); // ~20 Hz loop, fast enough for safety, gentle on CPU
+  // ---- 8. WATCHDOG RESET + YIELD ----
+  esp_task_wdt_reset(); // Feed the hardware watchdog
+  delay(10);            // ~100 Hz loop: fast enough for safety, gentle on CPU
 }

@@ -29,7 +29,8 @@ const char *tpaStateName(TPAState s) {
 
 WaterManager::WaterManager()
     : _state(TPAState::IDLE), _safety(nullptr), _fert(nullptr),
-      _stateStartMs(0), _drainTargetCm(LEVEL_DRAIN_TARGET_CM),
+      _stateStartMs(0), _waitUntilMs(0), _doseCompleted(false),
+      _drainTargetCm(LEVEL_DRAIN_TARGET_CM),
       _refillTargetCm(LEVEL_REFILL_TARGET_CM), _primeML(DEFAULT_PRIME_ML) {}
 
 void WaterManager::begin(SafetyWatchdog *safety, FertManager *fert) {
@@ -122,11 +123,19 @@ void WaterManager::_enterState(TPAState newState) {
 
 void WaterManager::_handleCanisterOff() {
   // Step 1: Turn off canister filter (SSR: HIGH = OFF)
-  digitalWrite(PIN_CANISTER, HIGH);
-  Serial.println("[TPA] Canister OFF. Waiting 3s for water to settle...");
-  delay(3000); // Wait for water flow to stop
+  if (_waitUntilMs == 0) {
+    // First call: turn off canister and start the non-blocking wait
+    digitalWrite(PIN_CANISTER, HIGH);
+    Serial.println("[TPA] Canister OFF. Waiting 3s for water to settle...");
+    _waitUntilMs = millis() + 3000;
+    return;
+  }
 
-  _enterState(TPAState::DRAINING);
+  // Subsequent calls: check if wait has elapsed
+  if (!_isWaiting()) {
+    _waitUntilMs = 0;
+    _enterState(TPAState::DRAINING);
+  }
 }
 
 void WaterManager::_handleDraining() {
@@ -181,20 +190,30 @@ void WaterManager::_handleFillingReservoir() {
 
 void WaterManager::_handleDosingPrime() {
   // Step 4: Dose Prime (dechlorinator) into reservoir
-  if (_fert && _primeML > 0) {
-    Serial.printf("[TPA] Dosing Prime: %.1f ml\n", _primeML);
-    bool ok = _fert->doseChannel(NUM_FERTS, _primeML); // Channel 4 = Prime
-    if (!ok) {
-      Serial.println("[TPA] WARNING: Prime dosing may have timed out.");
+  if (!_doseCompleted) {
+    // First call: perform dosing
+    if (_fert && _primeML > 0) {
+      Serial.printf("[TPA] Dosing Prime: %.1f ml\n", _primeML);
+      bool ok = _fert->doseChannel(NUM_FERTS, _primeML); // Channel 4 = Prime
+      if (!ok) {
+        Serial.println("[TPA] WARNING: Prime dosing may have timed out.");
+      }
+      // Deduct from Prime stock
+      float stock = _fert->getStockML(NUM_FERTS);
+      _fert->setStockML(NUM_FERTS, stock - _primeML);
+      _fert->saveState();
     }
-    // Deduct from Prime stock
-    float stock = _fert->getStockML(NUM_FERTS);
-    _fert->setStockML(NUM_FERTS, stock - _primeML);
-    _fert->saveState();
+    _doseCompleted = true;
+    _waitUntilMs = millis() + 2000; // Let Prime mix
+    return;
   }
 
-  delay(2000); // Let Prime mix
-  _enterState(TPAState::REFILLING);
+  // Subsequent calls: check if mixing wait has elapsed
+  if (!_isWaiting()) {
+    _waitUntilMs = 0;
+    _doseCompleted = false;
+    _enterState(TPAState::REFILLING);
+  }
 }
 
 void WaterManager::_handleRefilling() {

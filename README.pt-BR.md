@@ -101,6 +101,33 @@ graph LR
 
 ---
 
+## 🛡️ Segurança e Confiabilidade
+
+O sistema foi projetado com abordagem **safety-first** para prevenir alagamentos, danos aos equipamentos e perda de peixes.
+
+### Proteções de Software
+
+| Proteção | Descrição |
+|---|---|
+| **Watchdog de Hardware (WDT)** | Task WDT do ESP32 com timeout de 10 segundos. Se o loop principal travar, o ESP32 reinicia automaticamente. |
+| **SafetyWatchdog** | Roda com prioridade máxima a cada iteração do loop. Detecta overflow (sensor óptico), condições de emergência e desliga todos os atuadores. |
+| **Loops não-bloqueantes** | Todos os estados de espera (canister, mistura do prime) usam `millis()` em vez de `delay()`, permitindo que o watchdog continue rodando. |
+| **Timeouts por estado** | Cada estado da TPA (`DRAINING`, `FILLING`, `REFILLING`) tem timeout configurável. Ao exceder, entra em ERROR e desliga todos os atuadores. |
+| **Deduplicação NVS** | Evita dose dupla de fertilizantes no mesmo dia, mesmo após reinicializações inesperadas. |
+| **Desligamento de emergência** | Comando `emergency_stop` desliga TODOS os atuadores imediatamente. |
+| **Throttle de CPU** | Loop principal roda a ~100 Hz (`delay(10)`), evitando superaquecimento e deixando CPU livre para WiFi/TCP. |
+
+### Recomendações de Hardware
+
+| Proteção | Descrição |
+|---|---|
+| **Boia de overflow** | Boia NC (normalmente fechada) no nível máximo de água, ligada em série com a alimentação da bomba de refill. Corta a bomba fisicamente se a água subir demais — independente do firmware. |
+| **Diodos flyback** | FR154 nas bombas, 1N5822 na solenoide — absorvem picos de tensão de cargas indutivas. |
+| **Capacitores de desacoplamento** | 1000µF perto do ESP32, 470µF perto do módulo MOSFET — absorvem transientes de brownout. |
+| **Divisor de tensão (ECHO)** | 5V → 3.3V no pino echo do JSN-SR04T — protege o GPIO do ESP32. |
+
+---
+
 ## 🖥️ Simulação no Wokwi
 
 O projeto inclui suporte completo para simulação no [Wokwi](https://wokwi.com), permitindo testar o firmware **sem hardware físico**.

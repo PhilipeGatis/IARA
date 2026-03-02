@@ -109,6 +109,7 @@ extern unsigned long mock_millis_value;
 unsigned long millis();
 void delay(unsigned long ms);
 void delayMicroseconds(unsigned int us);
+void yield();
 
 // ---- LEDC (PWM) stubs ----
 void ledcSetup(uint8_t channel, double freq, uint8_t resolution);

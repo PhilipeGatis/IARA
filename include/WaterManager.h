@@ -74,6 +74,11 @@ private:
 
   // State timing
   unsigned long _stateStartMs;
+  unsigned long _waitUntilMs; // Non-blocking delay target (0 = not waiting)
+
+  // Dosing state
+  bool
+      _doseCompleted; // Tracks if Prime dosing already happened in DOSING_PRIME
 
   // Parameters
   float _drainTargetCm;
@@ -94,6 +99,11 @@ private:
 
   /// Elapsed time in current state (ms)
   unsigned long _stateElapsed() const { return millis() - _stateStartMs; }
+
+  /// Is waiting for a non-blocking delay to expire?
+  bool _isWaiting() const {
+    return _waitUntilMs > 0 && millis() < _waitUntilMs;
+  }
 
   /// Abort with error message
   void _error(const char *msg);
