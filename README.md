@@ -11,6 +11,8 @@
 ![PlatformIO CI](https://github.com/PhilipeGatis/IARA/actions/workflows/test.yml/badge.svg)
 
 > 🇧🇷 Leia em português: [README.pt-BR.md](README.pt-BR.md)
+>
+> 🇯🇵 日本語で読む: [README.ja.md](README.ja.md)
 
 ---
 
@@ -116,6 +118,7 @@ The system is designed with a **safety-first** approach to prevent flooding, equ
 | **NVS deduplication** | Prevents double-dosing fertilizers on the same day, even after unexpected reboots. |
 | **Emergency shutdown** | `emergency_stop` command turns off ALL actuators immediately. |
 | **CPU throttle** | Main loop runs at ~100 Hz (`delay(10)`), preventing overheating and leaving CPU headroom for WiFi/TCP stack. |
+| **Pump auto-calibration** | Flow rates measured inline during TPA (Δlevel × litersPerCm / Δtime). Dynamic timeouts = `(volume / flow) × 1.5`. First TPA uses safe 30s/15s defaults. |
 
 ### Hardware Recommendations
 
@@ -194,19 +197,21 @@ open coverage/index.html
 |---|---|---|
 | `test_fert_manager` | 13 | NVS dedup, stock, GPIO, persistence |
 | `test_safety_watchdog` | 14 | Sensors, emergency, maintenance |
-| `test_water_manager` | 17 | Full water change state machine |
+| `test_water_manager` | 23 | Full water change state machine + calibration |
 | `test_time_manager` | 15 | DateTime, scheduling, formatting |
+| `test_notify_manager` | 10 | Notifications, formatting |
 
 ### 📊 Code Coverage
 
-| File | Lines | Functions | Branches |
-|---|---|---|---|
-| `FertManager.cpp` | 94.2% | 100% | 77.3% |
-| `WaterManager.cpp` | 94.9% | 100% | 72.5% |
-| `SafetyWatchdog.cpp` | 80.8% | 92.9% | 66.7% |
-| **Overall** | **90.5%** | **98.2%** | **73.0%** |
+| File | Coverage |
+|---|---|
+| `WaterManager.cpp` | 92% |
+| `SafetyWatchdog.cpp` | 81% |
+| `FertManager.cpp` | 75% |
+| `NotifyManager.cpp` | 43% |
+| **Total** | **75%** |
 
-> 59 native unit tests running in CI on every commit.
+> 75 native unit tests running in CI on every commit.
 
 ---
 
@@ -273,10 +278,15 @@ cd frontend && npm install && npm run build
 ## 📁 Project Structure
 
 ```
-├── BOM.md                    # Bill of Materials
-├── HARDWARE.md               # Hardware architecture & wiring diagrams
+├── BOM.md                    # Bill of Materials (pt-BR)
+├── BOM.en.md                 # Bill of Materials (en-US)
+├── BOM.ja.md                 # Bill of Materials (ja-JP)
+├── HARDWARE.md               # Hardware architecture (pt-BR)
+├── HARDWARE.en.md            # Hardware architecture (en-US)
+├── HARDWARE.ja.md            # Hardware architecture (ja-JP)
 ├── README.md                 # Documentation (en-US) — default
 ├── README.pt-BR.md           # Documentation (pt-BR)
+├── README.ja.md              # Documentation (ja-JP)
 ├── Makefile                  # Automation: build frontend + upload
 ├── diagram.json              # Wokwi virtual circuit
 ├── wokwi.toml                # Wokwi simulator config

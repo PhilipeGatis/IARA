@@ -11,6 +11,8 @@
 ![PlatformIO CI](https://github.com/PhilipeGatis/IARA/actions/workflows/test.yml/badge.svg)
 
 > 🇺🇸 Read in English: [README.md](README.md)
+>
+> 🇯🇵 日本語で読む: [README.ja.md](README.ja.md)
 
 ---
 
@@ -116,6 +118,7 @@ O sistema foi projetado com abordagem **safety-first** para prevenir alagamentos
 | **Deduplicação NVS** | Evita dose dupla de fertilizantes no mesmo dia, mesmo após reinicializações inesperadas. |
 | **Desligamento de emergência** | Comando `emergency_stop` desliga TODOS os atuadores imediatamente. |
 | **Throttle de CPU** | Loop principal roda a ~100 Hz (`delay(10)`), evitando superaquecimento e deixando CPU livre para WiFi/TCP. |
+| **Auto-calibração de bombas** | Vazão medida durante a TPA (Δnível × litrosPorCm / Δtempo). Timeouts dinâmicos = `(volume / vazão) × 1.5`. Primeira TPA usa defaults seguros de 30s/15s. |
 
 ### Recomendações de Hardware
 
@@ -194,19 +197,21 @@ open coverage/index.html
 |---|---|---|
 | `test_fert_manager` | 13 | Dedup NVS, estoque, GPIO, persistência |
 | `test_safety_watchdog` | 14 | Sensores, emergência, manutenção |
-| `test_water_manager` | 17 | State machine TPA completa |
+| `test_water_manager` | 23 | State machine TPA + calibração |
 | `test_time_manager` | 15 | DateTime, agendamento, formatação |
+| `test_notify_manager` | 10 | Notificações, formatação |
 
 ### 📊 Code Coverage
 
-| Arquivo | Linhas | Funções | Branches |
-|---|---|---|---|
-| `FertManager.cpp` | 94.2% | 100% | 77.3% |
-| `WaterManager.cpp` | 94.9% | 100% | 72.5% |
-| `SafetyWatchdog.cpp` | 80.8% | 92.9% | 66.7% |
-| **Overall** | **90.5%** | **98.2%** | **73.0%** |
+| Arquivo | Cobertura |
+|---|---|
+| `WaterManager.cpp` | 92% |
+| `SafetyWatchdog.cpp` | 81% |
+| `FertManager.cpp` | 75% |
+| `NotifyManager.cpp` | 43% |
+| **Total** | **75%** |
 
-> 59 testes unitários nativos rodando no CI a cada commit.
+> 75 testes unitários nativos rodando no CI a cada commit.
 
 ---
 
