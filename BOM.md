@@ -56,7 +56,7 @@ Lista completa de componentes do sistema IARA.
 | # | Componente | Especificação | Qtd |
 |---|---|---|---|
 | 20 | JSN-SR04T | Ultrassônico à prova d'água, 5V | 1 |
-| 21 | Sensor óptico de nível | Tipo boia, digital (GPIO 4) | 1 |
+| 21 | Sensor capacitivo de nível | XKC-Y25-NPN, sem contato, 3.3–5V (GPIO 4) | 1 |
 | 22 | Boia float switch | Nível do reservatório (GPIO 35) | 1 |
 | 23 | DS3231 | Módulo RTC I2C (SDA 21 / SCL 22) | 1 |
 | 24 | Display OLED 0.96" | SSD1306, I2C, 128×64 | 1 |

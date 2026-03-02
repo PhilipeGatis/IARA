@@ -26,7 +26,7 @@ constexpr uint8_t PIN_CANISTER = 2; // Relay SSR for canister filter
 constexpr uint8_t PIN_TRIG = 18; // Ultrasonic JSN-SR04T trigger
 constexpr uint8_t PIN_ECHO = 19; // Ultrasonic JSN-SR04T echo
 constexpr uint8_t PIN_OPTICAL =
-    4; // Optical max-level sensor (INPUT_PULLUP, active LOW)
+    4; // Capacitive max-level sensor XKC-Y25-NPN (INPUT_PULLUP, active LOW)
 constexpr uint8_t PIN_FLOAT =
     5; // Horizontal float switch reservoir (INPUT_PULLUP, active LOW)
 constexpr uint8_t PIN_TPA_BUTTON =

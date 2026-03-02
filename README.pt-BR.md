@@ -85,7 +85,7 @@ graph LR
     ESP32 -->|D12, D13, D14, D25-D27, D32, D33| MOSFET
     ESP32 -->|D2| SSR[Omron SSR]
     ESP32 ---|D18 Trig, D19 Echo| Ultra[Ultrassônico JSN]
-    ESP32 ---|D4| Water[Sensor Óptico]
+    ESP32 ---|D4| Water[Sensor Capacitivo]
     ESP32 ---|D5| Float[Boia]
   end
 
@@ -282,6 +282,16 @@ cd frontend && npm install && npm run build
 └── .github/workflows/
     └── test.yml              # CI: testes a cada commit
 ```
+
+---
+
+## ☕ Apoie o Projeto
+
+Se este projeto foi útil para você, considere me pagar um café!
+
+<a href="https://buymeacoffee.com/iara.automatedwaterchange" target="_blank">
+  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" width="180" />
+</a>
 
 ---
 

@@ -160,6 +160,29 @@ O sensor opera em 5V, mas o ESP32 suporta no máximo **3.3V** nos GPIOs. O pino 
 > [!WARNING]
 > **Nunca conecte o ECHO diretamente ao ESP32** sem o divisor de tensão. Os 5V do ECHO podem danificar permanentemente o GPIO do ESP32.
 
+### Esquema de Ligação — Sensor Capacitivo de Nível (XKC-Y25-NPN)
+
+Sensor sem contato que detecta a presença de líquido através da parede do vidro/tubo. Saída NPN open-collector, compatível diretamente com 3.3V do ESP32.
+
+| Pino Sensor | Conexão |
+|---|---|
+| **VCC** (vermelho) | 3.3V do ESP32 |
+| **GND** (preto) | GND |
+| **OUT** (amarelo) | GPIO 4 (`INPUT_PULLUP`) |
+
+```
+  ESP32 3.3V ─────────── VCC (vermelho)
+                                            ┌────────────────┐
+  ESP32 GPIO4 ─────────── OUT (amarelo) ────┤ XKC-Y25-NPN    │
+   (INPUT_PULLUP)                           │ (colado no     │
+                                            │  vidro/tubo)   │
+  GND ─────────────────── GND (preto)  ────┤                │
+                                            └────────────────┘
+```
+
+> [!TIP]
+> **Sem resistor externo necessário.** O pull-up interno do ESP32 (~45kΩ) é suficiente para o open-collector NPN. O sensor fica colado na **parte externa** do vidro do aquário no nível máximo desejado.
+
 ---
 
 ## 🛠️ Notas de Implementação Segura
