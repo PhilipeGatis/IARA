@@ -33,6 +33,7 @@ public:
   uint32_t getTpaLastRun() const { return _tpaLastRun; }
   void setTpaLastRun(uint32_t epoch);
   uint8_t getTpaPercent() const { return _tpaPercent; }
+  uint8_t getCanisterSafePct() const { return _canisterSafePct; }
 
   // ---- Aquarium config ----
   uint32_t getAquariumVolume() const {
@@ -46,7 +47,7 @@ public:
   uint16_t getReservoirVolume() const { return _reservoirVolume; }
   bool isTpaConfigReady() const {
     return _aqHeight > 0 && _aqLength > 0 && _aqWidth > 0 &&
-           _reservoirVolume > 0 && _tpaPercent > 0;
+           _reservoirVolume > 0 && _tpaPercent > 0 && _canisterSafePct > 0;
   }
 
   /// Process serial commands (always active)
@@ -65,7 +66,8 @@ private:
   uint8_t _tpaHour;
   uint8_t _tpaMinute;
   uint32_t _tpaLastRun;
-  uint8_t _tpaPercent; // % of aquarium volume to change
+  uint8_t _tpaPercent;      // % of aquarium volume to change
+  uint8_t _canisterSafePct; // Min water level % for safe canister operation
 
   float _primeML;
 

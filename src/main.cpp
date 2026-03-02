@@ -411,6 +411,16 @@ void loop() {
             waterMgr.setRefillTargetCm(currentLevel);
             waterMgr.setLitersPerCm(lPerCm); // For inline calibration
 
+            // Compute canister safe level from percentage
+            // canisterSafePct = min water % for canister → convert to cm
+            // (ultrasonic dist) Higher % = needs more water = lower ultrasonic
+            // distance
+            float effH =
+                (float)webMgr.getAquariumVolume() / lPerCm; // effective height
+            float canisterSafeCm =
+                effH * (100.0f - webMgr.getCanisterSafePct()) / 100.0f;
+            waterMgr.setCanisterSafeLevelCm(canisterSafeCm);
+
             // Dynamic timeouts (if calibrated)
             float drainLPM = waterMgr.getDrainFlowLPM();
             float refillLPM = waterMgr.getRefillFlowLPM();

@@ -25,10 +25,10 @@ WebManager::WebManager()
 #endif
       _time(nullptr), _water(nullptr), _fert(nullptr), _safety(nullptr),
       _tpaInterval(7), _tpaHour(10), _tpaMinute(0), _tpaLastRun(0),
-      _tpaPercent(20), _primeML(DEFAULT_PRIME_ML), _aqHeight(0), _aqLength(0),
-      _aqWidth(0), _aqMarginCm(0), _drainFlowRate(0), _refillFlowRate(0),
-      _reservoirVolume(0), _reservoirSafetyML(0), _lastTelemetryMs(0),
-      _lastSSEMs(0) {
+      _tpaPercent(20), _canisterSafePct(0), _primeML(DEFAULT_PRIME_ML),
+      _aqHeight(0), _aqLength(0), _aqWidth(0), _aqMarginCm(0),
+      _drainFlowRate(0), _refillFlowRate(0), _reservoirVolume(0),
+      _reservoirSafetyML(0), _lastTelemetryMs(0), _lastSSEMs(0) {
 }
 
 // ============================================================================
@@ -129,6 +129,7 @@ String WebManager::_buildStatusJSON() {
   json += "\"tpaHour\":" + String(_tpaHour) + ",";
   json += "\"tpaMinute\":" + String(_tpaMinute) + ",";
   json += "\"tpaPercent\":" + String(_tpaPercent) + ",";
+  json += "\"canisterSafePct\":" + String(_canisterSafePct) + ",";
   json += "\"primeMl\":" + String(_primeML, 1) + ",";
   uint32_t aqVol = (uint32_t)_aqHeight * _aqLength * _aqWidth / 1000;
   float lPerCm = (float)_aqLength * _aqWidth / 1000.0;
@@ -488,6 +489,11 @@ void WebManager::_setupRoutes() {
           _tpaPercent = pct;
           changed = true;
         }
+        int csp = _extractInt(body, "canisterSafePct");
+        if (csp > 0 && csp <= 100) {
+          _canisterSafePct = csp;
+          changed = true;
+        }
 
         if (changed) {
           _saveParams();
@@ -840,6 +846,7 @@ void WebManager::_loadParams() {
   _tpaMinute = _prefs.getUChar("tpaM", 0);
   _tpaLastRun = _prefs.getUInt("tpaRun", 0);
   _tpaPercent = _prefs.getUChar("tpaPct", 20);
+  _canisterSafePct = _prefs.getUChar("canSf", 0);
   _primeML = _prefs.getFloat("tpaPr", DEFAULT_PRIME_ML);
   _aqHeight = _prefs.getUShort("aqH", 0);
   _aqLength = _prefs.getUShort("aqL", 0);
@@ -865,6 +872,7 @@ void WebManager::_saveParams() {
   _prefs.putUChar("tpaM", _tpaMinute);
   _prefs.putUInt("tpaRun", _tpaLastRun);
   _prefs.putUChar("tpaPct", _tpaPercent);
+  _prefs.putUChar("canSf", _canisterSafePct);
   _prefs.putFloat("tpaPr", _primeML);
   _prefs.putUShort("aqH", _aqHeight);
   _prefs.putUShort("aqL", _aqLength);
