@@ -31,7 +31,9 @@ WaterManager::WaterManager()
     : _state(TPAState::IDLE), _safety(nullptr), _fert(nullptr),
       _stateStartMs(0), _waitUntilMs(0), _doseCompleted(false),
       _drainTargetCm(LEVEL_DRAIN_TARGET_CM),
-      _refillTargetCm(LEVEL_REFILL_TARGET_CM), _primeML(DEFAULT_PRIME_ML),
+      _refillTargetCm(LEVEL_REFILL_TARGET_CM),
+      _canisterSafeLevelCm(15.0f), // Default: 15cm (safe for most canisters)
+      _primeML(DEFAULT_PRIME_ML),
       _timeoutDrainMs(30UL * 1000),  // 30s safe default (uncalibrated)
       _timeoutRefillMs(15UL * 1000), // 15s safe default (uncalibrated)
       _litersPerCm(0), _calStartLevel(0), _calStartMs(0), _drainFlowLPM(0),
@@ -327,13 +329,15 @@ void WaterManager::_error(const char *msg) {
   // (low distance = high water = safe for canister intake)
   if (_safety) {
     float dist = _safety->readUltrasonic();
-    if (dist > 0 && dist <= _refillTargetCm) {
+    if (dist > 0 && dist <= _canisterSafeLevelCm) {
       digitalWrite(PIN_CANISTER, LOW); // SSR: LOW = ON
-      Serial.printf("[TPA] Canister ON (water level %.1f cm is safe).\n", dist);
+      Serial.printf(
+          "[TPA] Canister ON (water level %.1f cm is safe, limit: %.1f cm).\n",
+          dist, _canisterSafeLevelCm);
     } else {
       Serial.printf("[TPA] WARNING: Canister stays OFF — water level %.1f cm "
                     "too low (need <= %.1f cm).\n",
-                    dist, _refillTargetCm);
+                    dist, _canisterSafeLevelCm);
     }
   } else {
     // No safety sensor — leave canister off for safety

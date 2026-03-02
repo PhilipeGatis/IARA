@@ -53,9 +53,11 @@ public:
   // ---- TPA parameters (set via WebManager) ----
   void setDrainTargetCm(float cm) { _drainTargetCm = cm; }
   void setRefillTargetCm(float cm) { _refillTargetCm = cm; }
+  void setCanisterSafeLevelCm(float cm) { _canisterSafeLevelCm = cm; }
   void setPrimeML(float ml) { _primeML = ml; }
   float getDrainTargetCm() const { return _drainTargetCm; }
   float getRefillTargetCm() const { return _refillTargetCm; }
+  float getCanisterSafeLevelCm() const { return _canisterSafeLevelCm; }
   float getPrimeML() const { return _primeML; }
 
   // ---- Dynamic timeouts ----
@@ -95,6 +97,8 @@ private:
   // Parameters
   float _drainTargetCm;
   float _refillTargetCm;
+  float
+      _canisterSafeLevelCm; // Min water level (cm) for safe canister operation
   float _primeML;
 
   // Dynamic timeouts (initialized from Config.h, updated after calibration)
