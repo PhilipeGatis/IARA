@@ -37,6 +37,7 @@ The project includes detailed hardware documentation in the following files:
 |---|---|
 | [`BOM.md`](BOM.md) | **Bill of Materials** — complete list of all components required for assembly, organized by layer (AC, DC, actuators, sensors, protection, and connectors), with specifications and quantities. |
 | [`HARDWARE.md`](HARDWARE.md) | **Hardware Architecture** — detailed technical documentation with wiring diagrams for each layer (AC input, DC bus, and peripherals), including noise protection schemes, voltage dividers for sensors, and safety implementation notes. |
+| [`3d_models/`](3d_models/) | **3D Models (OpenSCAD)** — parametric electronics enclosure (`electronics_enclosure.scad`) with full module layout, dosing pump supports (`dosing_pump_support.scad` / `dosing_pump_single.scad`), and drill test plate for verification. |
 
 ---
 
@@ -419,6 +420,10 @@ cd frontend && npm install && npm run build
 ├── BOM.en.md                 # Bill of Materials (en-US)
 ├── BOM.ja.md                 # Bill of Materials (ja-JP)
 ├── HARDWARE.md               # Hardware architecture (pt-BR)
+├── 3d_models/                # 3D models for printing and laser cutting
+│   ├── electronics_enclosure.scad  # Electronics enclosure (base + lid)
+│   ├── dosing_pump_support.scad    # 8-pump dosing support
+│   └── dosing_pump_single.scad     # Single pump support
 ├── HARDWARE.en.md            # Hardware architecture (en-US)
 ├── HARDWARE.ja.md            # Hardware architecture (ja-JP)
 ├── README.md                 # Documentation (en-US) — default

@@ -37,6 +37,7 @@
 |---|---|
 | [`BOM.md`](BOM.md) / [`BOM.ja.md`](BOM.ja.md) | **部品表** — AC、DC、アクチュエーター、センサー、保護、コネクタのレイヤー別全コンポーネントリスト。 |
 | [`HARDWARE.md`](HARDWARE.md) / [`HARDWARE.ja.md`](HARDWARE.ja.md) | **ハードウェアアーキテクチャ** — 各レイヤーの配線図、ノイズ保護、センサー用分圧回路、安全実装ノートを含む詳細技術資料。 |
+| [`3d_models/`](3d_models/) | **3Dモデル (OpenSCAD)** — パラメトリック電子機器筐体 (`electronics_enclosure.scad`)、ドーシングポンプサポート (`dosing_pump_support.scad` / `dosing_pump_single.scad`)、ドリルテストプレート。 |
 
 ---
 
@@ -421,6 +422,10 @@ cd frontend && npm install && npm run build
 ├── HARDWARE.md               # ハードウェアアーキテクチャ（pt-BR）
 ├── HARDWARE.en.md            # ハードウェアアーキテクチャ（en-US）
 ├── HARDWARE.ja.md            # ハードウェアアーキテクチャ（ja-JP）
+├── 3d_models/                # 3Dモデル（3D印刷・レーザーカット）
+│   ├── electronics_enclosure.scad  # 電子機器筐体（ベース＋蓋）
+│   ├── dosing_pump_support.scad    # 8ポンプドーシングサポート
+│   └── dosing_pump_single.scad     # 単体ポンプサポート
 ├── README.md                 # ドキュメント（en-US） — デフォルト
 ├── README.pt-BR.md           # ドキュメント（pt-BR）
 ├── README.ja.md              # ドキュメント（ja-JP）

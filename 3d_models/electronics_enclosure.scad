@@ -13,11 +13,11 @@ $fn = 50; // Aumentar para 120+ na exportação STL final
 // ============================================================
 
 // -- Dimensões externas (baseado na Patola PB-710) --
-box_width = 250; // mm (X) - aumentado para MOSFET 99mm
-box_depth = 150; // mm (Y)
-box_height = 60; // mm (Z) - altura da base (aumentado para fonte 40mm)
+box_width = 250; // mm (X)
+box_depth = 220; // mm (Y) - para fonte 199×98mm + módulos
+box_height = 62; // mm (Z) - altura da base (para fonte 42mm)
 wall = 3; // mm - espessura das paredes
-base_height = 60; // mm - altura da caixa
+base_height = 62; // mm - altura da caixa
 corner_r = 5; // mm - raio dos cantos arredondados
 
 // -- Tampa de acrílico --
@@ -35,10 +35,10 @@ screw_boss_h = base_height - wall; // mm
 // ============================================================
 
 // -- Fonte Colmeia 180W (dimensões reais) --
-// 129 x 99 x 40mm
-psu_w = 129;
-psu_d = 99;
-psu_h = 40;
+// 199 x 98 x 42mm
+psu_w = 199;
+psu_d = 98;
+psu_h = 42;
 
 // -- ESP32 DevKit V1 (38 pinos) --
 // ~51 x 28mm, furos nos cantos
@@ -75,6 +75,11 @@ oled_board_h = 30; // mm - PCB altura
 oled_mount_holes_spacing_w = 23.5; // mm
 oled_mount_holes_spacing_h = 23.5; // mm
 oled_mount_d = 2.2; // mm - M2
+
+// -- Módulo Sensor Ultrassônico --
+// 41 x 28.5mm
+ultra_w = 41;
+ultra_d = 28.5;
 
 // ============================================================
 // PARÂMETROS DOS CONECTORES NO PAINEL
@@ -143,7 +148,7 @@ module screw_boss(h, outer_d, inner_d) {
 }
 
 // --- Standoff para montagem de módulo ---
-module standoff(h = 8, outer_d = 5, inner_d = 2.5) {
+module standoff(h = 6, outer_d = 4, inner_d = 2.2) {
   difference() {
     cylinder(d=outer_d, h=h);
     translate([0, 0, h - 4])
@@ -152,16 +157,29 @@ module standoff(h = 8, outer_d = 5, inner_d = 2.5) {
 }
 
 // --- Grid de standoffs para um módulo ---
-module module_standoffs(w, d, h = 8) {
-  positions = [
-    [-w / 2 + 3, -d / 2 + 3],
-    [w / 2 - 3, -d / 2 + 3],
-    [-w / 2 + 3, d / 2 - 3],
-    [w / 2 - 3, d / 2 - 3],
-  ];
-  for (pos = positions)
-    translate([pos[0], pos[1], wall])
-      standoff(h);
+module module_standoffs(w, d, h = 6) {
+  inset = 2.5;
+  if (w < 40) {
+    // Módulos pequenos: apenas 2 standoffs diagonais
+    positions = [
+      [-w / 2 + inset, -d / 2 + inset],
+      [w / 2 - inset, d / 2 - inset],
+    ];
+    for (pos = positions)
+      translate([pos[0], pos[1], wall])
+        standoff(h);
+  } else {
+    // Módulos grandes: 4 standoffs nos cantos
+    positions = [
+      [-w / 2 + inset, -d / 2 + inset],
+      [w / 2 - inset, -d / 2 + inset],
+      [-w / 2 + inset, d / 2 - inset],
+      [w / 2 - inset, d / 2 - inset],
+    ];
+    for (pos = positions)
+      translate([pos[0], pos[1], wall])
+        standoff(h);
+  }
 }
 
 // --- Slots de ventilação ---
@@ -201,76 +219,68 @@ module pump_labels() {
   col_spacing = 25;
   row_spacing = pump_conn_d + 6;
   start_z = wall + 10;
-  labels = ["CH1", "CH2", "CH3", "CH4", "CH5", "CH6", "CH7", "CH8"];
+  labels = ["SOL", "DREN", "PRIME", "RECALQ", "DOSE1", "DOSE2", "DOSE3", "DOSE4"];
 
   for (col = [0:cols - 1])
     for (row = [0:rows - 1]) {
       idx = col * rows + row;
       y_offset = -pump_conn_qty / rows * row_spacing / 2 + row * row_spacing + row_spacing / 2;
       z_offset = start_z + col * col_spacing;
-      translate([-box_width / 2 - 0.1, y_offset + pump_conn_d / 2 + 3, z_offset])
+      translate([-box_width / 2 - 0.1, y_offset, z_offset + pump_conn_d / 2 + 3])
         rotate([90, 0, -90])
           linear_extrude(0.6)
             text(
-              labels[idx], size=4, halign="center", valign="center",
+              labels[idx], size=2.5, halign="center", valign="center",
               font="Liberation Sans:style=Bold"
             );
     }
 }
 
 // ============================================================
-// PAINEL TRASEIRO - AC (IEC C14 c/ fusível + Tomada NBR 14136)
+// PAINEL TRASEIRO - (livre, fonte ocupa toda a largura)
 // ============================================================
 module back_panel_cutouts() {
-  panel_y = -box_depth / 2;
-
-  // IEC C14 com fusível - entrada de força (esquerda)
-  translate([-box_width / 4, panel_y - 0.1, base_height / 2 + 2])
-    rotate([-90, 0, 0]) {
-      // Recorte retangular (maior para acomodar o fusível)
-      translate([-iec_fuse_w / 2, -iec_fuse_h / 2, 0])
-        cube([iec_fuse_w, iec_fuse_h, wall + 0.2]);
-      // Furos de fixação
-      translate([-iec_fuse_mount_w / 2, 0, 0])
-        cylinder(d=iec_fuse_mount_d, h=wall + 0.2);
-      translate([iec_fuse_mount_w / 2, 0, 0])
-        cylinder(d=iec_fuse_mount_d, h=wall + 0.2);
-    }
-
-  // Tomada NBR 14136 para canister (direita) - recorte circular
-  translate([box_width / 4, panel_y - 0.1, base_height / 2 + 2])
-    rotate([-90, 0, 0]) {
-      // Recorte circular principal
-      cylinder(d=nbr_outlet_d, h=wall + 0.2);
-      // Furos de fixação (acima e abaixo)
-      translate([0, nbr_outlet_mount_spacing / 2, 0])
-        cylinder(d=nbr_outlet_mount_d, h=wall + 0.2);
-      translate([0, -nbr_outlet_mount_spacing / 2, 0])
-        cylinder(d=nbr_outlet_mount_d, h=wall + 0.2);
-    }
+  // Painel traseiro livre (fonte 199mm)
+}
+module ac_labels() {
+  // Sem labels no painel traseiro
 }
 
-// --- Etiquetas AC ---
-module ac_labels() {
-  panel_y = -box_depth / 2;
+// ============================================================
+// PAINEL FRONTAL - Sensores (RJ45)
+// ============================================================
+module front_panel_cutouts() {
+  panel_y = box_depth / 2; // Front panel
+  rj45_spacing = rj45_w + 8;
 
-  // Label "AC IN + FUSE"
-  translate([-box_width / 4, panel_y - 0.1, base_height / 2 + iec_fuse_h / 2 + 6])
-    rotate([90, 0, 0])
-      linear_extrude(0.6)
-        text(
-          "AC IN", size=5, halign="center", valign="center",
-          font="Liberation Sans:style=Bold"
-        );
+  // 3 conectores RJ45 sensores (acima da fonte, z alto)
+  sensor_z = wall + psu_h - 4 + rj45_h / 2; // acima da fonte, -5mm
+  for (i = [0:rj45_qty - 1]) {
+    x_offset = -(rj45_qty - 1) * rj45_spacing / 2 + i * rj45_spacing;
+    translate([x_offset, panel_y + 0.1, sensor_z])
+      rotate([90, 0, 0]) // Rotate to face outwards from front
+        translate([-rj45_w / 2, -rj45_h / 2, 0])
+          cube([rj45_w, rj45_h, wall + 0.2]);
+  }
+}
 
-  // Label "CANISTER" com símbolo BR
-  translate([box_width / 4, panel_y - 0.1, base_height / 2 + nbr_outlet_d / 2 + 6])
-    rotate([90, 0, 0])
-      linear_extrude(0.6)
-        text(
-          "CANISTER", size=4, halign="center", valign="center",
-          font="Liberation Sans:style=Bold"
-        );
+module front_panel_labels() {
+  // Labels dos sensores no painel frontal
+  panel_y = box_depth / 2; // Front panel
+  rj45_spacing = rj45_w + 8;
+  labels = ["ULTRA", "CAP", "BOIA"];
+  sensor_z = wall + psu_h + 1 + rj45_h / 2;
+
+  for (i = [0:rj45_qty - 1]) {
+    x_offset = -(rj45_qty - 1) * rj45_spacing / 2 + i * rj45_spacing;
+    translate([x_offset, panel_y + 0.1, sensor_z + rj45_h / 2 + 3])
+      rotate([-90, 0, 0]) // Rotate to face outwards from front
+        linear_extrude(0.6)
+          text(
+            labels[i], size=3.5, halign="center", valign="center",
+            font="Liberation Sans:style=Bold"
+          );
+  }
 }
 
 // ============================================================
@@ -280,47 +290,58 @@ module right_panel_cutouts() {
   panel_x = box_width / 2;
   rj45_spacing = rj45_w + 8;
 
-  // 3 conectores RJ45
-  for (i = [0:rj45_qty - 1]) {
-    y_offset = -(rj45_qty - 1) * rj45_spacing / 2 + i * rj45_spacing;
-    translate([panel_x + 0.1, y_offset, base_height / 2 - rj45_h / 2 + 5])
-      rotate([0, -90, 0])
-        rotate([0, 0, 90])
-          translate([-rj45_w / 2, -rj45_h / 2, 0])
-            cube([rj45_w, rj45_h, wall + 0.2]);
-  }
+  // IEC C14 com fusível - AC IN
+  translate([panel_x + 0.1, box_depth / 4 + 25, base_height / 2 + 2])
+    rotate([0, -90, 0]) {
+      translate([-iec_fuse_w / 2, -iec_fuse_h / 2, 0])
+        cube([iec_fuse_w, iec_fuse_h, wall + 0.2]);
+      translate([-iec_fuse_mount_w / 2, 0, 0])
+        cylinder(d=iec_fuse_mount_d, h=wall + 0.2);
+      translate([iec_fuse_mount_w / 2, 0, 0])
+        cylinder(d=iec_fuse_mount_d, h=wall + 0.2);
+    }
 
-  // PG7 cable gland (para cabos extras)
-  translate([panel_x + 0.1, box_depth / 2 - 20, base_height / 2 + 5])
-    rotate([0, -90, 0])
-      cylinder(d=pg7_d, h=wall + 0.2);
+  // Tomada NBR 14136 canister
+  translate([panel_x + 0.1, 25, base_height / 2 + 2])
+    rotate([0, -90, 0]) {
+      cylinder(d=nbr_outlet_d, h=wall + 0.2);
+      translate([0, nbr_outlet_mount_spacing / 2, 0])
+        cylinder(d=nbr_outlet_mount_d, h=wall + 0.2);
+      translate([0, -nbr_outlet_mount_spacing / 2, 0])
+        cylinder(d=nbr_outlet_mount_d, h=wall + 0.2);
+    }
 }
 
-// --- Etiquetas sensores ---
+// --- Etiquetas painel direito ---
 module sensor_labels() {
   panel_x = box_width / 2;
-  rj45_spacing = rj45_w + 8;
-  labels = ["ULTRA", "CAP", "BOIA"];
 
-  for (i = [0:rj45_qty - 1]) {
-    y_offset = -(rj45_qty - 1) * rj45_spacing / 2 + i * rj45_spacing;
-    translate([panel_x + 0.1, y_offset, base_height / 2 + rj45_h / 2 + 8])
-      rotate([90, 0, 90])
-        linear_extrude(0.6)
-          text(
-            labels[i], size=4, halign="center", valign="center",
-            font="Liberation Sans:style=Bold"
-          );
-  }
+  // Label "AC IN"
+  translate([panel_x + 0.1, box_depth / 4 + 25, base_height / 2 + iec_fuse_h / 2 + 6])
+    rotate([90, 0, 90])
+      linear_extrude(0.6)
+        text(
+          "AC IN", size=5, halign="center", valign="center",
+          font="Liberation Sans:style=Bold"
+        );
+
+  // Label "CANISTER"
+  translate([panel_x + 0.1, 25, base_height / 2 + nbr_outlet_d / 2 + 6])
+    rotate([90, 0, 90])
+      linear_extrude(0.6)
+        text(
+          "CANISTER", size=4, halign="center", valign="center",
+          font="Liberation Sans:style=Bold"
+        );
 }
 
 // ============================================================
 // TAMPA DE ACRÍLICO (chapa reta)
 // ============================================================
 module lid() {
-  // Posição do OLED alinhada com o ESP32 (frente-direita)
-  oled_x_offset = box_width / 4 - 5;
-  oled_y_offset = box_depth / 4 - 10;
+  // Posição do OLED alinhada com o ESP32 (20, 70)
+  oled_x_offset = 40;
+  oled_y_offset = 45;
 
   color("LightCyan", 0.4)
     translate([0, 0, base_height])
@@ -371,8 +392,8 @@ module lid() {
 
 // --- Template 2D para corte laser (exportar como DXF) ---
 module lid_2d() {
-  oled_x_offset = box_width / 4 - 5;
-  oled_y_offset = box_depth / 4 - 10;
+  oled_x_offset = 40;
+  oled_y_offset = 45;
   difference() {
     // Contorno
     hull() {
@@ -453,52 +474,69 @@ module base() {
           translate([pos[0], pos[1], 0])
             screw_boss(screw_boss_h, screw_boss_d, screw_d);
 
-        // Standoffs para MOSFET 8CH (frente-esquerda)
-        translate([-box_width / 4 + 5, box_depth / 4 - 5, 0])
-          module_standoffs(mosfet_w, mosfet_d, h=6);
+        // ---- LAYOUT conforme diagrama do usuário ----
+        // PSU (129×99): back-right, centro x=30
+        // MOSFET (99×52): front-left, centro (-60, 55)
+        // ESP32 (51×28): center-front, centro (20, 70)
+        // RTC (38×22): center, centro (20, 40)
+        // LM2596 (61×34): center-right, centro (70, 40)
+        // SSR (25×34): back-left, centro (-80, -50)
 
-        // Standoffs para ESP32 (frente-direita)
-        translate([box_width / 4 - 5, box_depth / 4 - 10, 0])
-          module_standoffs(esp32_w, esp32_d, h=6);
+        // Standoffs para MOSFET 8CH (frente-esquerda, GIRADO 90° = 52×99)
+        color("DarkRed")
+          translate([-70, 48, 0])
+            module_standoffs(mosfet_d, mosfet_w, h=6);
 
-        // Standoffs para LM2596 (traseira-esquerda)
-        translate([-box_width / 4 + 5, -box_depth / 4 + 5, 0])
-          module_standoffs(lm2596_w, lm2596_d, h=6);
+        // Standoffs para ESP32 (centro-frente)
+        color("DarkGreen")
+          translate([40, 45, 0])
+            module_standoffs(esp32_w, esp32_d, h=6);
 
-        // Standoffs para SSR (traseira-direita, perto do canister)
-        translate([box_width / 4, -box_depth / 4 + 10, 0])
-          module_standoffs(ssr_w, ssr_d, h=6);
+        // Standoffs para LM2596 (centro-direita, GIRADO 90° = 34×61)
+        color("DarkBlue")
+          translate([-20, 55, 0])
+            module_standoffs(lm2596_d, lm2596_w, h=6);
 
-        // RTC DS3231 monta empilhado sobre o ESP32 (sem standoffs separados)
+        // Standoffs para sensor ultrassônico (direita-frente)
+        color("Teal")
+          translate([40, 85, 0])
+            module_standoffs(ultra_w, ultra_d, h=6);
 
-        // Guia/suporte para a fonte (trilhos laterais)
-        translate([-psu_w / 2, -box_depth / 2 + wall + 2, wall]) {
-          cube([3, psu_d, psu_h / 2]); // trilho esquerdo
-          translate([psu_w - 3, 0, 0])
-            cube([3, psu_d, psu_h / 2]);
-          // trilho direito
-        }
+        // Standoffs para SSR (abaixo do ultrassom)
+        color("Orange")
+          translate([90, 30, 0])
+            module_standoffs(ssr_d, ssr_w, h=6);
+        // w/d invertidos = 34×25
+
+        // Standoffs para RTC DS3231 (centro)
+        color("Purple")
+          translate([40, 8, 0])
+            module_standoffs(rtc_w, rtc_d, h=6);
+
+        // Fonte fixada com fita dupla face no fundo (sem pilares)
       }
 
       // ------ Cortes nos painéis ------
 
-      // Painel traseiro (AC)
+      // Painel traseiro (livre)
       back_panel_cutouts();
 
       // Painel esquerdo (bombas DC)
       left_panel_cutouts();
 
-      // Painel direito (sensores)
+      // Painel direito (AC IN + CANISTER)
       right_panel_cutouts();
 
-      // Ventilação no fundo
-      translate([0, 0, 0])
-        vent_slots(6, vent_slot_w, vent_slot_l * 1.5, vent_spacing);
+      // Painel frontal (sensores RJ45)
+      front_panel_cutouts();
 
-      // Cooler 40mm no painel frontal (acima do MOSFET)
-      fan_x = -box_width / 4 + 5; // alinhado com o MOSFET
+      // Ventilação no fundo (apenas sob a fonte, onde gera calor)
+      translate([0, -box_depth / 2 + wall + 2 + psu_d / 2, 0])
+        vent_slots(4, vent_slot_w, vent_slot_l, vent_spacing);
+
+      // Cooler 40mm no painel frontal (CENTRALIZADO)
       fan_z = wall + fan_size / 2 + 5;
-      translate([fan_x, box_depth / 2 - wall - 0.1, fan_z])
+      translate([-80, box_depth / 2 - wall - 0.1, fan_z])
         rotate([-90, 0, 0]) {
           // Abertura circular
           cylinder(d=fan_size - 4, h=wall + 0.2);
@@ -513,7 +551,6 @@ module base() {
               translate([dx, dy, 0])
                 cylinder(d=fan_screw_d, h=wall + 0.2);
         }
-
       // Pés de borracha (recesso)
       for (x = [-box_width / 2 + 15, box_width / 2 - 15])
         for (y = [-box_depth / 2 + 15, box_depth / 2 - 15])
@@ -529,6 +566,9 @@ module base() {
 
   // Etiquetas sensores
   sensor_labels();
+
+  // Etiquetas sensores no painel frontal
+  front_panel_labels();
 
   // Etiquetas internas dos módulos
   module_area_labels();
@@ -547,61 +587,70 @@ module module_area_labels() {
           font="Liberation Sans:style=Bold"
         );
 
-  // MOSFET 8CH (frente-esquerda)
+  // MOSFET 8CH (frente-esquerda, girado 90°)
   color("White")
-    translate([-box_width / 4 + 5, box_depth / 4 - 5, wall])
+    translate([-70, 48, wall])
       linear_extrude(label_h)
         text(
           "MOSFET", size=4, halign="center", valign="center",
           font="Liberation Sans:style=Bold"
         );
   color("White")
-    translate([-box_width / 4 + 5, box_depth / 4 - 13, wall])
+    translate([-70, 40, wall])
       linear_extrude(label_h)
         text(
           "8CH", size=3.5, halign="center", valign="center",
           font="Liberation Sans:style=Bold"
         );
 
-  // ESP32 (frente-direita)
+  // ESP32 (centro-frente)
   color("White")
-    translate([box_width / 4 - 5, box_depth / 4 - 10, wall])
+    translate([40, 45, wall])
       linear_extrude(label_h)
         text(
           "ESP32", size=4, halign="center", valign="center",
           font="Liberation Sans:style=Bold"
         );
 
-  // LM2596 (traseira-esquerda)
+  // RTC (centro, abaixo ESP)
   color("White")
-    translate([-box_width / 4 + 5, -box_depth / 4 + 5, wall])
-      linear_extrude(label_h)
-        text(
-          "LM2596", size=3.5, halign="center", valign="center",
-          font="Liberation Sans:style=Bold"
-        );
-
-  // SSR (traseira-direita, perto do canister)
-  color("White")
-    translate([box_width / 4, -box_depth / 4 + 10, wall])
-      linear_extrude(label_h)
-        text(
-          "SSR", size=4, halign="center", valign="center",
-          font="Liberation Sans:style=Bold"
-        );
-
-  // DS3231 RTC (empilhado no ESP32, frente-direita)
-  color("White")
-    translate([box_width / 4 - 5, box_depth / 4 - 20, wall])
+    translate([40, 8, wall])
       linear_extrude(label_h)
         text(
           "RTC", size=3, halign="center", valign="center",
           font="Liberation Sans:style=Bold"
         );
 
+  // LM2596 (centro-direita, girado 90°)
+  color("White")
+    translate([-20, 55, wall])
+      linear_extrude(label_h)
+        text(
+          "LM2596", size=3.5, halign="center", valign="center",
+          font="Liberation Sans:style=Bold"
+        );
+
+  // Sensor Ultrassônico (direita-frente)
+  color("White")
+    translate([40, 85, wall])
+      linear_extrude(label_h)
+        text(
+          "ULTRA", size=3.5, halign="center", valign="center",
+          font="Liberation Sans:style=Bold"
+        );
+
+  // SSR (esquerda-centro)
+  color("White")
+    translate([90, 30, wall])
+      linear_extrude(label_h)
+        text(
+          "SSR", size=4, halign="center", valign="center",
+          font="Liberation Sans:style=Bold"
+        );
+
   // Marcador posição OLED (acima do ESP32)
   color("White")
-    translate([box_width / 4 - 5, box_depth / 4 - 3, wall])
+    translate([40, 55, wall])
       linear_extrude(label_h)
         text(
           "OLED", size=3, halign="center", valign="center",
@@ -614,7 +663,10 @@ module module_area_labels() {
 // ============================================================
 module full_enclosure() {
   base();
-  lid();
+
+  // Tampa ao lado da base (deslocada em X)
+  translate([box_width + 20, 0, 0])
+    lid();
 
   // Visualização ghost dos componentes (apenas referência)
   %ghost_components();
@@ -622,45 +674,48 @@ module full_enclosure() {
 
 // --- Ghost dos componentes (transparente, para referência) ---
 module ghost_components() {
-  // Fonte
+  // Fonte (centralizada)
   color("Silver", 0.3)
     translate([-psu_w / 2, -box_depth / 2 + wall + 2, wall])
       cube([psu_w, psu_d, psu_h]);
 
-  // MOSFET (frente-esquerda)
+  // MOSFET (frente-esquerda, girado 90°: 52×99mm)
   color("DarkRed", 0.3)
-    translate([-box_width / 4 + 5 - mosfet_w / 2, box_depth / 4 - 5 - mosfet_d / 2, wall + 6])
-      cube([mosfet_w, mosfet_d, 15]);
+    translate([-70 - mosfet_d / 2, 48 - mosfet_w / 2, wall + 6])
+      cube([mosfet_d, mosfet_w, 15]);
 
-  // ESP32 (frente-direita)
+  // ESP32 (centro-frente)
   color("DarkGreen", 0.3)
-    translate([box_width / 4 - 5 - esp32_w / 2, box_depth / 4 - 10 - esp32_d / 2, wall + 6])
+    translate([40 - esp32_w / 2, 45 - esp32_d / 2, wall + 6])
       cube([esp32_w, esp32_d, 8]);
 
-  // LM2596 (traseira-esquerda)
+  // LM2596 (centro-direita, girado 90°: 34×61mm)
   color("DarkBlue", 0.3)
-    translate([-box_width / 4 + 5 - lm2596_w / 2, -box_depth / 4 + 5 - lm2596_d / 2, wall + 6])
-      cube([lm2596_w, lm2596_d, 10]);
+    translate([-20 - lm2596_d / 2, 55 - lm2596_w / 2, wall + 6])
+      cube([lm2596_d, lm2596_w, 10]);
 
-  // SSR (traseira-direita, perto do canister)
+  // Sensor Ultrassônico (direita-frente)
+  color("Teal", 0.3)
+    translate([40 - ultra_w / 2, 85 - ultra_d / 2, wall + 6])
+      cube([ultra_w, ultra_d, 8]);
+
+  // SSR (esquerda-centro)
   color("Orange", 0.3)
-    translate([box_width / 4 - ssr_w / 2, -box_depth / 4 + 10 - ssr_d / 2, wall + 6])
-      cube([ssr_w, ssr_d, 12]);
+    translate([90 - ssr_d / 2, 30 - ssr_w / 2, wall + 6])
+      cube([ssr_d, ssr_w, 12]);
 
-  // DS3231 RTC (empilhado sobre o ESP32)
+  // DS3231 RTC (abaixo do ESP32)
   color("Purple", 0.3)
-    translate([box_width / 4 - 5 - rtc_w / 2, box_depth / 4 - 10 - rtc_d / 2, wall + 6 + 8])
+    translate([40 - rtc_w / 2, 8 - rtc_d / 2, wall + 6])
       cube([rtc_w, rtc_d, 5]);
 
   // OLED (acima do ESP32, montado na tampa)
   color("Cyan", 0.3)
-    translate([box_width / 4 - 5 - oled_board_w / 2, box_depth / 4 - 10 - oled_board_h / 2, base_height - 5])
+    translate([40 - oled_board_w / 2, 45 - oled_board_h / 2, base_height - 5])
       cube([oled_board_w, oled_board_h, 3]);
 }
 
-// --- Renderizar ---
-full_enclosure();
-
+// Renderização movida para o final do arquivo
 // ============================================================
 // VARIANTES PARA FABRICAÇÃO
 // ============================================================
@@ -687,3 +742,58 @@ full_enclosure();
 //   Usar o módulo lid_2d() e exportar como DXF
 //   Fixação: 4× parafusos M3×8mm + porcas
 // ============================================================
+
+// ============================================================
+// PLACA DE TESTE DE FURAÇÃO (impressão rápida)
+// ============================================================
+// Placa fina (3mm) com todos os standoffs para verificar
+// posicionamento dos furos antes de imprimir a caixa completa.
+// Para usar: comente full_enclosure() e descomente test_plate()
+// ============================================================
+module test_plate() {
+  plate_h = 3; // espessura da placa de teste
+
+  // Placa base fina com mesmas dimensões internas
+  color("LightBlue", 0.5)
+    translate([0, 0, plate_h / 2])
+      cube([box_width - 2 * wall, box_depth - 2 * wall, plate_h], center=true);
+
+  // Standoffs MOSFET (vermelho)
+  color("DarkRed")
+    translate([-70, 48, plate_h])
+      module_standoffs(mosfet_d, mosfet_w, h=6);
+
+  // Standoffs ESP32 (verde)
+  color("DarkGreen")
+    translate([40, 45, plate_h])
+      module_standoffs(esp32_w, esp32_d, h=6);
+
+  // Standoffs LM2596 (azul)
+  color("DarkBlue")
+    translate([-20, 55, plate_h])
+      module_standoffs(lm2596_d, lm2596_w, h=6);
+
+  // Standoffs ULTRA (teal)
+  color("Teal")
+    translate([40, 85, plate_h])
+      module_standoffs(ultra_w, ultra_d, h=6);
+
+  // Standoffs SSR (laranja)
+  color("Orange")
+    translate([90, 30, plate_h])
+      module_standoffs(ssr_d, ssr_w, h=6);
+
+  // Standoffs RTC (roxo)
+  color("Purple")
+    translate([40, 8, plate_h])
+      module_standoffs(rtc_w, rtc_d, h=6);
+
+  // Labels para identificação
+  module_area_labels();
+}
+
+// === RENDERIZAR ===
+// Descomente a linha desejada:
+
+full_enclosure(); // Caixa completa
+// test_plate(); // Somente placa de teste de furação

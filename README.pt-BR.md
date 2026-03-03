@@ -37,6 +37,7 @@ O projeto possui documentação detalhada de hardware organizada nos seguintes a
 |---|---|
 | [`BOM.md`](BOM.md) | **Bill of Materials** — lista completa de todos os componentes necessários para montagem, organizada por camadas (AC, DC, atuadores, sensores, proteção e conectores), com especificações e quantidades. |
 | [`HARDWARE.md`](HARDWARE.md) | **Arquitetura de Hardware** — documentação técnica detalhada com diagramas de ligação de cada camada (entrada AC, barramento DC e periféricos), incluindo esquemas de proteção contra ruído, divisor de tensão para sensores e notas de segurança para implementação. |
+| [`3d_models/`](3d_models/) | **Modelos 3D (OpenSCAD)** — caixa de eletrônica paramétrica (`electronics_enclosure.scad`) com layout de todos os módulos, suporte para bombas dosadoras (`dosing_pump_support.scad` / `dosing_pump_single.scad`), e placa de teste de furação. |
 
 ---
 
@@ -448,6 +449,10 @@ cd frontend && npm install && npm run build
 │   └── test_time_manager/
 ├── scripts/
 │   └── coverage.sh           # Gera relatório lcov
+├── 3d_models/                # Modelos 3D para impressão e corte laser
+│   ├── electronics_enclosure.scad  # Caixa de eletrônica (base + tampa)
+│   ├── dosing_pump_support.scad    # Suporte 8 bombas dosadoras
+│   └── dosing_pump_single.scad     # Suporte individual para bomba
 └── .github/workflows/
     └── test.yml              # CI: testes a cada commit
 ```
