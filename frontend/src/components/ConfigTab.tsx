@@ -2,6 +2,33 @@ import { useState, useEffect } from 'react';
 import { api, type AQStatus } from '../App';
 import { useT, type Lang } from '../i18n';
 
+type NotifyStatus = {
+    enabled: boolean;
+    key: string;
+    dailyCount: number;
+    reportHour: number;
+    reportMinute: number;
+    types: boolean[];
+};
+
+const NOTIFY_TYPE_KEYS = [
+    'notify.tpaComplete',
+    'notify.tpaError',
+    'notify.fertLowStock',
+    'notify.emergency',
+    'notify.fertComplete',
+    'notify.dailyLevel',
+] as const;
+
+const NOTIFY_TYPE_API_KEYS = [
+    'tpaComplete',
+    'tpaError',
+    'fertLowStock',
+    'emergency',
+    'fertComplete',
+    'dailyLevel',
+];
+
 export default function ConfigTab({ status }: { status: AQStatus | null }) {
     const { t, lang, setLang } = useT();
     const [height, setHeight] = useState('');
@@ -16,6 +43,13 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
     const [networks, setNetworks] = useState<string[]>([]);
     const [scanning, setScanning] = useState(false);
 
+    // Notification state
+    const [notifyStatus, setNotifyStatus] = useState<NotifyStatus | null>(null);
+    const [pushKey, setPushKey] = useState('');
+    const [reportH, setReportH] = useState('');
+    const [reportM, setReportM] = useState('');
+    const [typeToggles, setTypeToggles] = useState<boolean[]>([]);
+
     useEffect(() => {
         if (status) {
             if (!height && status.aqHeight) setHeight(status.aqHeight.toString());
@@ -27,6 +61,19 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
             if (!canisterSafePct && (status as any).canisterSafePct) setCanisterSafePct((status as any).canisterSafePct.toString());
         }
     }, [status]);
+
+    // Fetch notification status
+    useEffect(() => {
+        fetch('/api/notify/status')
+            .then((r) => r.json())
+            .then((data: NotifyStatus) => {
+                setNotifyStatus(data);
+                setReportH(data.reportHour.toString());
+                setReportM(data.reportMinute.toString());
+                setTypeToggles(data.types || []);
+            })
+            .catch(() => { });
+    }, []);
 
     const handleSaveConfig = () => {
         api('POST', '/api/config/aquarium', {
@@ -91,6 +138,70 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
 
     const handleLangChange = (newLang: Lang) => {
         setLang(newLang);
+    };
+
+    // Notification handlers
+    const handleSaveKey = async () => {
+        if (!pushKey.trim()) {
+            alert(t('notify.noKey'));
+            return;
+        }
+        try {
+            await fetch('/api/notify/key', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: pushKey.trim() }),
+            });
+            alert(t('notify.keySaved'));
+            // Refresh status
+            const res = await fetch('/api/notify/status');
+            const data = await res.json();
+            setNotifyStatus(data);
+            setPushKey('');
+        } catch {
+            alert(t('config.commError'));
+        }
+    };
+
+    const handleTestNotify = async () => {
+        try {
+            await fetch('/api/notify/test', { method: 'POST' });
+            alert(t('notify.testSent'));
+        } catch {
+            alert(t('config.commError'));
+        }
+    };
+
+    const handleSaveNotifyConfig = async () => {
+        const body: Record<string, any> = {
+            reportHour: parseInt(reportH) || 0,
+            reportMinute: parseInt(reportM) || 0,
+        };
+        typeToggles.forEach((on, i) => {
+            body[NOTIFY_TYPE_API_KEYS[i]] = on ? 1 : 0;
+        });
+        try {
+            await fetch('/api/notify/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            // Refresh status
+            const res = await fetch('/api/notify/status');
+            const data = await res.json();
+            setNotifyStatus(data);
+            setTypeToggles(data.types || []);
+        } catch {
+            alert(t('config.commError'));
+        }
+    };
+
+    const handleToggleType = (idx: number) => {
+        setTypeToggles((prev) => {
+            const next = [...prev];
+            next[idx] = !next[idx];
+            return next;
+        });
     };
 
     return (
@@ -248,6 +359,96 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                 </div>
             </div>
 
+            {/* NOTIFICATIONS (Pushsafer) */}
+            <div className="rounded-2xl bg-card p-5 shadow-md">
+                <div className="mb-4 flex items-center justify-between">
+                    <h2 className="text-base font-medium tracking-wide text-text/90 uppercase">{t('notify.title')}</h2>
+                    <span className={`rounded-full px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider ${notifyStatus?.enabled
+                        ? 'bg-accent2/20 text-accent2'
+                        : 'bg-white/10 text-muted'
+                        }`}>
+                        {notifyStatus?.enabled ? t('notify.enabled') : t('notify.disabled')}
+                    </span>
+                </div>
+
+                <div className="flex flex-col gap-4">
+                    {/* Key input */}
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-bold text-muted uppercase tracking-wider">{t('notify.key')}</label>
+                        <div className="flex gap-2">
+                            <input
+                                type="password"
+                                placeholder={notifyStatus?.key || '••••••••'}
+                                className="flex-1 rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
+                                value={pushKey}
+                                onChange={(e) => setPushKey(e.target.value)}
+                            />
+                            <button
+                                onClick={handleSaveKey}
+                                className="flex-none rounded-md bg-accent/20 px-4 py-2 text-xs font-bold uppercase tracking-wider text-accent transition hover:bg-accent/30 active:scale-95"
+                            >
+                                {t('notify.save')}
+                            </button>
+                        </div>
+                        <span className="text-[10px] text-muted italic mt-1">{t('notify.keyHint')}</span>
+                    </div>
+
+                    {/* Test button */}
+                    {notifyStatus?.enabled && (
+                        <button
+                            onClick={handleTestNotify}
+                            className="rounded-full bg-accent2/20 px-6 py-2.5 text-sm font-bold uppercase tracking-wider text-accent2 shadow-md transition-all hover:bg-accent2/30 active:scale-95"
+                        >
+                            {t('notify.test')}
+                        </button>
+                    )}
+
+                    {/* Daily report time */}
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-bold text-muted uppercase tracking-wider">{t('notify.reportTime')}</label>
+                        <div className="grid grid-cols-2 gap-2">
+                            <input
+                                type="number" min="0" max="23" step="1"
+                                className="w-full rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
+                                value={reportH} onChange={(e) => setReportH(e.target.value)}
+                            />
+                            <input
+                                type="number" min="0" max="59" step="1"
+                                className="w-full rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
+                                value={reportM} onChange={(e) => setReportM(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Per-type toggles */}
+                    <div className="flex flex-col gap-2">
+                        {NOTIFY_TYPE_KEYS.map((key, idx) => (
+                            <button
+                                key={key}
+                                onClick={() => handleToggleType(idx)}
+                                className={`flex items-center justify-between rounded-xl px-4 py-2.5 transition-all active:scale-[0.98] border ${typeToggles[idx]
+                                    ? 'border-accent2/30 bg-accent2/10'
+                                    : 'border-transparent bg-white/5'
+                                    }`}
+                            >
+                                <span className="text-sm text-text">{t(key)}</span>
+                                <span className={`inline-flex items-center h-6 w-11 rounded-full p-0.5 transition-colors ${typeToggles[idx] ? 'bg-accent2' : 'bg-white/20'}`}>
+                                    <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-md transform transition-transform ${typeToggles[idx] ? 'translate-x-5' : 'translate-x-0'}`} />
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Save config */}
+                    <button
+                        onClick={handleSaveNotifyConfig}
+                        className="mt-2 rounded-full bg-accent2 px-6 py-2.5 text-sm font-bold uppercase tracking-wider text-black shadow-md transition-all hover:bg-teal-300 active:scale-95"
+                    >
+                        {t('notify.saveConfig')}
+                    </button>
+                </div>
+            </div>
+
             {/* EMERGENCY ACTIONS */}
             <div className="rounded-2xl bg-card p-5 shadow-md">
                 <h2 className="mb-4 text-base font-medium tracking-wide text-text/90 uppercase">{t('config.emergency')}</h2>
@@ -262,3 +463,4 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
         </div>
     );
 }
+

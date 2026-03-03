@@ -146,6 +146,26 @@ const translations = {
     'config.commError': { pt: 'Erro de comunicação.', en: 'Communication error.', ja: '通信エラー。' },
     'config.scanError': { pt: 'Erro ao buscar redes.', en: 'Error scanning networks.', ja: 'ネットワークスキャンエラー。' },
     'config.language': { pt: 'Idioma / Language / 言語', en: 'Language / Idioma / 言語', ja: '言語 / Language / Idioma' },
+
+    // ---- Notifications ----
+    'notify.title': { pt: 'Notificações (Pushsafer)', en: 'Notifications (Pushsafer)', ja: '通知（Pushsafer）' },
+    'notify.key': { pt: 'Chave Privada', en: 'Private Key', ja: 'プライベートキー' },
+    'notify.keyHint': { pt: 'Obtenha em pushsafer.com → Dashboard → API', en: 'Get from pushsafer.com → Dashboard → API', ja: 'pushsafer.com → Dashboard → APIから取得' },
+    'notify.save': { pt: 'Salvar Chave', en: 'Save Key', ja: 'キー保存' },
+    'notify.test': { pt: '🔔 Enviar Teste', en: '🔔 Send Test', ja: '🔔 テスト送信' },
+    'notify.testSent': { pt: 'Notificação de teste enviada!', en: 'Test notification sent!', ja: 'テスト通知を送信しました！' },
+    'notify.enabled': { pt: 'Ativo', en: 'Active', ja: '有効' },
+    'notify.disabled': { pt: 'Desativado', en: 'Disabled', ja: '無効' },
+    'notify.reportTime': { pt: 'Relatório Diário', en: 'Daily Report', ja: '日次レポート' },
+    'notify.saveConfig': { pt: 'Salvar Configuração', en: 'Save Config', ja: '設定保存' },
+    'notify.tpaComplete': { pt: 'TPA Concluída', en: 'TPA Complete', ja: 'TPA完了' },
+    'notify.tpaError': { pt: 'Erro na TPA', en: 'TPA Error', ja: 'TPAエラー' },
+    'notify.fertLowStock': { pt: 'Estoque Baixo', en: 'Low Stock', ja: '在庫低下' },
+    'notify.emergency': { pt: 'Emergência', en: 'Emergency', ja: '緊急' },
+    'notify.fertComplete': { pt: 'Fertilização OK', en: 'Fertilization OK', ja: '施肥完了' },
+    'notify.dailyLevel': { pt: 'Nível Diário', en: 'Daily Level', ja: '日次水位' },
+    'notify.keySaved': { pt: 'Chave salva com sucesso!', en: 'Key saved successfully!', ja: 'キーが保存されました！' },
+    'notify.noKey': { pt: 'Insira uma chave válida.', en: 'Enter a valid key.', ja: '有効なキーを入力してください。' },
 } as const;
 
 type TranslationKey = keyof typeof translations;
@@ -185,11 +205,11 @@ export function I18nProvider({ children, initialLang }: { children: ReactNode; i
     }, [lang]);
 
     return (
-        <I18nContext.Provider value= {{ lang, setLang, t }
-}>
-    { children }
-    </I18nContext.Provider>
-  );
+        <I18nContext.Provider value={{ lang, setLang, t }
+        }>
+            {children}
+        </I18nContext.Provider>
+    );
 }
 
 export function useT() {
