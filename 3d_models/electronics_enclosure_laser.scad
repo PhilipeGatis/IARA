@@ -162,10 +162,10 @@ module base_2d_bottom() {
       fj_edge(box_width, "slots");
     translate([-box_width / 2, -box_depth / 2])
       fj_edge(box_width, "slots");
-    translate([-box_width / 2, -box_depth / 2])
+    translate([-box_width / 2 + mat_t, -box_depth / 2])
       rotate([0, 0, 90])
         fj_edge(box_depth, "slots");
-    translate([box_width / 2 - mat_t, -box_depth / 2])
+    translate([box_width / 2, -box_depth / 2])
       rotate([0, 0, 90])
         fj_edge(box_depth, "slots");
 
@@ -241,10 +241,10 @@ module base_2d_front() {
     square([panel_w, panel_h], center=true);
 
     // --- Finger-joints bordas laterais ---
-    translate([-panel_w / 2, -panel_h / 2])
+    translate([-panel_w / 2 + mat_t, -panel_h / 2])
       rotate([0, 0, 90])
         fj_edge(panel_h, "tabs");
-    translate([panel_w / 2 - mat_t, -panel_h / 2])
+    translate([panel_w / 2, -panel_h / 2])
       rotate([0, 0, 90])
         fj_edge(panel_h, "tabs");
 
@@ -276,10 +276,10 @@ module base_2d_back() {
     square([panel_w, panel_h], center=true);
 
     // --- Finger-joints bordas laterais ---
-    translate([-panel_w / 2, -panel_h / 2])
+    translate([-panel_w / 2 + mat_t, -panel_h / 2])
       rotate([0, 0, 90])
         fj_edge(panel_h, "tabs");
-    translate([panel_w / 2 - mat_t, -panel_h / 2])
+    translate([panel_w / 2, -panel_h / 2])
       rotate([0, 0, 90])
         fj_edge(panel_h, "tabs");
 
@@ -306,9 +306,17 @@ module base_2d_left() {
   difference() {
     square([panel_w, panel_h], center=true);
 
-    // --- Finger-joints borda inferior ---
+    // --- Finger-joints borda inferior (encaixa no fundo) ---
     translate([-panel_w / 2, -panel_h / 2])
       fj_edge(panel_w, "tabs");
+
+    // --- Finger-joints bordas verticais (encaixam no frontal/traseiro) ---
+    translate([-panel_w / 2 + mat_t, -panel_h / 2])
+      rotate([0, 0, 90])
+        fj_edge(panel_h, "slots");
+    translate([panel_w / 2, -panel_h / 2])
+      rotate([0, 0, 90])
+        fj_edge(panel_h, "slots");
 
     // --- Furos 8× bombas P4 ---
     cols = 2;
@@ -337,9 +345,17 @@ module base_2d_right() {
   difference() {
     square([panel_w, panel_h], center=true);
 
-    // --- Finger-joints borda inferior ---
+    // --- Finger-joints borda inferior (encaixa no fundo) ---
     translate([-panel_w / 2, -panel_h / 2])
       fj_edge(panel_w, "tabs");
+
+    // --- Finger-joints bordas verticais (encaixam no frontal/traseiro) ---
+    translate([-panel_w / 2 + mat_t, -panel_h / 2])
+      rotate([0, 0, 90])
+        fj_edge(panel_h, "slots");
+    translate([panel_w / 2, -panel_h / 2])
+      rotate([0, 0, 90])
+        fj_edge(panel_h, "slots");
 
     // --- Tomada AC AS-08A (31.2 × 27.2mm) ---
     ac_x = box_depth / 4 + 25;
@@ -410,24 +426,43 @@ module lid_2d() {
 }
 
 // ============================================================
-// LAYOUT COMPLETO — BASE (5 painéis + abas)
+// LAYOUT COMPACTO — BASE (5 painéis em linhas paralelas)
+// ============================================================
+// Peças organizadas para minimizar o bounding box da chapa.
+// Layout:
+//   Linha 1: Fundo (280 × 220mm com abas)
+//   Linha 2: Frontal (250 × 59) + Esquerdo (220 × 59)
+//   Linha 3: Traseiro (250 × 59) + Direito (220 × 59)
 // ============================================================
 module base_2d() {
-  spacing = 8;
+  spacing = 8; // mm entre peças
+  panel_h = base_height - mat_t; // 59mm — altura dos painéis laterais
   mount_tab_h = 15;
+  bottom_total_w = box_width + 2 * mount_tab_h; // 280mm com abas
 
+  // --- Linha 1: Fundo (centro) ---
   base_2d_bottom();
 
-  translate([0, box_depth / 2 + (base_height - mat_t) / 2 + spacing])
+  // --- Linha 2: Frontal + Esquerdo (acima do fundo) ---
+  row2_y = box_depth / 2 + panel_h / 2 + spacing;
+
+  // Frontal (250mm) — alinhado à esquerda
+  translate([-(box_depth + spacing) / 4, row2_y])
     base_2d_front();
 
-  translate([0, -box_depth / 2 - (base_height - mat_t) / 2 - spacing])
-    base_2d_back();
-
-  translate([-box_width / 2 - mount_tab_h - box_depth / 2 - spacing, 0])
+  // Esquerdo (220mm) — ao lado do frontal
+  translate([box_width / 2 + spacing / 2 + box_depth / 2 - (box_depth + spacing) / 4, row2_y])
     base_2d_left();
 
-  translate([box_width / 2 + mount_tab_h + box_depth / 2 + spacing, 0])
+  // --- Linha 3: Traseiro + Direito (abaixo do fundo) ---
+  row3_y = -box_depth / 2 - panel_h / 2 - spacing;
+
+  // Traseiro (250mm) — alinhado à esquerda
+  translate([-(box_depth + spacing) / 4, row3_y])
+    base_2d_back();
+
+  // Direito (220mm) — ao lado do traseiro
+  translate([box_width / 2 + spacing / 2 + box_depth / 2 - (box_depth + spacing) / 4, row3_y])
     base_2d_right();
 }
 
@@ -435,11 +470,13 @@ module base_2d() {
 // LAYOUT COMPLETO — TUDO (base + tampa)
 // ============================================================
 module all_2d() {
-  // Base no centro
+  panel_h = base_height - mat_t;
+
+  // Base
   base_2d();
 
-  // Tampa acima da base, deslocada para não sobrepor
-  translate([0, box_depth / 2 + (base_height - mat_t) + box_depth / 2 + 30])
+  // Tampa (abaixo da linha 3)
+  translate([0, -box_depth / 2 - panel_h - box_depth / 2 - spacing * 2 - 8])
     lid_2d();
 }
 
@@ -448,7 +485,7 @@ module all_2d() {
 // ============================================================
 // Descomente a linha desejada e exporte como DXF:
 
-base_2d(); // Painéis da base (5 peças + abas)
+base_2d(); // Painéis da base (5 peças compactas)
 // lid_2d();   // Somente a tampa
 // all_2d();   // Base + tampa juntos
 
