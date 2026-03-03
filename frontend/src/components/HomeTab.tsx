@@ -1,4 +1,5 @@
 import type { AQStatus } from '../App';
+import { useT } from '../i18n';
 
 function Badge({ label, on, texts }: { label: string; on?: boolean; texts: [string, string] }) {
     if (on === undefined) return null;
@@ -13,10 +14,11 @@ function Badge({ label, on, texts }: { label: string; on?: boolean; texts: [stri
 }
 
 export default function HomeTab({ status }: { status: AQStatus | null }) {
-    const shortDays = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+    const { t, lang } = useT();
+    const shortDays = t('home.shortDays').split(',');
 
     const renderFertTable = () => {
-        if (!status?.stocks) return <div className="text-xs text-muted">Aguardando dados...</div>;
+        if (!status?.stocks) return <div className="text-xs text-muted">{t('home.waiting')}</div>;
 
         // Find stocks that have at least one dose > 0, excluding Prime (index 4)
         const activeStocks = status.stocks
@@ -25,7 +27,7 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
 
         if (activeStocks.length === 0) {
             return (
-                <div className="text-xs font-semibold text-muted italic mt-1">Nenhum agendamento ativo na semana.</div>
+                <div className="text-xs font-semibold text-muted italic mt-1">{t('home.noActiveSchedule')}</div>
             );
         }
 
@@ -34,8 +36,8 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                 <table className="w-full text-left border-collapse">
                     <thead>
                         <tr className="border-b border-white/10 text-[10px] text-muted uppercase tracking-wider">
-                            <th className="py-2 pr-2 font-medium">Canal</th>
-                            <th className="py-2 px-1 font-medium text-center">Hora</th>
+                            <th className="py-2 pr-2 font-medium">{t('home.channel')}</th>
+                            <th className="py-2 px-1 font-medium text-center">{t('home.hour')}</th>
                             {shortDays.map((d, i) => (
                                 <th key={i} className="py-2 px-1 font-medium text-center">{d}</th>
                             ))}
@@ -70,11 +72,13 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
         );
     };
 
+    const dateLocale = lang === 'ja' ? 'ja-JP' : lang === 'en' ? 'en-US' : 'pt-BR';
+
     return (
         <div className="flex flex-col gap-4">
             {/* Sensors Card */}
             <div className="rounded-2xl bg-card p-5 shadow-md">
-                <h2 className="mb-4 text-base font-medium tracking-wide text-text/90 uppercase">Sensores e Segurança</h2>
+                <h2 className="mb-4 text-base font-medium tracking-wide text-text/90 uppercase">{t('home.sensors')}</h2>
 
                 <div className="mb-5">
                     {(() => {
@@ -86,7 +90,7 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                         return (
                             <>
                                 <div className="mb-2 flex justify-between text-sm font-medium">
-                                    <span className="text-muted tracking-wide">Nível de Água</span>
+                                    <span className="text-muted tracking-wide">{t('home.waterLevel')}</span>
                                     <span className={`font-mono text-lg ${color}`}>
                                         {status ? `${pct}%` : '--'}
                                     </span>
@@ -103,27 +107,27 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                 </div>
 
                 <div className="flex flex-col">
-                    <Badge label="Nível Ótico" on={status?.optical} texts={['CHEIO', 'NORMAL']} />
-                    <Badge label="Bóia de Reposição" on={status?.float} texts={['VAZIO', 'NO NÍVEL']} />
-                    <Badge label="Bomba Canister" on={status?.canister} texts={['LIGADA', 'DESL.']} />
+                    <Badge label={t('home.optical')} on={status?.optical} texts={[t('home.opticalOn'), t('home.opticalOff')]} />
+                    <Badge label={t('home.float')} on={status?.float} texts={[t('home.floatOn'), t('home.floatOff')]} />
+                    <Badge label={t('home.canister')} on={status?.canister} texts={[t('home.canisterOn'), t('home.canisterOff')]} />
                 </div>
             </div>
 
             {/* Routine State Card */}
             <div className="rounded-2xl bg-card p-5 shadow-md">
-                <h2 className="mb-4 text-base font-medium tracking-wide text-text/90 uppercase">Estado do Sistema</h2>
+                <h2 className="mb-4 text-base font-medium tracking-wide text-text/90 uppercase">{t('home.systemState')}</h2>
                 <div className="flex flex-col">
-                    <Badge label="Estado TPA" on={status?.tpaState !== 'IDLE'} texts={[status?.tpaState || '', 'IDLE']} />
-                    <Badge label="Modo Manutenção" on={status?.maintenance} texts={['ATIVO', 'INATIVO']} />
+                    <Badge label={t('home.tpaState')} on={status?.tpaState !== 'IDLE'} texts={[status?.tpaState || '', 'IDLE']} />
+                    <Badge label={t('home.maintenance')} on={status?.maintenance} texts={[t('home.maintActive'), t('home.maintInactive')]} />
                 </div>
             </div>
 
             {/* TPA SCHEDULE SUMMARY */}
             <div className="rounded-2xl bg-card p-5 shadow-md">
-                <h2 className="mb-4 text-base font-medium tracking-wide text-text/90 uppercase">Agendamento TPA</h2>
+                <h2 className="mb-4 text-base font-medium tracking-wide text-text/90 uppercase">{t('home.tpaSchedule')}</h2>
                 {status && !status.tpaConfigReady && (
                     <div className="rounded-lg bg-warn/10 border border-warn/30 px-4 py-3 mb-4">
-                        <span className="text-xs font-bold text-warn">⚠ Configuração incompleta — TPA desativada</span>
+                        <span className="text-xs font-bold text-warn">{t('home.configIncomplete')}</span>
                     </div>
                 )}
                 {status?.tpaInterval ? (() => {
@@ -133,46 +137,48 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                         : null;
                     const now = new Date();
                     const daysUntil = nextRunDate ? Math.ceil((nextRunDate.getTime() - now.getTime()) / 86400000) : null;
-                    const formatDate = (d: Date) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                    const formatDate = (d: Date) => d.toLocaleDateString(dateLocale, { day: '2-digit', month: '2-digit', year: 'numeric' });
 
                     return (
                         <div className="flex flex-col gap-3">
                             <div className="flex items-center justify-between border-b border-border/50 py-2">
-                                <span className="text-sm text-muted">Volume</span>
+                                <span className="text-sm text-muted">{t('home.volume')}</span>
                                 <span className="font-mono text-sm font-bold text-accent">
                                     {status.tpaPercent}%{status.aquariumVolume ? ` (${(status.aquariumVolume * status.tpaPercent / 100).toFixed(1)} L)` : ''}
                                 </span>
                             </div>
                             <div className="flex items-center justify-between border-b border-border/50 py-2">
-                                <span className="text-sm text-muted">Intervalo</span>
-                                <span className="font-mono text-sm font-bold text-text">a cada {status.tpaInterval} dia{status.tpaInterval > 1 ? 's' : ''}</span>
+                                <span className="text-sm text-muted">{t('home.interval')}</span>
+                                <span className="font-mono text-sm font-bold text-text">
+                                    {t('home.everyDays', { n: status.tpaInterval, s: status.tpaInterval > 1 ? 's' : '' })}
+                                </span>
                             </div>
                             <div className="flex items-center justify-between border-b border-border/50 py-2">
-                                <span className="text-sm text-muted">Horário</span>
+                                <span className="text-sm text-muted">{t('home.time')}</span>
                                 <span className="font-mono text-sm font-bold text-text">{String(status.tpaHour).padStart(2, '0')}:{String(status.tpaMinute).padStart(2, '0')}</span>
                             </div>
                             <div className="flex items-center justify-between border-b border-border/50 py-2">
-                                <span className="text-sm text-muted">Última execução</span>
-                                <span className="font-mono text-xs text-muted">{lastRunDate ? formatDate(lastRunDate) : 'nunca'}</span>
+                                <span className="text-sm text-muted">{t('home.lastRun')}</span>
+                                <span className="font-mono text-xs text-muted">{lastRunDate ? formatDate(lastRunDate) : t('home.never')}</span>
                             </div>
                             <div className="flex items-center justify-between py-2">
-                                <span className="text-sm text-muted">Próxima TPA</span>
+                                <span className="text-sm text-muted">{t('home.nextTpa')}</span>
                                 <span className={`font-mono text-sm font-bold ${daysUntil !== null && daysUntil <= 1 ? 'text-warn' : 'text-accent2'}`}>
-                                    {nextRunDate ? `${formatDate(nextRunDate)} (${daysUntil === 0 ? 'HOJE' : daysUntil === 1 ? 'amanhã' : `em ${daysUntil} dias`})` : '--'}
+                                    {nextRunDate ? `${formatDate(nextRunDate)} (${daysUntil === 0 ? t('home.today') : daysUntil === 1 ? t('home.tomorrow') : t('home.inDays', { n: daysUntil ?? 0 })})` : '--'}
                                 </span>
                             </div>
                         </div>
                     );
                 })() : (
-                    <div className="text-xs text-muted italic">Nenhum agendamento configurado.</div>
+                    <div className="text-xs text-muted italic">{t('home.noSchedule')}</div>
                 )}
             </div>
 
             {/* FERTILIZERS WEEKLY VIEW */}
             <div className="rounded-2xl bg-card p-5 shadow-md">
                 <div className="mb-4 flex items-center justify-between">
-                    <h2 className="text-base font-medium tracking-wide text-text/90 uppercase">Tabela de Fertilizantes</h2>
-                    <span className="text-[10px] font-bold text-accent2 uppercase tracking-wider bg-accent2/10 px-2 py-1 rounded-full border border-accent2/20">Em mL</span>
+                    <h2 className="text-base font-medium tracking-wide text-text/90 uppercase">{t('home.fertTable')}</h2>
+                    <span className="text-[10px] font-bold text-accent2 uppercase tracking-wider bg-accent2/10 px-2 py-1 rounded-full border border-accent2/20">{t('home.inMl')}</span>
                 </div>
                 {renderFertTable()}
             </div>

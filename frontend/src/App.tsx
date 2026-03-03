@@ -3,6 +3,7 @@ import HomeTab from './components/HomeTab';
 import TPATab from './components/TPATab';
 import FertsTab from './components/FertsTab';
 import ConfigTab from './components/ConfigTab';
+import { I18nProvider, useT } from './i18n';
 
 export type AQStatus = {
   wifiConnected: boolean;
@@ -32,6 +33,7 @@ export type AQStatus = {
   primeRatio: number;
   reservoirVolume: number;
   reservoirSafetyML: number;
+  language: number;
   stocks: Array<{
     name: string;
     stock: number;
@@ -56,7 +58,8 @@ export const api = (method: string, url: string, body?: any) => {
     .catch((e) => console.error(e));
 };
 
-function App() {
+function AppContent() {
+  const { t } = useT();
   const [tab, setTab] = useState<'home' | 'tpa' | 'ferts' | 'config'>('home');
   const [status, setStatus] = useState<AQStatus | null>(null);
   const [wifiDot, setWifiDot] = useState(false);
@@ -114,7 +117,7 @@ function App() {
       {/* Emergency Banner */}
       {status?.emergency && (
         <div className="mx-auto my-3 w-[calc(100%-24px)] max-w-[800px] animate-pulse rounded-xl border-2 border-danger bg-red-500/10 p-4 text-center">
-          ⚠️ <strong>EMERGÊNCIA</strong> — Sensor detectou risco de transbordamento! Parando bombas imediatamente.
+          <strong>{t('emergency.banner')}</strong>
         </div>
       )}
 
@@ -129,23 +132,49 @@ function App() {
       {/* Bottom Navigation */}
       <nav className="tabs fixed bottom-0 left-0 right-0 z-20 flex justify-around bg-card p-2 pb-6 shadow-[0_-2px_10px_rgba(0,0,0,0.5)]">
         {[
-          { id: 'home', icon: '🏠', label: 'Início' },
-          { id: 'tpa', icon: '💧', label: 'TPA' },
-          { id: 'ferts', icon: '🧪', label: 'Ferts' },
-          { id: 'config', icon: '⚙️', label: 'Config' },
-        ].map((t) => (
+          { id: 'home', icon: '🏠', label: t('nav.home') },
+          { id: 'tpa', icon: '💧', label: t('nav.tpa') },
+          { id: 'ferts', icon: '🧪', label: t('nav.ferts') },
+          { id: 'config', icon: '⚙️', label: t('nav.config') },
+        ].map((tb) => (
           <button
-            key={t.id}
-            onClick={() => setTab(t.id as any)}
-            className={`flex flex-1 flex-col items-center gap-1 rounded-xl p-2 transition-all active:scale-95 ${tab === t.id ? 'text-accent bg-accent/10' : 'text-muted hover:bg-white/5 hover:text-text'
+            key={tb.id}
+            onClick={() => setTab(tb.id as any)}
+            className={`flex flex-1 flex-col items-center gap-1 rounded-xl p-2 transition-all active:scale-95 ${tab === tb.id ? 'text-accent bg-accent/10' : 'text-muted hover:bg-white/5 hover:text-text'
               }`}
           >
-            <span className="text-2xl drop-shadow-sm">{t.icon}</span>
-            <span className="text-xs font-medium tracking-wide">{t.label}</span>
+            <span className="text-2xl drop-shadow-sm">{tb.icon}</span>
+            <span className="text-xs font-medium tracking-wide">{tb.label}</span>
           </button>
         ))}
       </nav>
     </div>
+  );
+}
+
+function App() {
+  const [initialLang, setInitialLang] = useState<number | undefined>(undefined);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/status')
+      .then((r) => r.json())
+      .then((d) => {
+        setInitialLang(d.language ?? 0);
+        setReady(true);
+      })
+      .catch(() => {
+        setInitialLang(0);
+        setReady(true);
+      });
+  }, []);
+
+  if (!ready) return null;
+
+  return (
+    <I18nProvider initialLang={initialLang}>
+      <AppContent />
+    </I18nProvider>
   );
 }
 
