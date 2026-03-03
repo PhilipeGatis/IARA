@@ -66,6 +66,7 @@ public:
 
   // ---- Calibration / Flow rates ----
   void setLitersPerCm(float lpc) { _litersPerCm = lpc; }
+  void setAqEffectiveHeightCm(float h) { _aqEffectiveHeightCm = h; }
   void setDrainFlowLPM(float lpm) { _drainFlowLPM = lpm; }
   void setRefillFlowLPM(float lpm) { _refillFlowLPM = lpm; }
   float getDrainFlowLPM() const { return _drainFlowLPM; }
@@ -109,11 +110,12 @@ private:
   unsigned long _timeoutRefillMs;
 
   // Inline calibration (measured during TPA)
-  float _litersPerCm;        // Aquarium litersPerCm (set by main before TPA)
-  float _calStartLevel;      // Ultrasonic level at state entry (cm)
-  unsigned long _calStartMs; // millis() at state entry
-  float _drainFlowLPM;       // Calibrated drain flow rate (L/min)
-  float _refillFlowLPM;      // Calibrated refill flow rate (L/min)
+  float _litersPerCm;         // Aquarium litersPerCm (set by main before TPA)
+  float _aqEffectiveHeightCm; // Effective water height (for cm→% conversion)
+  float _calStartLevel;       // Ultrasonic level at state entry (cm)
+  unsigned long _calStartMs;  // millis() at state entry
+  float _drainFlowLPM;        // Calibrated drain flow rate (L/min)
+  float _refillFlowLPM;       // Calibrated refill flow rate (L/min)
 
   // Telemetry
   String _lastTPATime;

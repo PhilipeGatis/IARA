@@ -36,8 +36,8 @@ WaterManager::WaterManager()
       _primeML(DEFAULT_PRIME_ML),
       _timeoutDrainMs(30UL * 1000),  // 30s safe default (uncalibrated)
       _timeoutRefillMs(15UL * 1000), // 15s safe default (uncalibrated)
-      _litersPerCm(0), _calStartLevel(0), _calStartMs(0), _drainFlowLPM(0),
-      _refillFlowLPM(0) {}
+      _litersPerCm(0), _aqEffectiveHeightCm(0), _calStartLevel(0),
+      _calStartMs(0), _drainFlowLPM(0), _refillFlowLPM(0) {}
 
 void WaterManager::begin(SafetyWatchdog *safety, FertManager *fert) {
   _safety = safety;
@@ -332,20 +332,30 @@ void WaterManager::_error(const char *msg) {
   // (low distance = high water = safe for canister intake)
   if (_safety) {
     float dist = _safety->readUltrasonic();
-    char buf[80];
+    char buf[100];
+    // Convert to percentage (low dist = high water = high %)
+    float waterPct =
+        (_aqEffectiveHeightCm > 0)
+            ? ((_aqEffectiveHeightCm - dist) / _aqEffectiveHeightCm * 100.0f)
+            : 0;
+    float safePct = (_aqEffectiveHeightCm > 0)
+                        ? ((_aqEffectiveHeightCm - _canisterSafeLevelCm) /
+                           _aqEffectiveHeightCm * 100.0f)
+                        : 0;
+    if (waterPct < 0)
+      waterPct = 0;
     if (dist > 0 && dist <= _canisterSafeLevelCm) {
       digitalWrite(PIN_CANISTER, LOW); // SSR: LOW = ON
       Serial.printf(
-          "[TPA] Canister ON (water level %.1f cm is safe, limit: %.1f cm).\n",
-          dist, _canisterSafeLevelCm);
-      snprintf(buf, sizeof(buf), " | Canister: ON (nivel %.1f cm)", dist);
+          "[TPA] Canister ON (water level %.0f%% is safe, limit: %.0f%%).\n",
+          waterPct, safePct);
+      snprintf(buf, sizeof(buf), " | Canister: ON (nivel %.0f%%)", waterPct);
     } else {
-      Serial.printf("[TPA] WARNING: Canister stays OFF — water level %.1f cm "
-                    "too low (need <= %.1f cm).\n",
-                    dist, _canisterSafeLevelCm);
-      snprintf(buf, sizeof(buf),
-               " | Canister: OFF (nivel %.1f cm, min: %.1f cm)", dist,
-               _canisterSafeLevelCm);
+      Serial.printf("[TPA] WARNING: Canister stays OFF — water level %.0f%% "
+                    "too low (need >= %.0f%%).\n",
+                    waterPct, safePct);
+      snprintf(buf, sizeof(buf), " | Canister: OFF (nivel %.0f%%, min: %.0f%%)",
+               waterPct, safePct);
     }
     _lastErrorMsg += buf;
   } else {

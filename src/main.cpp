@@ -420,6 +420,7 @@ void loop() {
             float canisterSafeCm =
                 effH * (100.0f - webMgr.getCanisterSafePct()) / 100.0f;
             waterMgr.setCanisterSafeLevelCm(canisterSafeCm);
+            waterMgr.setAqEffectiveHeightCm(effH);
 
             // Dynamic timeouts (if calibrated)
             float drainLPM = waterMgr.getDrainFlowLPM();
