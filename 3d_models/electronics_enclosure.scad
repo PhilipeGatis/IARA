@@ -166,7 +166,7 @@ module module_standoffs(w, d, h = 6) {
       [w / 2 - inset, d / 2 - inset],
     ];
     for (pos = positions)
-      translate([pos[0], pos[1], wall])
+      translate([pos[0], pos[1], 0])
         standoff(h);
   } else {
     // Módulos grandes: 4 standoffs nos cantos
@@ -177,7 +177,7 @@ module module_standoffs(w, d, h = 6) {
       [w / 2 - inset, d / 2 - inset],
     ];
     for (pos = positions)
-      translate([pos[0], pos[1], wall])
+      translate([pos[0], pos[1], 0])
         standoff(h);
   }
 }
@@ -494,33 +494,33 @@ module base() {
 
         // Standoffs para MOSFET 8CH (frente-esquerda, GIRADO 90° = 52×99)
         color("DarkRed")
-          translate([-70, 48, 0])
+          translate([-70, 48, wall - 0.5])
             module_standoffs(mosfet_d, mosfet_w, h=6);
 
         // Standoffs para ESP32 (centro-frente)
         color("DarkGreen")
-          translate([40, 45, 0])
+          translate([40, 45, wall - 0.5])
             module_standoffs(esp32_w, esp32_d, h=6);
 
         // Standoffs para LM2596 (centro-direita, GIRADO 90° = 34×61)
         color("DarkBlue")
-          translate([-20, 55, 0])
+          translate([-20, 55, wall - 0.5])
             module_standoffs(lm2596_d, lm2596_w, h=6);
 
         // Standoffs para sensor ultrassônico (direita-frente)
         color("Teal")
-          translate([40, 85, 0])
+          translate([40, 85, wall - 0.5])
             module_standoffs(ultra_w, ultra_d, h=6);
 
         // Standoffs para SSR (abaixo do ultrassom)
         color("Orange")
-          translate([90, 30, 0])
+          translate([90, 30, wall - 0.5])
             module_standoffs(ssr_d, ssr_w, h=6);
         // w/d invertidos = 34×25
 
         // Standoffs para RTC DS3231 (centro)
         color("Purple")
-          translate([40, 8, 0])
+          translate([40, 8, wall - 0.5])
             module_standoffs(rtc_w, rtc_d, h=6);
 
         // Fonte fixada com fita dupla face no fundo (sem pilares)
@@ -767,32 +767,32 @@ module test_plate() {
 
   // Standoffs MOSFET (vermelho)
   color("DarkRed")
-    translate([-70, 48, plate_h])
+    translate([-70, 48, plate_h - 0.5])
       module_standoffs(mosfet_d, mosfet_w, h=6);
 
   // Standoffs ESP32 (verde)
   color("DarkGreen")
-    translate([40, 45, plate_h])
+    translate([40, 45, plate_h - 0.5])
       module_standoffs(esp32_w, esp32_d, h=6);
 
   // Standoffs LM2596 (azul)
   color("DarkBlue")
-    translate([-20, 55, plate_h])
+    translate([-20, 55, plate_h - 0.5])
       module_standoffs(lm2596_d, lm2596_w, h=6);
 
   // Standoffs ULTRA (teal)
   color("Teal")
-    translate([40, 85, plate_h])
+    translate([40, 85, plate_h - 0.5])
       module_standoffs(ultra_w, ultra_d, h=6);
 
   // Standoffs SSR (laranja)
   color("Orange")
-    translate([90, 30, plate_h])
+    translate([90, 30, plate_h - 0.5])
       module_standoffs(ssr_d, ssr_w, h=6);
 
   // Standoffs RTC (roxo)
   color("Purple")
-    translate([40, 8, plate_h])
+    translate([40, 8, plate_h - 0.5])
       module_standoffs(rtc_w, rtc_d, h=6);
 
   // Labels para identificação
@@ -802,5 +802,5 @@ module test_plate() {
 // === RENDERIZAR ===
 // Descomente a linha desejada:
 
-full_enclosure(); // Caixa completa
-// test_plate(); // Somente placa de teste de furação
+// full_enclosure(); // Caixa completa
+test_plate(); // Somente placa de teste de furação
