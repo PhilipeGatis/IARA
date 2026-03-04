@@ -256,7 +256,7 @@ export default function FertsTab({ status }: { status: AQStatus | null }) {
             </div>
 
             {/* Active Channel Details */}
-            <FertCard index={openChannelIndex} s={status.stocks[openChannelIndex]} />
+            <FertCard key={openChannelIndex} index={openChannelIndex} s={status.stocks[openChannelIndex]} />
         </div>
     );
 }

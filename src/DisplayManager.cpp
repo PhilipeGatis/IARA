@@ -18,7 +18,7 @@ static const char *STR_DISCONNECTED[] = {"DESCONECTADO", "DISCONNECTED",
                                          "DISCONNECTED"};
 static const char *STR_WATER_LEVEL[] = {"NIVEL DA AGUA", "WATER LEVEL",
                                         "WATER LEVEL"};
-static const char *STR_NEXT_TPA[] = {"PROXIMA TPA", "NEXT TPA", "NEXT TPA"};
+static const char *STR_NEXT_TPA[] = {"PROXIMA TPA", "NEXT WC", "NEXT WC"};
 static const char *STR_DAYS[] = {"dias", "days", "days"};
 
 // =============================================================================
