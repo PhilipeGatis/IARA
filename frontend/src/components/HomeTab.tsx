@@ -113,6 +113,62 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                 </div>
             </div>
 
+            {/* Fertilizer Stock Bars */}
+            {status?.stocks && (
+                <div className="rounded-2xl bg-card p-5 shadow-md">
+                    <h2 className="mb-4 text-base font-medium tracking-wide text-text/90 uppercase">{t('home.stockBars')}</h2>
+                    <div className="flex items-end justify-around gap-2">
+                        {status.stocks.map((s, i) => {
+                            if (i === 4) return null; // Skip Prime in this section
+                            const pct = Math.min(100, Math.max(0, (s.stock / 500) * 100));
+                            const colors = ['#00FFFF', '#FF00FF', '#FFFF00', '#FFA500'];
+                            const color = colors[i] || '#00FF00';
+                            const label = s.name || `F${i + 1}`;
+                            return (
+                                <div key={i} className="flex flex-col items-center gap-1 flex-1 max-w-[60px]">
+                                    <span className="text-xs font-bold" style={{ color }}>{Math.round(pct)}%</span>
+                                    <div className="relative w-full h-24 rounded bg-white/5 overflow-hidden">
+                                        <div
+                                            className="absolute bottom-0 w-full rounded transition-all duration-700 ease-out"
+                                            style={{ height: `${pct}%`, backgroundColor: color, opacity: 0.85 }}
+                                        />
+                                        <div
+                                            className="absolute inset-0 rounded border"
+                                            style={{ borderColor: color, opacity: 0.4 }}
+                                        />
+                                    </div>
+                                    <span className="text-[10px] font-bold tracking-wider" style={{ color }}>{label.substring(0, 4)}</span>
+                                    <span className="text-[9px] text-muted">{s.stock.toFixed(0)} mL</span>
+                                </div>
+                            );
+                        })}
+                        {/* Prime bar */}
+                        {status.stocks.length >= 5 && (() => {
+                            const s = status.stocks[4];
+                            const pct = Math.min(100, Math.max(0, (s.stock / 500) * 100));
+                            const color = '#00FF00';
+                            return (
+                                <div className="flex flex-col items-center gap-1 flex-1 max-w-[60px]">
+                                    <span className="text-xs font-bold" style={{ color }}>{Math.round(pct)}%</span>
+                                    <div className="relative w-full h-24 rounded bg-white/5 overflow-hidden">
+                                        <div
+                                            className="absolute bottom-0 w-full rounded transition-all duration-700 ease-out"
+                                            style={{ height: `${pct}%`, backgroundColor: color, opacity: 0.85 }}
+                                        />
+                                        <div
+                                            className="absolute inset-0 rounded border"
+                                            style={{ borderColor: color, opacity: 0.4 }}
+                                        />
+                                    </div>
+                                    <span className="text-[10px] font-bold tracking-wider" style={{ color }}>{s.name || 'Prime'}</span>
+                                    <span className="text-[9px] text-muted">{s.stock.toFixed(0)} mL</span>
+                                </div>
+                            );
+                        })()}
+                    </div>
+                </div>
+            )}
+
             {/* Routine State Card */}
             <div className="rounded-2xl bg-card p-5 shadow-md">
                 <h2 className="mb-4 text-base font-medium tracking-wide text-text/90 uppercase">{t('home.systemState')}</h2>
