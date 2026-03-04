@@ -7,6 +7,33 @@
 #include <WiFi.h>
 
 // =============================================================================
+// I18N — Display strings indexed by language (0=PT, 1=EN, 2=JA)
+// =============================================================================
+static const char *STR_NETWORK[] = {"REDE", "NETWORK", "NETWORK"};
+static const char *STR_AQUARIUM[] = {"AQUARIO", "AQUARIUM", "AQUARIUM"};
+static const char *STR_STOCK[] = {"ESTOQUE", "STOCK", "STOCK"};
+static const char *STR_SCHEDULE[] = {"AGENDA", "SCHEDULE", "SCHEDULE"};
+static const char *STR_CONNECTED[] = {"CONECTADO", "CONNECTED", "CONNECTED"};
+static const char *STR_DISCONNECTED[] = {"DESCONECTADO", "DISCONNECTED",
+                                         "DISCONNECTED"};
+static const char *STR_WATER_LEVEL[] = {"NIVEL DA AGUA", "WATER LEVEL",
+                                        "WATER LEVEL"};
+static const char *STR_NEXT_TPA[] = {"PROXIMA TPA", "NEXT TPA", "NEXT TPA"};
+static const char *STR_DAYS[] = {"dias", "days", "days"};
+
+// =============================================================================
+// PER-CHANNEL BAR COLORS (unique hue per fertilizer + prime)
+// =============================================================================
+// Using 565 RGB colors for visual distinction
+static const uint16_t CHANNEL_COLORS[] = {
+    0x07FF, // CH1: Cyan
+    0xF81F, // CH2: Magenta
+    0xFFE0, // CH3: Yellow
+    0xFD20, // CH4: Orange
+    0x07E0, // Prime: Green
+};
+
+// =============================================================================
 // CONSTRUCTOR
 // =============================================================================
 DisplayManager::DisplayManager()
@@ -85,10 +112,28 @@ void DisplayManager::begin(TimeManager *time, WaterManager *water,
 }
 
 // =============================================================================
-// UPDATE — cycles pages every PAGE_CYCLE_MS
+// UPDATE — cycles pages, locks on TPA page when water change is running
 // =============================================================================
 void DisplayManager::update() {
   unsigned long now = millis();
+
+  // Lock on aquarium page while TPA is running
+  bool tpaRunning = _water->isRunning();
+  if (tpaRunning) {
+    // Force aquarium page, still respect timing to avoid flicker
+    if (now - _lastPageSwitch < PAGE_CYCLE_MS) {
+      return;
+    }
+    _lastPageSwitch = now;
+    _currentPage = 1; // Aquarium page
+
+    _display.fillScreen(COL_BG);
+    uint8_t lang = _web->getLanguage();
+    _drawHeader(STR_AQUARIUM[lang]);
+    _drawAquariumPage();
+    return;
+  }
+
   if (now - _lastPageSwitch < PAGE_CYCLE_MS) {
     return;
   }
@@ -96,7 +141,9 @@ void DisplayManager::update() {
 
   _display.fillScreen(COL_BG);
 
-  static const char *pageNames[] = {"REDE", "AQUARIO", "ESTOQUE", "AGENDA"};
+  uint8_t lang = _web->getLanguage();
+  const char *pageNames[] = {STR_NETWORK[lang], STR_AQUARIUM[lang],
+                             STR_STOCK[lang], STR_SCHEDULE[lang]};
   _drawHeader(pageNames[_currentPage]);
 
   switch (_currentPage) {
@@ -174,6 +221,7 @@ void DisplayManager::_drawHeader(const char *title) {
 // =============================================================================
 void DisplayManager::_drawNetworkPage() {
   uint8_t y = 30;
+  uint8_t lang = _web->getLanguage();
 
   if (WiFi.status() == WL_CONNECTED) {
     // Status indicator
@@ -181,7 +229,7 @@ void DisplayManager::_drawNetworkPage() {
     _display.setTextColor(COL_GOOD);
     _display.setTextSize(1);
     _display.setCursor(22, y);
-    _display.print(F("CONECTADO"));
+    _display.print(STR_CONNECTED[lang]);
 
     // IP in large font
     _display.setTextSize(2);
@@ -210,7 +258,7 @@ void DisplayManager::_drawNetworkPage() {
     _display.setTextColor(COL_ERR);
     _display.setTextSize(1);
     _display.setCursor(22, y);
-    _display.print(F("DESCONECTADO"));
+    _display.print(STR_DISCONNECTED[lang]);
 
     _display.setTextSize(2);
     _display.setTextColor(COL_TEXT);
@@ -231,13 +279,14 @@ void DisplayManager::_drawNetworkPage() {
 // =============================================================================
 void DisplayManager::_drawAquariumPage() {
   uint8_t y = 30;
+  uint8_t lang = _web->getLanguage();
   float dist = _safety->getLastDistance();
 
   // Water level — large text
   _display.setTextSize(1);
   _display.setTextColor(COL_DIM);
   _display.setCursor(4, y);
-  _display.print(F("NIVEL DA AGUA"));
+  _display.print(STR_WATER_LEVEL[lang]);
 
   y += 12;
   _display.setTextSize(2);
@@ -284,21 +333,19 @@ void DisplayManager::_drawAquariumPage() {
 }
 
 // =============================================================================
-// PAGE 3 — Fertilizer & Prime Stock
+// PAGE 3 — Fertilizer & Prime Stock (unique color per channel)
 // =============================================================================
 void DisplayManager::_drawStockPage() {
   const uint8_t numBars = NUM_FERTS + 1;
   const uint8_t barW = 22;
   const uint8_t gap = (160 - numBars * barW) / (numBars + 1);
-  const uint8_t barTop = 30;
-  const uint8_t barH = 75;
-  const float maxStock = 500.0f;
-
-  static const char *labels[] = {"F1", "F2", "F3", "F4", "PR"};
+  const uint8_t barTop = 40; // pushed down to avoid header overlap
+  const uint8_t barH = 60;
 
   for (uint8_t i = 0; i < numBars; i++) {
     uint8_t x = gap + i * (barW + gap);
     float stock = _fert->getStockML(i);
+    float maxStock = DEFAULT_STOCK_ML;
     float pct = stock / maxStock;
     if (pct > 1.0f)
       pct = 1.0f;
@@ -306,14 +353,15 @@ void DisplayManager::_drawStockPage() {
       pct = 0.0f;
     uint8_t fillH = (uint8_t)(pct * barH);
 
-    // Bar outline
-    _display.drawRect(x, barTop, barW, barH, COL_BAR_BG);
+    // Unique color per channel
+    uint16_t chColor = CHANNEL_COLORS[i % 5];
 
-    // Color-coded fill
-    uint16_t fillCol =
-        pct > 0.5f ? COL_GOOD : (pct > 0.2f ? COL_WARN : COL_ERR);
+    // Bar outline in channel color
+    _display.drawRect(x, barTop, barW, barH, chColor);
+
+    // Fill bar with channel color (dimmed outline, bright fill)
     if (fillH > 0) {
-      _display.fillRect(x + 1, barTop + barH - fillH, barW - 2, fillH, fillCol);
+      _display.fillRect(x + 1, barTop + barH - fillH, barW - 2, fillH, chColor);
     }
 
     // Percentage label above bar
@@ -322,15 +370,35 @@ void DisplayManager::_drawStockPage() {
     snprintf(buf, sizeof(buf), "%d%%", pctVal);
     uint8_t tw = strlen(buf) * 6;
     _display.setTextSize(1);
-    _display.setTextColor(fillCol);
+    _display.setTextColor(chColor);
     _display.setCursor(x + (barW - tw) / 2, barTop - 10);
     _display.print(buf);
 
-    // Channel label below bar
-    _display.setTextColor(COL_DIM);
-    uint8_t lw = strlen(labels[i]) * 6;
+    // Channel name below bar (from saved config)
+    String name = _fert->getName(i);
+    if (name.length() == 0) {
+      if (i < NUM_FERTS) {
+        name = "F" + String(i + 1);
+      } else {
+        name = "PR";
+      }
+    }
+    // Truncate to fit bar width (max 3 chars at size 1)
+    if (name.length() > 3) {
+      name = name.substring(0, 3);
+    }
+    _display.setTextColor(chColor);
+    uint8_t lw = name.length() * 6;
     _display.setCursor(x + (barW - lw) / 2, barTop + barH + 4);
-    _display.print(labels[i]);
+    _display.print(name);
+
+    // Stock mL below name
+    _display.setTextColor(COL_DIM);
+    char mlBuf[8];
+    snprintf(mlBuf, sizeof(mlBuf), "%.0f", stock);
+    uint8_t mlW = strlen(mlBuf) * 6;
+    _display.setCursor(x + (barW - mlW) / 2, barTop + barH + 14);
+    _display.print(mlBuf);
   }
 }
 
@@ -339,6 +407,7 @@ void DisplayManager::_drawStockPage() {
 // =============================================================================
 void DisplayManager::_drawSchedulePage() {
   uint8_t y = 32;
+  uint8_t lang = _web->getLanguage();
 
   // Current time — large
   DateTime now = _time->now();
@@ -357,7 +426,7 @@ void DisplayManager::_drawSchedulePage() {
   _display.setTextSize(1);
   _display.setTextColor(COL_DIM);
   _display.setCursor(4, y);
-  _display.print(F("PROXIMA TPA"));
+  _display.print(STR_NEXT_TPA[lang]);
 
   y += 14;
   uint8_t th = _web->getTpaHour();
@@ -378,6 +447,7 @@ void DisplayManager::_drawSchedulePage() {
     _display.setCursor(70, y + 4);
     _display.print(F("/ "));
     _display.print(interval);
-    _display.print(F(" dias"));
+    _display.print(F(" "));
+    _display.print(STR_DAYS[lang]);
   }
 }
