@@ -120,10 +120,10 @@ void DisplayManager::update() {
   // Lock on aquarium page while TPA is running
   bool tpaRunning = _water->isRunning();
   if (tpaRunning) {
-    if (now - _lastRedraw < REDRAW_MS) {
+    if (now - _lastPageSwitch < PAGE_CYCLE_MS) {
       return;
     }
-    _lastRedraw = now;
+    _lastPageSwitch = now;
     _currentPage = 1; // Aquarium page
 
     _display.fillScreen(COL_BG);
@@ -133,38 +133,53 @@ void DisplayManager::update() {
     return;
   }
 
-  // Check if it's time to switch pages
-  if (now - _lastPageSwitch >= PAGE_CYCLE_MS) {
+  // Check if it's time to switch pages (full redraw)
+  bool pageSwitch = (now - _lastPageSwitch >= PAGE_CYCLE_MS);
+  if (pageSwitch) {
     _lastPageSwitch = now;
+    _lastRedraw = now;
     _currentPage = (_currentPage + 1) % NUM_PAGES;
-  }
 
-  // Redraw current page every REDRAW_MS (1s) for live updates
-  if (now - _lastRedraw < REDRAW_MS) {
+    _display.fillScreen(COL_BG);
+
+    uint8_t lang = _web->getLanguage();
+    const char *pageNames[] = {STR_NETWORK[lang], STR_AQUARIUM[lang],
+                               STR_STOCK[lang], STR_SCHEDULE[lang]};
+    _drawHeader(pageNames[_currentPage]);
+
+    switch (_currentPage) {
+    case 0:
+      _drawNetworkPage();
+      break;
+    case 1:
+      _drawAquariumPage();
+      break;
+    case 2:
+      _drawStockPage();
+      break;
+    case 3:
+      _drawSchedulePage();
+      break;
+    }
     return;
   }
-  _lastRedraw = now;
 
-  _display.fillScreen(COL_BG);
+  // Partial redraw every 1s (only for schedule page — clock seconds)
+  if (_currentPage == 3 && (now - _lastRedraw >= REDRAW_MS)) {
+    _lastRedraw = now;
 
-  uint8_t lang = _web->getLanguage();
-  const char *pageNames[] = {STR_NETWORK[lang], STR_AQUARIUM[lang],
-                             STR_STOCK[lang], STR_SCHEDULE[lang]};
-  _drawHeader(pageNames[_currentPage]);
+    // Clear only the clock area (y=32, h=24, full width)
+    _display.fillRect(0, 30, 160, 26, COL_BG);
 
-  switch (_currentPage) {
-  case 0:
-    _drawNetworkPage();
-    break;
-  case 1:
-    _drawAquariumPage();
-    break;
-  case 2:
-    _drawStockPage();
-    break;
-  case 3:
-    _drawSchedulePage();
-    break;
+    DateTime dt = _time->now();
+    _display.setTextSize(3);
+    _display.setTextColor(COL_TEXT);
+    char timeBuf[9];
+    snprintf(timeBuf, sizeof(timeBuf), "%02d:%02d:%02d", dt.hour(), dt.minute(),
+             dt.second());
+    uint8_t tw = 8 * 18;
+    _display.setCursor((160 - tw) / 2, 32);
+    _display.print(timeBuf);
   }
 }
 
