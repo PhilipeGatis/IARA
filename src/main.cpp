@@ -89,7 +89,7 @@ void setup() {
   displayMgr.initHardware();
 
   // --- Step 2c: Filesystem ---
-  displayMgr.showBootStatus("Montando LittleFS...");
+  displayMgr.showBootStatus("LittleFS");
   if (!LittleFS.begin(true)) {
     Serial.println("[LittleFS] Mount Failed. Formatting...");
   } else {
@@ -97,7 +97,7 @@ void setup() {
   }
 
   // --- Step 3: WiFi (must be before NTP/WebServer) ---
-  displayMgr.showBootStatus("Conectando WiFi...");
+  displayMgr.showBootStatus("WiFi scan");
   Preferences wifiPref;
   wifiPref.begin("wifi", true); // true = readonly
   String savedSSID = wifiPref.getString("ssid", String(WIFI_SSID));
@@ -189,6 +189,9 @@ void setup() {
     Serial.println(" OK!");
     Serial.print("[WiFi] IP: ");
     Serial.println(WiFi.localIP());
+    char ipBuf[22];
+    snprintf(ipBuf, sizeof(ipBuf), "IP: %s", WiFi.localIP().toString().c_str());
+    displayMgr.showBootStatus(ipBuf);
   } else {
     Serial.println(" FAILED!");
     Serial.print("[WiFi] Error Code: ");
@@ -226,15 +229,16 @@ void setup() {
                   AP_PASSWORD);
     Serial.print("[WiFi] AP IP: ");
     Serial.println(WiFi.softAPIP());
+    displayMgr.showBootStatus("WiFi: AP Mode");
     // Removed immediate WiFi.begin() because it disrupts the SoftAP network.
   }
 
   // --- Step 4: Safety Watchdog (sensors) ---
-  displayMgr.showBootStatus("Sensores...");
+  displayMgr.showBootStatus("Sensors");
   safety.begin();
 
   // --- Step 5: Time Manager (RTC + NTP — needs WiFi) ---
-  displayMgr.showBootStatus("RTC + NTP...");
+  displayMgr.showBootStatus("RTC + NTP");
   timeMgr.begin();
 
   // --- Step 5: Fertilizer Manager (NVS state) ---
@@ -266,12 +270,13 @@ void setup() {
   }
 
   // --- Step 7: Web Dashboard + Serial UI ---
-  displayMgr.showBootStatus("Web Dashboard...");
+  displayMgr.showBootStatus("Web server");
   webMgr.begin(&timeMgr, &waterMgr, &fertMgr, &safety, &notifyMgr);
 
   // --- Step 7b: OLED Display (full init with managers) ---
   displayMgr.begin(&timeMgr, &waterMgr, &fertMgr, &safety, &webMgr);
-  displayMgr.showBootStatus("Sistema pronto!", "Iniciando loop...");
+  displayMgr.showBootStatus("System ready!");
+  delay(1000); // pause to show final boot log
 
   // --- Step 8: Canister filter ON by default ---
   digitalWrite(PIN_CANISTER, LOW); // SSR: LOW = relay ON

@@ -61,6 +61,7 @@ private:
   static constexpr uint8_t NUM_PAGES = 4;
   static constexpr unsigned long PAGE_CYCLE_MS = 5000; // switch page every 5s
   static constexpr unsigned long REDRAW_MS = 1000; // refresh content every 1s
+  uint8_t _bootLine;                               // boot log line counter
 
   // Page drawing methods
   void _drawNetworkPage();

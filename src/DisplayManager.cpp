@@ -39,7 +39,8 @@ static const uint16_t CHANNEL_COLORS[] = {
 DisplayManager::DisplayManager()
     : _display(PIN_TFT_CS, PIN_TFT_DC, PIN_TFT_MOSI, PIN_TFT_SCK, PIN_TFT_RST),
       _time(nullptr), _water(nullptr), _fert(nullptr), _safety(nullptr),
-      _web(nullptr), _currentPage(0), _lastPageSwitch(0), _lastRedraw(0) {}
+      _web(nullptr), _currentPage(0), _lastPageSwitch(0), _lastRedraw(0),
+      _bootLine(0) {}
 
 // =============================================================================
 // INIT HARDWARE
@@ -75,26 +76,50 @@ bool DisplayManager::initHardware() {
 // =============================================================================
 // SHOW BOOT STATUS
 // =============================================================================
-void DisplayManager::showBootStatus(const char *line1, const char *line2) {
-  _display.fillScreen(COL_BG);
+void DisplayManager::showBootStatus(const char *msg, const char *detail) {
+  const uint8_t lineH = 12;
+  const uint8_t startY = 26;
+  const uint8_t maxLines = 8; // (128 - 26) / 12 = 8 lines
 
-  // Header bar
-  _display.fillRect(0, 0, 160, 20, COL_ACCENT);
-  _display.setTextSize(1);
-  _display.setTextColor(COL_BG);
-  _display.setCursor(4, 6);
-  _display.print(F("IARA > Boot"));
+  // First call: draw header
+  if (_bootLine == 0) {
+    _display.fillScreen(COL_BG);
 
-  // Status text
-  _display.setTextColor(COL_GOOD);
-  _display.setTextSize(1);
-  _display.setCursor(8, 40);
-  _display.print(line1);
-  if (line2) {
-    _display.setCursor(8, 58);
-    _display.setTextColor(COL_DIM);
-    _display.print(line2);
+    // Header bar
+    _display.fillRect(0, 0, 160, 22, COL_ACCENT);
+    _display.setTextSize(1);
+    _display.setTextColor(COL_BG);
+    _display.setCursor(4, 7);
+    _display.print(F("IARA > Boot"));
   }
+
+  // Mark previous line as OK (if any)
+  if (_bootLine > 0 && _bootLine <= maxLines) {
+    uint8_t prevY = startY + (_bootLine - 1) * lineH;
+    _display.setCursor(140, prevY);
+    _display.setTextSize(1);
+    _display.setTextColor(COL_GOOD, COL_BG);
+    _display.print(F("OK"));
+  }
+
+  // Add new log line
+  if (_bootLine < maxLines) {
+    uint8_t y = startY + _bootLine * lineH;
+    _display.setTextSize(1);
+    _display.setTextColor(COL_TEXT, COL_BG);
+    _display.setCursor(4, y);
+    _display.print(F("> "));
+    _display.print(msg);
+
+    if (detail) {
+      _display.setTextColor(COL_DIM, COL_BG);
+      _display.setCursor(16, y + lineH);
+      _display.print(detail);
+      _bootLine++; // detail takes an extra line
+    }
+  }
+
+  _bootLine++;
 }
 
 // =============================================================================
