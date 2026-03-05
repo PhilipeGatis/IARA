@@ -66,15 +66,15 @@ ssr_d = 34;
 rtc_w = 38;
 rtc_d = 22;
 
-// -- OLED SSD1306 0.96" 128x64 (dimensões reais) --
-// PCB: 27 x 30 x 5mm
-oled_screen_w = 25.5; // mm - área visível
-oled_screen_h = 14; // mm - área visível
-oled_board_w = 27; // mm - PCB largura
-oled_board_h = 30; // mm - PCB altura
-oled_mount_holes_spacing_w = 23.5; // mm
-oled_mount_holes_spacing_h = 23.5; // mm
-oled_mount_d = 2.2; // mm - M2
+// -- TFT ST7735 1.8" 160x128 (dimensões reais) --
+// PCB: 56 x 34 x 5mm
+tft_screen_w = 35; // mm - área visível (160px)
+tft_screen_h = 28; // mm - área visível (128px)
+tft_board_w = 56; // mm - PCB largura
+tft_board_h = 34; // mm - PCB altura
+tft_mount_holes_spacing_w = 52; // mm
+tft_mount_holes_spacing_h = 30; // mm
+tft_mount_d = 2.2; // mm - M2
 
 // -- Módulo Sensor Ultrassônico --
 // 41 x 28.5mm
@@ -321,8 +321,8 @@ module sensor_labels() {
 // TAMPA DE ACRÍLICO (chapa reta)
 // ============================================================
 module lid() {
-  oled_x_offset = 40;
-  oled_y_offset = 45;
+  tft_x_offset = 40;
+  tft_y_offset = 45;
 
   color("LightCyan", 0.4)
     translate([0, 0, base_height])
@@ -335,25 +335,25 @@ module lid() {
 
         translate(
           [
-            oled_x_offset - oled_screen_w / 2,
-            oled_y_offset - oled_screen_h / 2,
+            tft_x_offset - tft_screen_w / 2,
+            tft_y_offset - tft_screen_h / 2,
             -0.1,
           ]
         )
-          cube([oled_screen_w, oled_screen_h, acrylic_thickness + 0.2]);
+          cube([tft_screen_w, tft_screen_h, acrylic_thickness + 0.2]);
 
-        for (dx = [-oled_mount_holes_spacing_w / 2, oled_mount_holes_spacing_w / 2])
-          for (dy = [-oled_mount_holes_spacing_h / 2, oled_mount_holes_spacing_h / 2])
-            translate([oled_x_offset + dx, oled_y_offset + dy, -0.1])
-              cylinder(d=oled_mount_d, h=acrylic_thickness + 0.2);
+        for (dx = [-tft_mount_holes_spacing_w / 2, tft_mount_holes_spacing_w / 2])
+          for (dy = [-tft_mount_holes_spacing_h / 2, tft_mount_holes_spacing_h / 2])
+            translate([tft_x_offset + dx, tft_y_offset + dy, -0.1])
+              cylinder(d=tft_mount_d, h=acrylic_thickness + 0.2);
 
         for (pos = screw_positions())
           translate([pos[0], pos[1], -0.1])
             cylinder(d=screw_d + 0.3, h=acrylic_thickness + 0.2);
 
-        translate([box_width / 4, -box_depth / 4 + oled_board_h / 2 + 10, 0])
+        translate([box_width / 4, -box_depth / 4 + tft_board_h / 2 + 10, 0])
           vent_slots(vent_qty, vent_slot_w, vent_slot_l, vent_spacing);
-        translate([-box_width / 4, -box_depth / 4 + oled_board_h / 2 + 10, 0])
+        translate([-box_width / 4, -box_depth / 4 + tft_board_h / 2 + 10, 0])
           vent_slots(vent_qty, vent_slot_w, vent_slot_l, vent_spacing);
 
         translate([0, box_depth / 4, acrylic_thickness - 0.3])
@@ -533,7 +533,7 @@ module module_area_labels() {
     translate([40, 55, wall])
       linear_extrude(label_h)
         text(
-          "OLED", size=3, halign="center", valign="center",
+          "TFT", size=3, halign="center", valign="center",
           font="Liberation Sans:style=Bold"
         );
 }
@@ -579,8 +579,8 @@ module ghost_components() {
       cube([rtc_w, rtc_d, 5]);
 
   color("Cyan", 0.3)
-    translate([40 - oled_board_w / 2, 45 - oled_board_h / 2, base_height - 5])
-      cube([oled_board_w, oled_board_h, 3]);
+    translate([40 - tft_board_w / 2, 45 - tft_board_h / 2, base_height - 5])
+      cube([tft_board_w, tft_board_h, 3]);
 }
 
 // ============================================================

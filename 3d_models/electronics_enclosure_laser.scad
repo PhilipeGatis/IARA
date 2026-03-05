@@ -53,13 +53,13 @@ ssr_d = 34;
 rtc_w = 38;
 rtc_d = 22;
 
-oled_screen_w = 25.5;
-oled_screen_h = 14;
-oled_board_w = 27;
-oled_board_h = 30;
-oled_mount_holes_spacing_w = 23.5;
-oled_mount_holes_spacing_h = 23.5;
-oled_mount_d = 2.2;
+tft_screen_w = 35;
+tft_screen_h = 28;
+tft_board_w = 56;
+tft_board_h = 34;
+tft_mount_holes_spacing_w = 52;
+tft_mount_holes_spacing_h = 30;
+tft_mount_d = 2.2;
 
 ultra_w = 41;
 ultra_d = 28.5;
@@ -375,8 +375,8 @@ module base_2d_right() {
 // TAMPA 2D (lid_2d) — Template para corte laser
 // ============================================================
 module lid_2d() {
-  oled_x_offset = 40;
-  oled_y_offset = 45;
+  tft_x_offset = 40;
+  tft_y_offset = 45;
   difference() {
     // Contorno com cantos arredondados
     hull() {
@@ -395,15 +395,15 @@ module lid_2d() {
           translate([x, y]) circle(r=corner_r);
     }
 
-    // Abertura OLED
-    translate([oled_x_offset - oled_screen_w / 2, oled_y_offset - oled_screen_h / 2])
-      square([oled_screen_w, oled_screen_h]);
+    // Abertura TFT
+    translate([tft_x_offset - tft_screen_w / 2, tft_y_offset - tft_screen_h / 2])
+      square([tft_screen_w, tft_screen_h]);
 
-    // Furos OLED M2
-    for (dx = [-oled_mount_holes_spacing_w / 2, oled_mount_holes_spacing_w / 2])
-      for (dy = [-oled_mount_holes_spacing_h / 2, oled_mount_holes_spacing_h / 2])
-        translate([oled_x_offset + dx, oled_y_offset + dy])
-          circle(d=oled_mount_d);
+    // Furos TFT M2
+    for (dx = [-tft_mount_holes_spacing_w / 2, tft_mount_holes_spacing_w / 2])
+      for (dy = [-tft_mount_holes_spacing_h / 2, tft_mount_holes_spacing_h / 2])
+        translate([tft_x_offset + dx, tft_y_offset + dy])
+          circle(d=tft_mount_d);
 
     // Furos M3 fixação
     for (pos = screw_positions())
@@ -416,7 +416,7 @@ module lid_2d() {
         translate(
           [
             side * box_width / 4 - tw / 2 + i * (vent_slot_w + vent_spacing),
-            -box_depth / 4 + oled_board_h / 2 + 10 - vent_slot_l / 2,
+            -box_depth / 4 + tft_board_h / 2 + 10 - vent_slot_l / 2,
           ]
         )
           square([vent_slot_w, vent_slot_l]);
