@@ -245,6 +245,7 @@ void DisplayManager::_drawHeader(const char *title) {
 // HEADER LEVEL BAR — partial-redraw safe (redraws on accent background)
 // =============================================================================
 void DisplayManager::_drawHeaderLevelBar() {
+  _display.setTextSize(1); // reset — previous page may have set size 3
   float dist = _safety->getLastDistance();
   const float maxDist = 30.0f;
   uint8_t barX = 80;
