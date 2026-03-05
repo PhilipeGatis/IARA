@@ -202,6 +202,9 @@ void DisplayManager::update() {
   if (now - _lastRedraw >= REDRAW_MS) {
     _lastRedraw = now;
 
+    // Always update the header level bar
+    _drawHeaderLevelBar();
+
     if (_currentPage == 3) {
       // Schedule page — clock seconds
       DateTime dt = _time->now();
@@ -224,9 +227,6 @@ void DisplayManager::update() {
 // HEADER — accent bar with title + water level bar
 // =============================================================================
 void DisplayManager::_drawHeader(const char *title) {
-  float dist = _safety->getLastDistance();
-  const float maxDist = 30.0f;
-
   // Accent bar with title
   _display.fillRect(0, 0, 160, 22, COL_ACCENT);
   _display.setTextSize(1);
@@ -234,7 +234,27 @@ void DisplayManager::_drawHeader(const char *title) {
   _display.setCursor(4, 7);
   _display.print(title);
 
-  // Water level bar on the right side of header
+  // Water level bar
+  _drawHeaderLevelBar();
+
+  // Thin separator line
+  _display.drawFastHLine(0, 23, 160, COL_BAR_BG);
+}
+
+// =============================================================================
+// HEADER LEVEL BAR — partial-redraw safe (redraws on accent background)
+// =============================================================================
+void DisplayManager::_drawHeaderLevelBar() {
+  float dist = _safety->getLastDistance();
+  const float maxDist = 30.0f;
+  uint8_t barX = 80;
+  uint8_t barW = 70;
+  uint8_t barH = 10;
+  uint8_t barY = 6;
+
+  // Clear bar area on accent background
+  _display.fillRect(barX, barY, barW, barH, COL_ACCENT);
+
   if (dist >= 0) {
     float pct = 1.0f - (dist / maxDist);
     if (pct > 1.0f)
@@ -242,10 +262,6 @@ void DisplayManager::_drawHeader(const char *title) {
     if (pct < 0.0f)
       pct = 0.0f;
 
-    uint8_t barX = 80;
-    uint8_t barW = 70;
-    uint8_t barH = 10;
-    uint8_t barY = 6;
     _display.drawRect(barX, barY, barW, barH, COL_BG);
     uint8_t fillW = (uint8_t)(pct * (barW - 2));
     uint16_t fillCol =
