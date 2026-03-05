@@ -76,6 +76,9 @@ rj45_w = 16;
 rj45_h = 14;
 rj45_qty = 3;
 
+// -- Botão de painel (push button momentâneo 12mm) --
+btn_panel_d = 12; // mm - diâmetro do furo de montagem
+
 // -- Ventilação --
 vent_slot_w = 2;
 vent_slot_l = 20;
@@ -200,12 +203,6 @@ module base_2d_bottom() {
         square([vent_slot_w, vent_slot_l]);
     }
 
-    // --- Recessos pés de borracha ---
-    for (x = [-box_width / 2 + 15, box_width / 2 - 15])
-      for (y = [-box_depth / 2 + 15, box_depth / 2 - 15])
-        translate([x, y])
-          circle(d=10, $fn=30);
-
     // --- Furos abas de montagem na parede ---
     translate([-box_width / 2 - 15 / 2, 0])
       circle(d=4.5, $fn=20);
@@ -262,6 +259,12 @@ module base_2d_front() {
       square([8, 6]);
     translate([rj45_spacing - rj45_w / 2, sensor_z_2d - panel_h / 2])
       square([rj45_w, rj45_h]);
+
+    // --- Furo botão de painel (12mm) ---
+    btn_x = rj45_spacing + rj45_w / 2 + 20;
+    btn_z = sensor_z_2d + rj45_h / 2 - panel_h / 2;
+    translate([btn_x, btn_z])
+      circle(d=btn_panel_d, $fn=40);
   }
 }
 
@@ -409,6 +412,10 @@ module lid_2d() {
     for (pos = screw_positions())
       translate([pos[0], pos[1]]) circle(d=screw_d + 0.3);
 
+    // Furo botão de painel (12mm) — ao lado do TFT
+    translate([tft_x_offset + tft_screen_w / 2 + 15, tft_y_offset])
+      circle(d=btn_panel_d, $fn=40);
+
     // Ventilação
     for (side = [1, -1]) {
       for (i = [0:vent_qty - 1]) {
@@ -467,17 +474,47 @@ module base_2d() {
 }
 
 // ============================================================
-// LAYOUT COMPLETO — TUDO (base + tampa)
+// LAYOUT OTIMIZADO — TUDO (mínimo de material)
+// ============================================================
+// Duas colunas lado a lado para minimizar chapa.
+// Layout:
+//   Col 1: Fundo (250×220) → Frontal (250×59) → Traseiro (250×59)
+//   Col 2: Tampa (~250×220) → Esquerdo (220×59) → Direito (220×59)
 // ============================================================
 module all_2d() {
-  panel_h = base_height - mat_t;
+  spacing = 8; // mm entre peças
+  panel_h = base_height - mat_t; // 59mm
+  mount_tab_h = 15;
 
-  // Base
-  base_2d();
+  // --- Coluna 1 (esquerda): Fundo + painéis maiores (250mm) ---
+  col1_x = 0;
 
-  // Tampa (abaixo da linha 3)
-  translate([0, -box_depth / 2 - panel_h - box_depth / 2 - spacing * 2 - 8])
+  // Fundo (em cima)
+  translate([col1_x, 0])
+    base_2d_bottom();
+
+  // Frontal (abaixo do fundo)
+  translate([col1_x, -box_depth / 2 - spacing - panel_h / 2])
+    base_2d_front();
+
+  // Traseiro (abaixo do frontal)
+  translate([col1_x, -box_depth / 2 - spacing - panel_h - spacing - panel_h / 2])
+    base_2d_back();
+
+  // --- Coluna 2 (direita): Tampa + painéis menores (220mm) ---
+  col2_x = box_width / 2 + mount_tab_h + spacing + (box_width - acrylic_tolerance) / 2;
+
+  // Tampa (em cima, alinhada com o fundo)
+  translate([col2_x, 0])
     lid_2d();
+
+  // Esquerdo (abaixo da tampa)
+  translate([col2_x, -box_depth / 2 - spacing - panel_h / 2])
+    base_2d_left();
+
+  // Direito (abaixo do esquerdo)
+  translate([col2_x, -box_depth / 2 - spacing - panel_h - spacing - panel_h / 2])
+    base_2d_right();
 }
 
 // ============================================================
@@ -485,9 +522,9 @@ module all_2d() {
 // ============================================================
 // Descomente a linha desejada e exporte como DXF:
 
-base_2d(); // Painéis da base (5 peças compactas)
+// base_2d(); // Painéis da base (5 peças compactas)
 // lid_2d();   // Somente a tampa
-// all_2d();   // Base + tampa juntos
+all_2d(); // Base + tampa juntos
 
 // ============================================================
 // NOTAS DE FABRICAÇÃO
