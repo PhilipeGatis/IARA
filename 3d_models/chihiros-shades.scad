@@ -7,9 +7,9 @@ comprimento = 200; // Comprimento total da peça em mm (ex: 300 = 30cm, 200 = 20
 
 y_ini = 0.5;
 y_fim = comprimento - 0.5;
-y_clip_ini = 12.5;                    // Início da transição do clipe (fixo, perto da borda)
-y_clip_fim = comprimento - 12.5;      // Fim da transição do clipe (espelhado)
-y_clip_reto_ini = 15.5;               // Início do miolo reto do clipe
+y_clip_ini = 12.5; // Início da transição do clipe (fixo, perto da borda)
+y_clip_fim = comprimento - 12.5; // Fim da transição do clipe (espelhado)
+y_clip_reto_ini = 15.5; // Início do miolo reto do clipe
 y_clip_reto_fim = comprimento - 15.5; // Fim do miolo reto do clipe
 
 pontos = [
@@ -81,78 +81,79 @@ pontos = [
 // =========================================================
 
 module objeto_final_impressao(tol_clip = 0, aumento_diag = 0, aumento_rampa = 0, cor_corpo = "LightGray", cor_clipe = "HotPink") {
-    function aplicar_tolerancia(p, t) = [
-        [p[0][0] + t * 0.7071, p[0][1] - t * 0.7071], // Maroon 
-        p[1],                                         // Black 
-        p[2],                                         // Navy/Teal 
-        [p[3][0] + t * 0.7071, p[3][1] - t * 0.7071]  // Lime/Gold 
+  function aplicar_tolerancia(p, t) =
+    [
+      [p[0][0] + t * 0.7071, p[0][1] - t * 0.7071], // Maroon 
+      p[1], // Black 
+      p[2], // Navy/Teal 
+      [p[3][0] + t * 0.7071, p[3][1] - t * 0.7071], // Lime/Gold 
     ];
 
-    module cunha_transicao(y_start, y_end, p1, p2) {
-        hull() {
-            translate([0, y_start, 0]) rotate([90, 0, 0]) linear_extrude(0.01) polygon(aplicar_tolerancia(p1, tol_clip));
-            translate([0, y_end, 0]) rotate([90, 0, 0]) linear_extrude(0.01) polygon(aplicar_tolerancia(p2, tol_clip));
-        }
+  module cunha_transicao(y_start, y_end, p1, p2) {
+    hull() {
+      translate([0, y_start, 0]) rotate([90, 0, 0]) linear_extrude(0.01) polygon(aplicar_tolerancia(p1, tol_clip));
+      translate([0, y_end, 0]) rotate([90, 0, 0]) linear_extrude(0.01) polygon(aplicar_tolerancia(p2, tol_clip));
     }
+  }
 
-    translate([0, 0, -0.5]) 
+  translate([0, 0, -0.5])
     union() {
-        // 1. CORPO PRINCIPAL (Extrusão do perfil frontal)
-        // O retângulo base é esticado e engrossado movendo Red e Black na diagonal
-        perfil_xy = [
-            [pontos[0][0] - aumento_diag, pontos[0][2] + aumento_diag],   // 0: Red
-            [pontos[2][0], pontos[2][2]],               // 2: Green (fixo)
-            [pontos[4][0], pontos[4][2]],               // 4: Blue
-            [pontos[36][0], pontos[36][2]], // 36: Parede dir topo ext 
-            [pontos[38][0], pontos[38][2]], // 38: Parede dir topo int 
-            [pontos[8][0], pontos[8][2]],   // 8: Magenta 
-            [pontos[14][0], pontos[14][2]], // 14: Purple 
-            [pontos[16][0], pontos[16][2]], // 16: Brown 
-            [pontos[18][0], pontos[18][2]], // 18: Pink
-            [pontos[30][0] + aumento_rampa, pontos[30][2] + aumento_rampa], // 30: Olive (Move na diagonal oposta para engrossar a rampa)
-            [pontos[32][0] - aumento_diag + aumento_rampa, pontos[32][2] + aumento_diag + aumento_rampa]  // 32: Black (Soma os dois movimentos)
-        ];
+      // 1. CORPO PRINCIPAL (Extrusão do perfil frontal)
+      // O retângulo base é esticado e engrossado movendo Red e Black na diagonal
+      perfil_xy = [
+        [pontos[0][0] - aumento_diag, pontos[0][2] + aumento_diag], // 0: Red
+        [pontos[2][0], pontos[2][2]], // 2: Green (fixo)
+        [pontos[4][0], pontos[4][2]], // 4: Blue
+        [pontos[36][0], pontos[36][2]], // 36: Parede dir topo ext 
+        [pontos[38][0], pontos[38][2]], // 38: Parede dir topo int 
+        [pontos[8][0], pontos[8][2]], // 8: Magenta 
+        [pontos[14][0], pontos[14][2]], // 14: Purple 
+        [pontos[16][0], pontos[16][2]], // 16: Brown 
+        [pontos[18][0], pontos[18][2]], // 18: Pink
+        [pontos[30][0] + aumento_rampa, pontos[30][2] + aumento_rampa], // 30: Olive (Move na diagonal oposta para engrossar a rampa)
+        [pontos[32][0] - aumento_diag + aumento_rampa, pontos[32][2] + aumento_diag + aumento_rampa], // 32: Black (Soma os dois movimentos)
+      ];
 
-        color(cor_corpo) {
-            translate([0, y_fim, 0]) rotate([90, 0, 0]) linear_extrude(height = y_fim - y_ini) polygon(perfil_xy);
-        }
-        
-        // 2. O CLIPE
-        // O topo do clipe (Navy, Lime) acompanha apenas o alargamento base (aumento_diag)
-        // O buraco e a base (Maroon, Black, Teal, Gold) acompanham também a rampa (aumento_rampa)
-        // Isso encurta o clipe em exatos `aumento_rampa`!
-        
-        dx_base = -aumento_diag + aumento_rampa;
-        dz_base = aumento_diag + aumento_rampa;
-        
-        dx_topo = -aumento_diag;
-        dz_topo = aumento_diag;
+      color(cor_corpo) {
+        translate([0, y_fim, 0]) rotate([90, 0, 0]) linear_extrude(height=y_fim - y_ini) polygon(perfil_xy);
+      }
 
-        perfil_transicao = [
-            [2.6464 + dx_base, 4.4749 + dz_base], // Maroon
-            [1.5858 + dx_base, 5.5355 + dz_base], // Black
-            [3.5303 + dx_base, 7.4801 + dz_base], // Teal
-            [4.5910 + dx_base, 6.4194 + dz_base]  // Gold
-        ];
-        
-        perfil_topo = [
-            [2.6464 + dx_base, 4.4749 + dz_base], // Projeção Maroon na rampa
-            [1.5858 + dx_base, 5.5355 + dz_base], // Projeção Black na rampa
-            [5.4749 + dx_topo, 9.4246 + dz_topo], // Navy
-            [6.5355 + dx_topo, 8.3640 + dz_topo]  // Lime
-        ];
+      // 2. O CLIPE
+      // O topo do clipe (Navy, Lime) acompanha apenas o alargamento base (aumento_diag)
+      // O buraco e a base (Maroon, Black, Teal, Gold) acompanham também a rampa (aumento_rampa)
+      // Isso encurta o clipe em exatos `aumento_rampa`!
 
-        color(cor_clipe) {
-            // Como as coordenadas já foram transladadas, fazemos apenas o ajuste anti-non-manifold
-            // Deslizando levemente na parede externa
-            translate([-0.01, 0, -0.01]) {
-                cunha_transicao(y_clip_ini, y_clip_reto_ini, perfil_transicao, perfil_topo);
-                cunha_transicao(y_clip_fim, y_clip_reto_fim, perfil_transicao, perfil_topo); // Cunhas espelhadas
+      dx_base = -aumento_diag + aumento_rampa;
+      dz_base = aumento_diag + aumento_rampa;
+
+      dx_topo = -aumento_diag;
+      dz_topo = aumento_diag;
+
+      perfil_transicao = [
+        [2.6464 + dx_base, 4.4749 + dz_base], // Maroon
+        [1.5858 + dx_base, 5.5355 + dz_base], // Black
+        [3.5303 + dx_base, 7.4801 + dz_base], // Teal
+        [4.5910 + dx_base, 6.4194 + dz_base], // Gold
+      ];
+
+      perfil_topo = [
+        [2.6464 + dx_base, 4.4749 + dz_base], // Projeção Maroon na rampa
+        [1.5858 + dx_base, 5.5355 + dz_base], // Projeção Black na rampa
+        [5.4749 + dx_topo, 9.4246 + dz_topo], // Navy
+        [6.5355 + dx_topo, 8.3640 + dz_topo], // Lime
+      ];
+
+      color(cor_clipe) {
+        // Como as coordenadas já foram transladadas, fazemos apenas o ajuste anti-non-manifold
+        // Deslizando levemente na parede externa
+        translate([-0.01, 0, -0.01]) {
+          cunha_transicao(y_clip_ini, y_clip_reto_ini, perfil_transicao, perfil_topo);
+          cunha_transicao(y_clip_fim, y_clip_reto_fim, perfil_transicao, perfil_topo); // Cunhas espelhadas
 
           // Miolo do clipe
           translate([0, y_clip_reto_fim, 0])
             rotate([90, 0, 0])
-              linear_extrude(height = y_clip_reto_fim - y_clip_reto_ini) {
+              linear_extrude(height=y_clip_reto_fim - y_clip_reto_ini) {
                 polygon(aplicar_tolerancia(perfil_topo, tol_clip));
               }
         }
@@ -185,10 +186,8 @@ module ligar_pontos_longitudinais(pts) {
 // =========================================================
 
 if (modo_impressao) {
-    // Renderiza a peça com o movimento diagonal base (1.0) e o engrossamento da rampa (1.5)
-    objeto_final_impressao(0, 1.0, 1.5);
-
-
+  // Renderiza a peça com o movimento diagonal base (0.75) e o engrossamento da rampa (1.5)
+  objeto_final_impressao(0, 0.75, 1.5);
 } else {
   cores_perfil = [
     "Red",
