@@ -224,7 +224,7 @@ String WebManager::_buildStatusJSON() {
 #ifdef USE_WEBSERVER
 void WebManager::_setupRoutes() {
   // ---- Dashboard React App (LittleFS) ----
-  _server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
+  _server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html").setCacheControl("no-cache, no-store, must-revalidate");
 
   // ---- SSE Events ----
   _events.onConnect([this](AsyncEventSourceClient *client) {
