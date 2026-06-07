@@ -34,7 +34,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
     const [height, setHeight] = useState('');
     const [length, setLength] = useState('');
     const [width, setWidth] = useState('');
-    const [margin, setMargin] = useState('');
+    const [sensorFull, setSensorFull] = useState('');
     const [primeRatio, setPrimeRatio] = useState('');
     const [reservoirVol, setReservoirVol] = useState('');
     const [canisterSafePct, setCanisterSafePct] = useState('');
@@ -55,7 +55,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
             if (!height && status.aqHeight) setHeight(status.aqHeight.toString());
             if (!length && status.aqLength) setLength(status.aqLength.toString());
             if (!width && status.aqWidth) setWidth(status.aqWidth.toString());
-            if (!margin && status.aqMarginCm) setMargin(status.aqMarginCm.toString());
+            if (!sensorFull && status.sensorFullDistanceCm !== undefined) setSensorFull(status.sensorFullDistanceCm.toString());
             if (!primeRatio && status.primeRatio) setPrimeRatio(status.primeRatio.toString());
             if (!reservoirVol && status.reservoirVolume) setReservoirVol(status.reservoirVolume.toString());
             if (!canisterSafePct && (status as any).canisterSafePct) setCanisterSafePct((status as any).canisterSafePct.toString());
@@ -80,7 +80,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
             aqHeight: parseInt(height) || 0,
             aqLength: parseInt(length) || 0,
             aqWidth: parseInt(width) || 0,
-            aqMarginCm: parseInt(margin) || 0,
+            sensorFullDistanceCm: parseInt(sensorFull) || 0,
             primeRatio: parseFloat(primeRatio) || 0,
             reservoirVolume: parseInt(reservoirVol) || 0,
             canisterSafePct: parseInt(canisterSafePct) || 0,
@@ -119,8 +119,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
         const h = parseInt(height) || 0;
         const l = parseInt(length) || 0;
         const w = parseInt(width) || 0;
-        const mg = parseInt(margin) || 0;
-        const effH = Math.max(0, h - mg);
+        const effH = Math.max(0, h); // Full height is used for volume now
         return (effH * l * w) / 1000;
     };
 
@@ -265,13 +264,29 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                        <label className="text-xs font-bold text-muted uppercase tracking-wider">{t('config.margin')}</label>
-                        <input
-                            type="number" min="0" step="1" placeholder="Ex: 3"
-                            className="w-full rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
-                            value={margin} onChange={(e) => setMargin(e.target.value)}
-                        />
-                        <span className="text-[10px] text-muted italic mt-1">{t('config.marginHint')}</span>
+                        <label className="text-xs font-bold text-muted uppercase tracking-wider">{t('config.sensorFull')}</label>
+                        <div className="flex gap-2">
+                            <input
+                                type="number" min="0" step="1" placeholder="Ex: 5"
+                                className="flex-1 rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
+                                value={sensorFull} onChange={(e) => setSensorFull(e.target.value)}
+                            />
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        const res = await fetch('/api/config/calibrate-sensor-full', { method: 'POST' });
+                                        if (res.ok) alert(t('notify.keySaved')); // generic ok message
+                                        else alert(t('config.commError'));
+                                    } catch {
+                                        alert(t('config.commError'));
+                                    }
+                                }}
+                                className="flex-none rounded-md bg-accent2/20 px-4 py-2 text-xs font-bold uppercase tracking-wider text-accent2 shadow-md transition-all hover:bg-accent2/30 active:scale-95"
+                            >
+                                {t('config.calibrateSensor')}
+                            </button>
+                        </div>
+                        <span className="text-[10px] text-muted italic mt-1">{t('config.sensorFullHint')}</span>
                     </div>
 
                     <div className="flex gap-4">

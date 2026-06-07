@@ -3,7 +3,7 @@
 // MODO DE VISUALIZAÇÃO E IMPRESSÃO
 // =========================================================
 modo_impressao = true; // true = Sólido de impressão limpo, false = Wireframe de debug
-comprimento = 200; // Comprimento total da peça em mm (ex: 300 = 30cm, 200 = 20cm)
+comprimento = 150; // Comprimento total da peça em mm (ex: 300 = 30cm, 200 = 20cm)
 
 y_ini = 0.5;
 y_fim = comprimento - 0.5;

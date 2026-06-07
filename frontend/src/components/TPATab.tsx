@@ -15,8 +15,13 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
 
     // Reservoir Safety
     const [safetyML, setSafetyML] = useState('');
+    const [primeRatio, setPrimeRatio] = useState('');
+    const [primeML, setPrimeML] = useState(0);
+    const [primeEnabled, setPrimeEnabled] = useState(true);
     const [drainMl, setDrainMl] = useState('');
     const [refillMl, setRefillMl] = useState('');
+    const [drainGoal, setDrainGoal] = useState('');
+    const [refillGoal, setRefillGoal] = useState('');
     const [running3s, setRunning3s] = useState<string | null>(null);
 
     // Prime config modal
@@ -29,6 +34,10 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
             if (status.tpaMinute !== undefined) setM(status.tpaMinute.toString().padStart(2, '0'));
             if (!pct && status.tpaPercent) setPct(status.tpaPercent.toString());
             if (!safetyML && status.reservoirSafetyML !== undefined) setSafetyML(status.reservoirSafetyML.toString());
+            if (!refillMl && status.reservoirSafetyML) setRefillMl(status.reservoirSafetyML.toString());
+            if (!primeRatio && status.primeRatio) setPrimeRatio(status.primeRatio.toString());
+            if (!primeML && status.primeML) setPrimeML(status.primeML);
+            if (status.primeEnabled !== undefined) setPrimeEnabled(status.primeEnabled);
         }
     }, [status]);
 
@@ -47,8 +56,8 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
         });
     };
 
-    const handlePump = (pump: 'drain' | 'refill', state: number) => {
-        api('POST', '/api/tpa/pump', { pump, state });
+    const handlePump = (pump: 'drain' | 'refill' | 'solenoid', state: number, liters?: number) => {
+        api('POST', '/api/tpa/pump', { pump, state, liters });
     };
 
     return (
@@ -146,37 +155,92 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                         <span className="text-[10px] text-muted italic mt-1">{t('tpa.safetyHint')}</span>
                     </div>
 
-                    <div className="flex gap-3">
-                        <button
-                            onMouseDown={() => handlePump('drain', 1)} onMouseUp={() => handlePump('drain', 0)}
-                            onTouchStart={() => handlePump('drain', 1)} onTouchEnd={() => handlePump('drain', 0)}
-                            className="flex-1 rounded-md border border-muted bg-transparent px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-muted transition hover:bg-white/5 active:bg-white/10 select-none"
-                        >
-                            {t('tpa.testDrain')}
-                        </button>
-                        <button
-                            onMouseDown={() => handlePump('refill', 1)} onMouseUp={() => handlePump('refill', 0)}
-                            onTouchStart={() => handlePump('refill', 1)} onTouchEnd={() => handlePump('refill', 0)}
-                            className="flex-1 rounded-md border border-muted bg-transparent px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-muted transition hover:bg-white/5 active:bg-white/10 select-none"
-                        >
-                            {t('tpa.testRefill')}
-                        </button>
+                    <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-2">
+                            <label className="text-xs font-bold text-muted uppercase tracking-wider">{t('tpa.pumpControl')} - {t('tpa.testDrain')}</label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="number" min="0" step="1" placeholder={t('tpa.goalLiters')}
+                                    className="w-24 rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
+                                    value={drainGoal} onChange={e => setDrainGoal(e.target.value)}
+                                />
+                                <button
+                                    onClick={() => handlePump('drain', 1, parseFloat(drainGoal) || 0)}
+                                    className="flex-1 rounded-md bg-accent/20 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-accent transition hover:bg-accent/30 active:scale-95"
+                                >
+                                    ▶ ON
+                                </button>
+                                <button
+                                    onClick={() => handlePump('drain', 0)}
+                                    className="flex-1 rounded-md bg-danger/20 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-danger transition hover:bg-danger/30 active:scale-95"
+                                >
+                                    ⏹ OFF
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                            <label className="text-xs font-bold text-muted uppercase tracking-wider">{t('tpa.pumpControl')} - {t('tpa.testRefill')}</label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="number" min="0" step="1" placeholder={t('tpa.goalLiters')}
+                                    className="w-24 rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
+                                    value={refillGoal} onChange={e => setRefillGoal(e.target.value)}
+                                />
+                                <button
+                                    onClick={() => handlePump('refill', 1, parseFloat(refillGoal) || 0)}
+                                    className="flex-1 rounded-md bg-accent2/20 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-accent2 transition hover:bg-accent2/30 active:scale-95"
+                                >
+                                    ▶ ON
+                                </button>
+                                <button
+                                    onClick={() => handlePump('refill', 0)}
+                                    className="flex-1 rounded-md bg-danger/20 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-danger transition hover:bg-danger/30 active:scale-95"
+                                >
+                                    ⏹ OFF
+                                </button>
+                            </div>
+                        </div>
                     </div>
 
                     <div className="flex flex-col gap-2">
                         <label className="text-xs font-bold text-muted uppercase tracking-wider">{t('tpa.primeDose')}</label>
-                        <div className="rounded-lg bg-accent/10 px-4 py-3">
-                            <strong className="text-accent text-sm">{status?.primeMl ? `${status.primeMl.toFixed(1)} mL` : t('tpa.configInConfigTab')}</strong>
+                        <div className="flex items-center justify-between rounded-md border border-muted/20 bg-white/5 px-4 py-3">
+                            <span className="text-sm font-semibold text-white">{primeML.toFixed(1)} <span className="text-muted text-xs">mL</span></span>
                             <span className="text-[10px] text-muted italic ml-2">{t('tpa.autoCalc')}</span>
                         </div>
                     </div>
 
-                    <button
-                        onClick={handleSaveConfig}
-                        className="mt-2 rounded-full bg-accent2 px-6 py-2.5 text-sm font-bold uppercase tracking-wider text-black shadow-md transition-all hover:bg-teal-300 active:scale-95"
-                    >
-                        {t('tpa.saveConfig')}
-                    </button>
+                    <div className="flex items-center gap-3 bg-white/5 rounded-md p-3 border border-muted/20">
+                        <input
+                            type="checkbox"
+                            checked={primeEnabled}
+                            onChange={(e) => {
+                                setPrimeEnabled(e.target.checked);
+                                api('POST', '/api/config/aquarium', { primeEnabled: e.target.checked ? 1 : 0 });
+                            }}
+                            className="w-5 h-5 accent-accent2"
+                        />
+                        <div className="flex flex-col">
+                            <span className="text-sm font-bold text-text">{t('tpa.primeEnabled')}</span>
+                            <span className="text-[10px] text-muted">{t('tpa.primeEnabledHint')}</span>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-2 mt-2">
+                        <button
+                            onClick={handleSaveConfig}
+                            className="flex-1 rounded-full bg-accent2 px-6 py-2.5 text-sm font-bold uppercase tracking-wider text-black shadow-md transition-all hover:bg-teal-300 active:scale-95"
+                        >
+                            {t('tpa.saveConfig')}
+                        </button>
+                        <button
+                            onClick={() => handlePump('solenoid', 1)}
+                            className="flex-1 rounded-full bg-blue-500/20 px-6 py-2.5 text-sm font-bold uppercase tracking-wider text-blue-400 border border-blue-500/30 shadow-md transition-all hover:bg-blue-500/30 active:scale-95"
+                        >
+                            {t('tpa.fillReservoir')}
+                        </button>
+                    </div>
 
                 </div>
             </div>
@@ -263,7 +327,7 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
             </div>
 
             {/* PRIME (CH5) CONFIGURATION */}
-            {status?.stocks && status.stocks.length >= 5 && (
+            {primeEnabled && status?.stocks && status.stocks.length >= 5 && (
                 <FertCard index={4} s={status.stocks[4]} onConfig={() => setShowPrimeConfig(true)} />
             )}
 

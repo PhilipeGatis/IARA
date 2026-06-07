@@ -27,7 +27,8 @@ WebManager::WebManager()
       _tpaInterval(7), _tpaHour(10), _tpaMinute(0), _tpaLastRun(0),
       _tpaPercent(20), _canisterSafePct(0), _language(0),
       _primeML(DEFAULT_PRIME_ML), _aqHeight(0), _aqLength(0), _aqWidth(0),
-      _aqMarginCm(0), _drainFlowRate(0), _refillFlowRate(0),
+      _sensorFullDistanceCm(0), _drainFlowRate(0), _refillFlowRate(0),
+      _primeEnabled(true),
       _reservoirVolume(0), _reservoirSafetyML(0), _lastTelemetryMs(0),
       _lastSSEMs(0) {
 }
@@ -137,12 +138,13 @@ String WebManager::_buildStatusJSON() {
   json += "\"aqHeight\":" + String(_aqHeight) + ",";
   json += "\"aqLength\":" + String(_aqLength) + ",";
   json += "\"aqWidth\":" + String(_aqWidth) + ",";
-  json += "\"aqMarginCm\":" + String(_aqMarginCm) + ",";
+  json += "\"sensorFullDistanceCm\":" + String(_sensorFullDistanceCm) + ",";
   json += "\"aquariumVolume\":" + String(aqVol) + ",";
   json += "\"litersPerCm\":" + String(lPerCm, 2) + ",";
   json += "\"drainFlowRate\":" + String(_drainFlowRate, 2) + ",";
   json += "\"refillFlowRate\":" + String(_refillFlowRate, 2) + ",";
-  json += "\"primeRatio\":" + String(_primeRatio, 4) + ",";
+  json += "\"primeRatio\":" + String(_primeRatio, 5) + ",";
+  json += "\"primeEnabled\":" + String(_primeEnabled ? "true" : "false") + ",";
   json += "\"reservoirVolume\":" + String(_reservoirVolume) + ",";
   json += "\"reservoirSafetyML\":" + String(_reservoirSafetyML, 0) + ",";
   json += "\"tpaConfigReady\":";
@@ -274,7 +276,7 @@ void WebManager::_setupRoutes() {
         request->send(200, "application/json", "{\"ok\":true}");
       });
 
-  // ---- POST /api/tpa/pump (Manual Drain/Refill Trigger) ----
+  // ---- POST /api/tpa/pump (Manual Drain/Refill/Solenoid Trigger) ----
   _server.on(
       "/api/tpa/pump", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
       [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
@@ -282,11 +284,28 @@ void WebManager::_setupRoutes() {
         String body = String((char *)data).substring(0, len);
         String pStr = _extractString(body, "pump");
         int st = _extractInt(body, "state");
+        float liters = _extractFloat(body, "liters");
+        if (liters < 0) liters = 0;
 
-        if (pStr == "drain") {
-          digitalWrite(PIN_DRAIN, st == 1 ? HIGH : LOW);
-        } else if (pStr == "refill") {
-          digitalWrite(PIN_REFILL, st == 1 ? HIGH : LOW);
+        if (st == 1) {
+          if (pStr == "solenoid" && _water) {
+            _water->startManualReservoirFill();
+          } else if ((pStr == "drain" || pStr == "refill") && _water) {
+            _water->startManualPump(pStr, liters);
+          } else {
+             // Fallback for direct toggle if needed
+             if (pStr == "drain") digitalWrite(PIN_DRAIN, HIGH);
+             else if (pStr == "refill") digitalWrite(PIN_REFILL, HIGH);
+             else if (pStr == "solenoid") digitalWrite(PIN_SOLENOID, HIGH);
+          }
+        } else {
+          if (_water && _water->isRunning()) {
+            _water->stopManual();
+          } else {
+             if (pStr == "drain") digitalWrite(PIN_DRAIN, LOW);
+             else if (pStr == "refill") digitalWrite(PIN_REFILL, LOW);
+             else if (pStr == "solenoid") digitalWrite(PIN_SOLENOID, LOW);
+          }
         }
         request->send(200, "application/json", "{\"ok\":true}");
       });
@@ -320,14 +339,19 @@ void WebManager::_setupRoutes() {
           _primeRatio = ratio;
           changed = true;
         }
+        int pe = _extractInt(body, "primeEnabled");
+        if (pe >= 0) {
+          _primeEnabled = (pe == 1);
+          changed = true;
+        }
         int rv = _extractInt(body, "reservoirVolume");
         if (rv >= 0) {
           _reservoirVolume = rv;
           changed = true;
         }
-        int mg = _extractInt(body, "aqMarginCm");
+        int mg = _extractInt(body, "sensorFullDistanceCm");
         if (mg >= 0) {
-          _aqMarginCm = mg;
+          _sensorFullDistanceCm = mg;
           changed = true;
         }
 
@@ -341,11 +365,27 @@ void WebManager::_setupRoutes() {
           _saveParams();
           uint32_t vol = getAquariumVolume();
           Serial.printf(
-              "[Web] Aquarium dims: %dx%dx%d cm (margin %d) = %lu L\n",
-              _aqHeight, _aqLength, _aqWidth, _aqMarginCm, vol);
+              "[Web] Aquarium dims: %dx%dx%d cm (sensor %d) = %lu L\n",
+              _aqHeight, _aqLength, _aqWidth, _sensorFullDistanceCm, vol);
         }
         request->send(200, "application/json", "{\"ok\":true}");
       });
+
+  // ---- POST /api/config/calibrate-sensor-full ----
+  _server.on("/api/config/calibrate-sensor-full", HTTP_POST,
+             [this](AsyncWebServerRequest *request) {
+               if (_safety) {
+                 float dist = _safety->readUltrasonic();
+                 if (dist > 0) {
+                   _sensorFullDistanceCm = (uint16_t)round(dist);
+                   _saveParams();
+                   Serial.printf("[Web] Sensor 100%% calibrated to %d cm\n", _sensorFullDistanceCm);
+                   request->send(200, "application/json", "{\"ok\":true}");
+                   return;
+                 }
+               }
+               request->send(500, "application/json", "{\"error\":\"Sensor error\"}");
+             });
 
   // ---- POST /api/tpa/run3s (JSON body: {"pump": "drain" | "refill"}) ----
   _server.on(
@@ -888,14 +928,15 @@ void WebManager::_loadParams() {
   _canisterSafePct = _prefs.getUChar("canSf", 0);
   _language = _prefs.getUChar("lang", 0);
   _primeML = _prefs.getFloat("tpaPr", DEFAULT_PRIME_ML);
-  _aqHeight = _prefs.getUShort("aqH", 0);
-  _aqLength = _prefs.getUShort("aqL", 0);
-  _aqWidth = _prefs.getUShort("aqW", 0);
-  _aqMarginCm = _prefs.getUShort("aqMg", 0);
+  _aqHeight = _prefs.getUShort("aqH", 40);
+  _aqLength = _prefs.getUShort("aqL", 60);
+  _aqWidth = _prefs.getUShort("aqW", 30);
+  _sensorFullDistanceCm = _prefs.getUShort("aqMg", 10); // Reused key for backward compat
   _drainFlowRate = _prefs.getFloat("drFR", 0);
   _refillFlowRate = _prefs.getFloat("rfFR", 0);
   _primeRatio = _prefs.getFloat("pRat", 0);
-  _reservoirVolume = _prefs.getUShort("resVol", 0);
+  _primeEnabled = _prefs.getBool("pEn", true);
+  _reservoirVolume = _prefs.getUShort("rVol", 0);
   _reservoirSafetyML = _prefs.getFloat("resSf", 0);
   _prefs.end();
 
@@ -918,11 +959,12 @@ void WebManager::_saveParams() {
   _prefs.putUShort("aqH", _aqHeight);
   _prefs.putUShort("aqL", _aqLength);
   _prefs.putUShort("aqW", _aqWidth);
-  _prefs.putUShort("aqMg", _aqMarginCm);
+  _prefs.putUShort("aqMg", _sensorFullDistanceCm);
   _prefs.putFloat("drFR", _drainFlowRate);
   _prefs.putFloat("rfFR", _refillFlowRate);
   _prefs.putFloat("pRat", _primeRatio);
-  _prefs.putUShort("resVol", _reservoirVolume);
+  _prefs.putBool("pEn", _primeEnabled);
+  _prefs.putUShort("rVol", _reservoirVolume);
   _prefs.putFloat("resSf", _reservoirSafetyML);
   _prefs.end();
 }

@@ -154,10 +154,10 @@ export default function FertsTab({ status }: { status: AQStatus | null }) {
 
     if (!status?.stocks) return <div className="text-muted text-center p-4">{t('fert.loading')}</div>;
 
-    // Filter out channel 4 (Prime — controlled by TPA)
+    // Filter out channel 4 (Prime) ONLY if primeEnabled is true
     const channels = status.stocks
         .map((s, i) => ({ s, i }))
-        .filter(c => c.i !== 4);
+        .filter(c => c.i !== 4 || !status?.primeEnabled);
 
     return (
         <>

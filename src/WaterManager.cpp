@@ -22,6 +22,12 @@ const char *tpaStateName(TPAState s) {
     return "COMPLETE";
   case TPAState::ERROR:
     return "ERROR";
+  case TPAState::MANUAL_RESERVOIR_FILL:
+    return "MANUAL_RESERVOIR_FILL";
+  case TPAState::MANUAL_PUMP_DRAIN:
+    return "MANUAL_PUMP_DRAIN";
+  case TPAState::MANUAL_PUMP_REFILL:
+    return "MANUAL_PUMP_REFILL";
   default:
     return "UNKNOWN";
   }
@@ -37,7 +43,8 @@ WaterManager::WaterManager()
       _timeoutDrainMs(30UL * 1000),  // 30s safe default (uncalibrated)
       _timeoutRefillMs(15UL * 1000), // 15s safe default (uncalibrated)
       _litersPerCm(0), _aqEffectiveHeightCm(0), _calStartLevel(0),
-      _calStartMs(0), _drainFlowLPM(0), _refillFlowLPM(0) {}
+      _calStartMs(0), _drainFlowLPM(0), _refillFlowLPM(0),
+      _manualPumpGoalLiters(0) {}
 
 void WaterManager::begin(SafetyWatchdog *safety, FertManager *fert) {
   _safety = safety;
@@ -75,6 +82,40 @@ void WaterManager::abortTPA() {
   _state = TPAState::ERROR;
 }
 
+void WaterManager::startManualReservoirFill() {
+  if (isRunning()) {
+    Serial.println("[TPA] Already running, ignoring startManualReservoirFill().");
+    return;
+  }
+  Serial.println("[TPA] ====== MANUAL RESERVOIR FILL STARTED ======");
+  _enterState(TPAState::MANUAL_RESERVOIR_FILL);
+}
+
+void WaterManager::startManualPump(const String &pump, float goalLiters) {
+  if (isRunning()) {
+    Serial.println("[TPA] Already running, ignoring startManualPump().");
+    return;
+  }
+  _manualPumpTarget = pump;
+  _manualPumpGoalLiters = goalLiters;
+
+  Serial.printf("[TPA] ====== MANUAL PUMP STARTED: %s (Goal: %.1f L) ======\n", pump.c_str(), goalLiters);
+
+  if (pump == "drain") {
+    _enterState(TPAState::MANUAL_PUMP_DRAIN);
+  } else if (pump == "refill") {
+    _enterState(TPAState::MANUAL_PUMP_REFILL);
+  }
+}
+
+void WaterManager::stopManual() {
+  Serial.println("[TPA] Manual operation stopped.");
+  digitalWrite(PIN_DRAIN, LOW);
+  digitalWrite(PIN_REFILL, LOW);
+  digitalWrite(PIN_SOLENOID, LOW);
+  _state = TPAState::IDLE;
+}
+
 void WaterManager::update() {
   if (_state == TPAState::IDLE || _state == TPAState::COMPLETE ||
       _state == TPAState::ERROR) {
@@ -107,6 +148,15 @@ void WaterManager::update() {
     break;
   case TPAState::CANISTER_ON:
     _handleCanisterOn();
+    break;
+  case TPAState::MANUAL_RESERVOIR_FILL:
+    _handleManualReservoirFill();
+    break;
+  case TPAState::MANUAL_PUMP_DRAIN:
+    _handleManualPumpDrain();
+    break;
+  case TPAState::MANUAL_PUMP_REFILL:
+    _handleManualPumpRefill();
     break;
   default:
     break;
@@ -227,6 +277,11 @@ void WaterManager::_handleFillingReservoir() {
 
 void WaterManager::_handleDosingPrime() {
   // Step 4: Dose Prime (dechlorinator) into reservoir
+  if (!_primeEnabled) {
+    _enterState(TPAState::REFILLING);
+    return;
+  }
+
   if (!_doseCompleted) {
     // First call: perform dosing
     if (_fert && _primeML > 0) {
@@ -301,6 +356,78 @@ void WaterManager::_handleCanisterOn() {
   Serial.println("[TPA] Canister ON. TPA cycle COMPLETE.");
 
   _state = TPAState::COMPLETE;
+}
+
+void WaterManager::_handleManualReservoirFill() {
+  if (digitalRead(PIN_SOLENOID) == LOW) {
+    digitalWrite(PIN_SOLENOID, HIGH);
+    Serial.println("[TPA] Solenoid OPEN. Manual filling reservoir...");
+  }
+
+  if (_safety && _safety->isReservoirFull()) {
+    Serial.println("[TPA] Reservoir FULL. Manual fill complete.");
+    digitalWrite(PIN_SOLENOID, LOW);
+    _state = TPAState::COMPLETE;
+    return;
+  }
+
+  if (_stateElapsed() >= TIMEOUT_FILL_MS) {
+    digitalWrite(PIN_SOLENOID, LOW);
+    _error("Reservoir manual fill timeout exceeded!");
+    return;
+  }
+}
+
+void WaterManager::_handleManualPumpDrain() {
+  if (digitalRead(PIN_DRAIN) == LOW) {
+    digitalWrite(PIN_DRAIN, HIGH);
+  }
+
+  if (_manualPumpGoalLiters > 0 && _drainFlowLPM > 0) {
+    float drainedLiters = (_stateElapsed() / 60000.0f) * _drainFlowLPM;
+    if (drainedLiters >= _manualPumpGoalLiters) {
+      Serial.printf("[TPA] Manual drain goal reached: %.1f L\n", drainedLiters);
+      digitalWrite(PIN_DRAIN, LOW);
+      _state = TPAState::COMPLETE;
+      return;
+    }
+  }
+
+  // Safety: maximum timeout (e.g., 30 mins)
+  if (_stateElapsed() >= 30UL * 60 * 1000) {
+    digitalWrite(PIN_DRAIN, LOW);
+    _error("Manual drain timeout exceeded!");
+  }
+}
+
+void WaterManager::_handleManualPumpRefill() {
+  if (digitalRead(PIN_REFILL) == LOW) {
+    digitalWrite(PIN_REFILL, HIGH);
+  }
+
+  // CRITICAL SAFETY: Optical sensor = immediate stop
+  if (_safety && _safety->isOpticalHigh()) {
+    Serial.println("[TPA] Optical sensor HIGH — manual refill STOPPED (max level).");
+    digitalWrite(PIN_REFILL, LOW);
+    _state = TPAState::COMPLETE;
+    return;
+  }
+
+  if (_manualPumpGoalLiters > 0 && _refillFlowLPM > 0) {
+    float refilledLiters = (_stateElapsed() / 60000.0f) * _refillFlowLPM;
+    if (refilledLiters >= _manualPumpGoalLiters) {
+      Serial.printf("[TPA] Manual refill goal reached: %.1f L\n", refilledLiters);
+      digitalWrite(PIN_REFILL, LOW);
+      _state = TPAState::COMPLETE;
+      return;
+    }
+  }
+
+  // Safety: maximum timeout (e.g., 30 mins)
+  if (_stateElapsed() >= 30UL * 60 * 1000) {
+    digitalWrite(PIN_REFILL, LOW);
+    _error("Manual refill timeout exceeded!");
+  }
 }
 
 void WaterManager::_captureRefillCalibration() {

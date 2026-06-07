@@ -20,10 +20,10 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
     const renderFertTable = () => {
         if (!status?.stocks) return <div className="text-xs text-muted">{t('home.waiting')}</div>;
 
-        // Find stocks that have at least one dose > 0, excluding Prime (index 4)
+        // Find stocks that have at least one dose > 0, excluding Prime (index 4) if it's enabled for TPA
         const activeStocks = status.stocks
             .map((s, idx) => ({ ...s, originalIndex: idx }))
-            .filter(s => s.originalIndex !== 4 && s.doses?.some(d => Number(d) > 0));
+            .filter(s => (s.originalIndex !== 4 || !status?.primeEnabled) && s.doses?.some(d => Number(d) > 0));
 
         if (activeStocks.length === 0) {
             return (
@@ -85,7 +85,8 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                     {(() => {
                         const wl = status?.waterLevel || 0;
                         const refCm = status?.aqHeight || 20;
-                        const pct = status?.optical ? 100 : Math.max(0, Math.min(100, Math.round((1 - wl / refCm) * 100)));
+                        const sensorFull = status?.sensorFullDistanceCm || 0;
+                        const pct = status?.optical ? 100 : Math.max(0, Math.min(100, Math.round(100 - ((wl - sensorFull) / refCm) * 100)));
                         const color = pct < 25 ? 'text-danger' : pct < 50 ? 'text-warn' : 'text-accent2';
                         const barColor = pct < 25 ? 'bg-danger' : pct < 50 ? 'bg-warn' : 'bg-accent2';
                         return (
@@ -120,7 +121,7 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                     <h2 className="mb-4 text-base font-medium tracking-wide text-text/90 uppercase">{t('home.stockBars')}</h2>
                     <div className="flex items-end justify-around gap-2">
                         {status.stocks.map((s, i) => {
-                            if (i === 4) return null; // Skip Prime in this section
+                            if (i === 4 && status?.primeEnabled) return null; // Skip Prime in this section if used for TPA
                             const pct = Math.min(100, Math.max(0, (s.stock / 500) * 100));
                             const colors = ['#00FFFF', '#FF00FF', '#FFFF00', '#FFA500'];
                             const color = colors[i] || '#00FF00';
@@ -144,7 +145,7 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                             );
                         })}
                         {/* Prime bar */}
-                        {status.stocks.length >= 5 && (() => {
+                        {status.stocks.length >= 5 && status?.primeEnabled && (() => {
                             const s = status.stocks[4];
                             const pct = Math.min(100, Math.max(0, (s.stock / 500) * 100));
                             const color = '#00FF00';

@@ -17,7 +17,10 @@ enum class TPAState : uint8_t {
   REFILLING,
   CANISTER_ON,
   COMPLETE,
-  ERROR
+  ERROR,
+  MANUAL_RESERVOIR_FILL,
+  MANUAL_PUMP_DRAIN,
+  MANUAL_PUMP_REFILL
 };
 
 /// @brief Returns human-readable name for a TPA state
@@ -39,6 +42,11 @@ public:
 
   /// Abort TPA cycle immediately (emergency or user cancel)
   void abortTPA();
+
+  /// Manual Operations
+  void startManualReservoirFill();
+  void startManualPump(const String &pump, float goalLiters);
+  void stopManual();
 
   /// Current state
   TPAState getState() const { return _state; }
@@ -67,6 +75,7 @@ public:
   // ---- Calibration / Flow rates ----
   void setLitersPerCm(float lpc) { _litersPerCm = lpc; }
   void setAqEffectiveHeightCm(float h) { _aqEffectiveHeightCm = h; }
+  void setPrimeEnabled(bool enabled) { _primeEnabled = enabled; }
   void setDrainFlowLPM(float lpm) { _drainFlowLPM = lpm; }
   void setRefillFlowLPM(float lpm) { _refillFlowLPM = lpm; }
   float getDrainFlowLPM() const { return _drainFlowLPM; }
@@ -129,6 +138,9 @@ private:
   void _handleDosingPrime();
   void _handleRefilling();
   void _handleCanisterOn();
+  void _handleManualReservoirFill();
+  void _handleManualPumpDrain();
+  void _handleManualPumpRefill();
 
   /// Capture refill flow rate from inline calibration data
   void _captureRefillCalibration();
@@ -143,4 +155,9 @@ private:
 
   /// Abort with error message
   void _error(const char *msg);
+
+  // Manual pump state
+  String _manualPumpTarget;
+  float _manualPumpGoalLiters;
+  bool _primeEnabled = true;
 };
