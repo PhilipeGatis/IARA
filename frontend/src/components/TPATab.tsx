@@ -206,7 +206,7 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                     <div className="flex flex-col gap-2">
                         <label className="text-xs font-bold text-muted uppercase tracking-wider">{t('tpa.primeDose')}</label>
                         <div className="flex items-center justify-between rounded-md border border-muted/20 bg-white/5 px-4 py-3">
-                            <span className="text-sm font-semibold text-white">{primeML.toFixed(1)} <span className="text-muted text-xs">mL</span></span>
+                            <span className="text-sm font-semibold text-white">{status?.primeML ? `${status.primeML.toFixed(1)} mL` : t('tpa.configInConfigTab')}</span>
                             <span className="text-[10px] text-muted italic ml-2">{t('tpa.autoCalc')}</span>
                         </div>
                     </div>

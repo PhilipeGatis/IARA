@@ -21,7 +21,8 @@ export type AQStatus = {
   tpaLastRun: number;
   tpaPercent: number;
   tpaConfigReady: boolean;
-  primeMl: number;
+  primeML: number;
+  primeEnabled: boolean;
   aqHeight: number;
   aqLength: number;
   aqWidth: number;
