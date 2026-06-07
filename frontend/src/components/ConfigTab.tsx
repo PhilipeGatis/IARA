@@ -43,6 +43,11 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
     const [networks, setNetworks] = useState<string[]>([]);
     const [scanning, setScanning] = useState(false);
 
+    // OTA States
+    const [otaFile, setOtaFile] = useState<File | null>(null);
+    const [otaProgress, setOtaProgress] = useState(-1);
+    const [otaStatus, setOtaStatus] = useState<string | null>(null);
+
     // Notification state
     const [notifyStatus, setNotifyStatus] = useState<NotifyStatus | null>(null);
     const [pushKey, setPushKey] = useState('');
@@ -203,6 +208,36 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
         });
     };
 
+    const handleOtaUpload = () => {
+        if (!otaFile) return;
+        setOtaProgress(0);
+        setOtaStatus(null);
+        const xhr = new XMLHttpRequest();
+        xhr.upload.addEventListener('progress', (event) => {
+            if (event.lengthComputable) {
+                const percent = Math.round((event.loaded / event.total) * 100);
+                setOtaProgress(percent);
+            }
+        });
+        xhr.addEventListener('load', () => {
+            if (xhr.status === 200) {
+                setOtaStatus(t('config.otaSuccess'));
+                setTimeout(() => window.location.reload(), 3000);
+            } else {
+                setOtaStatus(t('config.otaError'));
+                setOtaProgress(-1);
+            }
+        });
+        xhr.addEventListener('error', () => {
+            setOtaStatus(t('config.otaError'));
+            setOtaProgress(-1);
+        });
+        const formData = new FormData();
+        formData.append('update', otaFile, otaFile.name);
+        xhr.open('POST', '/api/ota', true);
+        xhr.send(formData);
+    };
+
     return (
         <div className="flex flex-col gap-4 pb-4">
             {/* LANGUAGE SELECTOR */}
@@ -330,6 +365,42 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                         className="mt-2 rounded-full bg-accent2 px-6 py-2.5 text-sm font-bold uppercase tracking-wider text-black shadow-md transition-all hover:bg-teal-300 active:scale-95"
                     >
                         {t('config.saveConfig')}
+                    </button>
+                </div>
+            </div>
+
+            {/* OTA UPDATE CARD */}
+            <div className="rounded-2xl bg-card p-5 shadow-md">
+                <h2 className="mb-4 text-base font-medium tracking-wide text-text/90 uppercase">{t('config.otaTitle')}</h2>
+                
+                <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-between rounded-md border border-muted/20 bg-white/5 px-4 py-3">
+                        <input 
+                            type="file" 
+                            accept=".bin"
+                            onChange={(e) => setOtaFile(e.target.files?.[0] || null)}
+                            className="text-xs text-text file:mr-4 file:rounded-full file:border-0 file:bg-accent2/20 file:px-4 file:py-2 file:text-xs file:font-bold file:text-accent2 hover:file:bg-accent2/30"
+                        />
+                    </div>
+
+                    {otaProgress >= 0 && (
+                        <div className="w-full bg-black/30 rounded-full h-3 mb-2 overflow-hidden border border-muted/20">
+                            <div className="bg-accent2 h-3 rounded-full transition-all duration-300 ease-out" style={{ width: `${otaProgress}%` }}></div>
+                        </div>
+                    )}
+                    
+                    {otaStatus && (
+                        <div className={`text-xs font-bold text-center ${otaProgress === 100 ? 'text-accent2' : 'text-danger'}`}>
+                            {otaStatus}
+                        </div>
+                    )}
+
+                    <button
+                        onClick={handleOtaUpload}
+                        disabled={!otaFile || otaProgress >= 0}
+                        className="w-full rounded-full bg-accent px-4 py-3 text-sm font-bold uppercase tracking-wider text-black shadow-md transition-all hover:bg-blue-300 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {otaProgress >= 0 && otaProgress < 100 ? `${t('config.otaUploading')} ${otaProgress}%` : t('config.otaUpload')}
                     </button>
                 </div>
             </div>

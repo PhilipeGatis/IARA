@@ -6,6 +6,7 @@
 #include "WaterManager.h"
 #include <LittleFS.h>
 #include <Preferences.h>
+#include <Update.h>
 
 #ifdef USE_WEBSERVER
 #include <WiFi.h>
@@ -281,6 +282,10 @@ void WebManager::_setupRoutes() {
       "/api/tpa/pump", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
       [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
              size_t index, size_t total) {
+        if (_water->getState() != TPAState::IDLE && _water->getState() != TPAState::COMPLETE && _water->getState() != TPAState::ERROR) {
+          request->send(400, "application/json", "{\"error\":\"TPA is running\"}");
+          return;
+        }
         String body = String((char *)data).substring(0, len);
         String pStr = _extractString(body, "pump");
         int st = _extractInt(body, "state");
@@ -812,7 +817,47 @@ void WebManager::_setupRoutes() {
                if (_notify)
                  _notify->sendTest();
                request->send(200, "application/json", "{\"ok\":true}");
-             });
+              });
+
+  // ---- POST /api/ota (Web OTA Firmware Update) ----
+  _server.on(
+      "/api/ota", HTTP_POST,
+      [this](AsyncWebServerRequest *request) {
+        // This handler is executed after the upload finishes
+        bool shouldReboot = !Update.hasError();
+        AsyncWebServerResponse *response = request->beginResponse(200, "application/json", shouldReboot ? "{\"ok\":true}" : "{\"error\":\"Update failed\"}");
+        response->addHeader("Connection", "close");
+        request->send(response);
+        if (shouldReboot) {
+          Serial.println("[OTA] Update Success! Rebooting...");
+          delay(500);
+          ESP.restart();
+        }
+      },
+      [this](AsyncWebServerRequest *request, String filename, size_t index,
+             uint8_t *data, size_t len, bool final) {
+        if (!index) {
+          Serial.printf("[OTA] Update Start: %s\n", filename.c_str());
+          // Start update. If it's littlefs.bin we should use U_SPIFFS, else U_FLASH
+          int cmd = (filename.indexOf("littlefs") > -1) ? U_SPIFFS : U_FLASH;
+          // For ESP32, U_SPIFFS correctly maps to the VFS partition (LittleFS/SPIFFS)
+          if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd)) {
+            Update.printError(Serial);
+          }
+        }
+        if (!Update.hasError()) {
+          if (Update.write(data, len) != len) {
+            Update.printError(Serial);
+          }
+        }
+        if (final) {
+          if (Update.end(true)) {
+            Serial.printf("[OTA] Update Finished: %u B\n", index + len);
+          } else {
+            Update.printError(Serial);
+          }
+        }
+      });
 }
 #endif
 

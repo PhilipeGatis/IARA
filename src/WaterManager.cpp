@@ -267,12 +267,6 @@ void WaterManager::_handleFillingReservoir() {
     return;
   }
 
-  // Timeout check
-  if (_stateElapsed() >= TIMEOUT_FILL_MS) {
-    digitalWrite(PIN_SOLENOID, LOW);
-    _error("Reservoir fill timeout exceeded!");
-    return;
-  }
 }
 
 void WaterManager::_handleDosingPrime() {
@@ -368,12 +362,6 @@ void WaterManager::_handleManualReservoirFill() {
     Serial.println("[TPA] Reservoir FULL. Manual fill complete.");
     digitalWrite(PIN_SOLENOID, LOW);
     _state = TPAState::COMPLETE;
-    return;
-  }
-
-  if (_stateElapsed() >= TIMEOUT_FILL_MS) {
-    digitalWrite(PIN_SOLENOID, LOW);
-    _error("Reservoir manual fill timeout exceeded!");
     return;
   }
 }
