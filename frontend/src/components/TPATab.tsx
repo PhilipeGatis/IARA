@@ -279,8 +279,8 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                     </div>
                     <span className="text-[10px] text-muted italic">{t('tpa.flowRate')} <strong className="text-accent">{status?.drainFlowRate ? `${status.drainFlowRate.toFixed(2)} mL/s` : t('tpa.notCalibrated')}</strong></span>
                     <button
-                        onMouseDown={() => handlePump('drain', 1)} onMouseUp={() => handlePump('drain', 0)}
-                        onTouchStart={() => handlePump('drain', 1)} onTouchEnd={() => handlePump('drain', 0)}
+                        onMouseDown={() => handlePump('drain', 1)} onMouseUp={() => handlePump('drain', 0)} onMouseLeave={() => handlePump('drain', 0)}
+                        onTouchStart={() => handlePump('drain', 1)} onTouchEnd={() => handlePump('drain', 0)} onTouchCancel={() => handlePump('drain', 0)}
                         className="mt-1 w-full rounded-md border border-muted bg-transparent px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-muted transition hover:bg-white/5 active:bg-white/10 select-none"
                     >
                         {t('tpa.purgeDrain')}
@@ -317,8 +317,8 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                     </div>
                     <span className="text-[10px] text-muted italic">{t('tpa.flowRate')} <strong className="text-accent">{status?.refillFlowRate ? `${status.refillFlowRate.toFixed(2)} mL/s` : t('tpa.notCalibrated')}</strong></span>
                     <button
-                        onMouseDown={() => handlePump('refill', 1)} onMouseUp={() => handlePump('refill', 0)}
-                        onTouchStart={() => handlePump('refill', 1)} onTouchEnd={() => handlePump('refill', 0)}
+                        onMouseDown={() => handlePump('refill', 1)} onMouseUp={() => handlePump('refill', 0)} onMouseLeave={() => handlePump('refill', 0)}
+                        onTouchStart={() => handlePump('refill', 1)} onTouchEnd={() => handlePump('refill', 0)} onTouchCancel={() => handlePump('refill', 0)}
                         className="mt-1 w-full rounded-md border border-muted bg-transparent px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-muted transition hover:bg-white/5 active:bg-white/10 select-none"
                     >
                         {t('tpa.purgeRefill')}

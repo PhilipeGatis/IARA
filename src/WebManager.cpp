@@ -178,8 +178,9 @@ String WebManager::_buildStatusJSON() {
           json += ",";
         json += String(_fert->getSchedMinute(i, d));
       }
-      json += "]" + String(",\"fR\":") + String(_fert->getFlowRate(i), 2) +
-              ",\"pwm\":" + String(_fert->getPWM(i)) + "}";
+      json += "],\"fR\":" + String(_fert->getFlowRate(i), 2) +
+              ",\"pwm\":" + String(_fert->getPWM(i)) +
+              ",\"en\":" + String(_fert->isEnabled(i) ? "true" : "false") + "}";
     }
   }
   json += "]";
@@ -731,6 +732,22 @@ void WebManager::_setupRoutes() {
         if (ch >= 0 && ch <= 4 && pwmValue >= 0 && pwmValue <= 255 && _fert) {
           _fert->setPWM(ch, pwmValue);
           Serial.printf("[Web] CH%d PWM set to %d\n", ch + 1, pwmValue);
+        }
+        request->send(200, "application/json", "{\"ok\":true}");
+      });
+
+  // ---- POST /api/fert/enable (JSON body: {"channel": 0, "enabled": 1})
+  _server.on(
+      "/api/fert/enable", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
+      [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
+             size_t index, size_t total) {
+        String body = String((char *)data).substring(0, len);
+        int ch = _extractInt(body, "channel");
+        int enabled = _extractInt(body, "enabled");
+
+        if (ch >= 0 && ch <= 4 && _fert) {
+          _fert->setEnabled(ch, enabled > 0);
+          Serial.printf("[Web] CH%d schedule set to %s\n", ch + 1, (enabled > 0) ? "ENABLED" : "DISABLED");
         }
         request->send(200, "application/json", "{\"ok\":true}");
       });

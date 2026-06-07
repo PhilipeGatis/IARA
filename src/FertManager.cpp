@@ -14,6 +14,7 @@ FertManager::FertManager() {
     _flowRateMLps[i] = FLOW_RATE_ML_PER_SEC; // Default 1.5 mL/s
     _pwm[i] = 255;
     _lowStockThreshold[i] = 50.0f; // Default low stock warning at 50 mL
+    _enabled[i] = true;
   }
 }
 
@@ -45,6 +46,8 @@ void FertManager::update(DateTime now) {
   uint8_t currentMinute = now.minute();
 
   for (uint8_t i = 0; i < NUM_FERTS + 1; i++) {
+    if (!_enabled[i]) continue;
+
     // Check if it's the right time for today's day-of-week (minute precision)
     if (currentHour == _schedHour[i][currentDow] &&
         currentMinute == _schedMinute[i][currentDow]) {
@@ -214,6 +217,18 @@ void FertManager::setName(uint8_t ch, const String &name) {
   }
 }
 
+bool FertManager::isEnabled(uint8_t ch) const {
+  return (ch <= NUM_FERTS) ? _enabled[ch] : false;
+}
+
+void FertManager::setEnabled(uint8_t ch, bool enabled) {
+  if (ch <= NUM_FERTS) {
+    _enabled[ch] = enabled;
+    saveState();
+    Serial.printf("[Fert] CH%d schedule set to %s\n", ch + 1, enabled ? "ENABLED" : "DISABLED");
+  }
+}
+
 void FertManager::saveState() {
   for (uint8_t i = 0; i < NUM_FERTS + 1; i++) {
     char key[16];
@@ -248,6 +263,9 @@ void FertManager::saveState() {
 
     snprintf(key, sizeof(key), "lt%d", i); // Low stock Threshold
     _prefs.putFloat(key, _lowStockThreshold[i]);
+
+    snprintf(key, sizeof(key), "en%d", i); // Enabled toggle
+    _prefs.putBool(key, _enabled[i]);
   }
 }
 
@@ -317,6 +335,9 @@ void FertManager::_loadState() {
 
     snprintf(key, sizeof(key), "lt%d", i);
     _lowStockThreshold[i] = _prefs.getFloat(key, 50.0f);
+
+    snprintf(key, sizeof(key), "en%d", i);
+    _enabled[i] = _prefs.getBool(key, true);
   }
 }
 

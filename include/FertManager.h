@@ -60,6 +60,10 @@ public:
   void setStockML(uint8_t ch, float ml);
   void resetStock(uint8_t ch, float ml);
 
+  // Enable/Disable Schedule
+  bool isEnabled(uint8_t ch) const;
+  void setEnabled(uint8_t ch, bool enabled);
+
   // ---- Low stock threshold (per channel, NVS) ----
   void setLowStockThreshold(uint8_t ch, float ml);
   float getLowStockThreshold(uint8_t ch) const;
@@ -96,6 +100,7 @@ private:
 
   // Last dose date (day of year * 1000 + year) for dedup (per channel)
   uint32_t _lastDoseKey[NUM_FERTS + 1];
+  bool _enabled[NUM_FERTS + 1];
 
   // Low stock warning threshold per channel (mL)
   float _lowStockThreshold[NUM_FERTS + 1];

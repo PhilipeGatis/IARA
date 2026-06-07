@@ -540,7 +540,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                 <h2 className="mb-4 text-base font-medium tracking-wide text-text/90 uppercase">{t('config.emergency')}</h2>
 
                 <button
-                    onClick={() => api('POST', '/api/maintenance')}
+                    onClick={() => api('POST', '/api/maintenance/toggle')}
                     className="w-full rounded-full bg-warn/20 px-6 py-2.5 text-sm font-bold uppercase tracking-wider text-warn shadow-md transition-all hover:bg-warn/30 active:scale-95"
                 >
                     {t('config.pauseTpa')}

@@ -35,7 +35,7 @@ export type AQStatus = {
   reservoirVolume: number;
   reservoirSafetyML: number;
   language: number;
-  stocks: Array<{
+  stocks: {
     name: string;
     stock: number;
     doses: number[];
@@ -43,7 +43,8 @@ export type AQStatus = {
     sM: number[];
     fR: number;
     pwm: number;
-  }>;
+    en?: boolean;
+  }[];
 };
 
 export const api = (method: string, url: string, body?: any) => {

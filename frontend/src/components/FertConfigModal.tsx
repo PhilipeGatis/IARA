@@ -19,6 +19,7 @@ export default function FertConfigModal({ index, s, onClose }: Props) {
     // Calibration States
     const [calibMl, setCalibMl] = useState('');
     const [pwm, setPwm] = useState(s.pwm !== undefined ? s.pwm : 255);
+    const [enabled, setEnabled] = useState(s.en !== undefined ? s.en : true);
 
     const shortDays = t('fert.shortDays').split(',');
 
@@ -41,7 +42,8 @@ export default function FertConfigModal({ index, s, onClose }: Props) {
 
     useEffect(() => {
         if (s.pwm !== undefined) setPwm(s.pwm);
-    }, [s.pwm]);
+        if (s.en !== undefined) setEnabled(s.en);
+    }, [s.pwm, s.en]);
 
     const handleSave = () => {
         api('POST', '/api/fert/schedule', {
@@ -59,6 +61,12 @@ export default function FertConfigModal({ index, s, onClose }: Props) {
         if (confirm(t('fert.confirmRun3s', { ch: index + 1 }))) {
             api('POST', '/api/fert/run3s', { channel: index });
         }
+    };
+
+    const handleToggleEnabled = () => {
+        const nextState = !enabled;
+        setEnabled(nextState);
+        api('POST', '/api/fert/enable', { channel: index, enabled: nextState ? 1 : 0 });
     };
 
     const handleSaveCalib = () => {
@@ -82,9 +90,19 @@ export default function FertConfigModal({ index, s, onClose }: Props) {
             <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-2xl bg-card shadow-2xl animate-slide-up">
                 {/* Header */}
                 <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-3xl sm:rounded-t-2xl bg-card border-b border-white/10 px-5 py-4">
-                    <div className="flex flex-col">
+                    <div className="flex flex-col flex-1">
                         <span className="text-xs font-bold text-muted uppercase tracking-wider">{t('fert.channel')} {index + 1}</span>
-                        <span className="text-base font-bold text-white">{s.name || `Canal ${index + 1}`}</span>
+                        <div className="flex items-center gap-3 mt-1">
+                            <span className="text-base font-bold text-white">{s.name || `Canal ${index + 1}`}</span>
+                            {/* Enable Toggle Switch */}
+                            <button
+                                onClick={handleToggleEnabled}
+                                className={`inline-flex items-center h-5 w-9 rounded-full p-0.5 transition-colors ${enabled ? 'bg-accent' : 'bg-white/20'}`}
+                                title={enabled ? t('notify.enabled') : t('notify.disabled')}
+                            >
+                                <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-md transform transition-transform ${enabled ? 'translate-x-4' : 'translate-x-0'}`} />
+                            </button>
+                        </div>
                     </div>
                     <button
                         onClick={onClose}
@@ -179,8 +197,8 @@ export default function FertConfigModal({ index, s, onClose }: Props) {
                             />
                             <div className="flex gap-2">
                                 <button
-                                    onMouseDown={() => handlePump(1)} onMouseUp={() => handlePump(0)}
-                                    onTouchStart={() => handlePump(1)} onTouchEnd={() => handlePump(0)}
+                                    onMouseDown={() => handlePump(1)} onMouseUp={() => handlePump(0)} onMouseLeave={() => handlePump(0)}
+                                    onTouchStart={() => handlePump(1)} onTouchEnd={() => handlePump(0)} onTouchCancel={() => handlePump(0)}
                                     className="flex-1 rounded-full border border-muted bg-transparent py-2 text-[10px] font-bold uppercase tracking-wider text-muted transition hover:bg-white/5 active:bg-white/10 select-none"
                                 >
                                     {t('fert.holdPurge')}
