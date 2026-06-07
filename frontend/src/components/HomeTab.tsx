@@ -83,18 +83,29 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
 
                 <div className="mb-5">
                     {(() => {
-                        const wl = status?.waterLevel || 0;
+                        const wl = status?.waterLevel ?? 0;
                         const refCm = status?.aqHeight || 20;
                         const sensorFull = status?.sensorFullDistanceCm || 0;
-                        const pct = status?.optical ? 100 : Math.max(0, Math.min(100, Math.round(100 - ((wl - sensorFull) / refCm) * 100)));
-                        const color = pct < 25 ? 'text-danger' : pct < 50 ? 'text-warn' : 'text-accent2';
-                        const barColor = pct < 25 ? 'bg-danger' : pct < 50 ? 'bg-warn' : 'bg-accent2';
+                        
+                        let pct = 0;
+                        let valid = true;
+
+                        if (wl < 0) {
+                            valid = false;
+                        } else if (status?.optical) {
+                            pct = 100;
+                        } else {
+                            pct = Math.max(0, Math.min(100, Math.round(100 - ((wl - sensorFull) / refCm) * 100)));
+                        }
+
+                        const color = !valid ? 'text-muted' : pct < 25 ? 'text-danger' : pct < 50 ? 'text-warn' : 'text-accent2';
+                        const barColor = !valid ? 'bg-muted' : pct < 25 ? 'bg-danger' : pct < 50 ? 'bg-warn' : 'bg-accent2';
                         return (
                             <>
                                 <div className="mb-2 flex justify-between text-sm font-medium">
-                                    <span className="text-muted tracking-wide">{t('home.waterLevel')}</span>
+                                    <span className="text-muted tracking-wide">{t('home.waterLevel')} {valid && <span className="text-[10px]">({wl}cm)</span>}</span>
                                     <span className={`font-mono text-lg ${color}`}>
-                                        {status ? `${pct}%` : '--'}
+                                        {status && valid ? `${pct}%` : '--'}
                                     </span>
                                 </div>
                                 <div className="h-2 w-full overflow-hidden rounded-full bg-white/5">
