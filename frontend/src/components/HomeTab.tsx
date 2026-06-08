@@ -196,7 +196,17 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                 <h2 className="mb-4 text-base font-medium tracking-wide text-text/90 uppercase">{t('home.tpaSchedule')}</h2>
                 {status && !status.tpaConfigReady && (
                     <div className="rounded-lg bg-warn/10 border border-warn/30 px-4 py-3 mb-4">
-                        <span className="text-xs font-bold text-warn">{t('home.configIncomplete')}</span>
+                        <span className="text-xs font-bold text-warn mb-2 block">{t('home.configIncomplete')}</span>
+                        <ul className="text-[10px] text-warn/80 list-disc pl-4 space-y-1 font-medium">
+                            {(!status.aqLength || status.aqLength <= 0) && <li>{t('config.missing.aqLength')}</li>}
+                            {(!status.aqWidth || status.aqWidth <= 0) && <li>{t('config.missing.aqWidth')}</li>}
+                            {(!status.aqHeight || status.aqHeight <= 0) && <li>{t('config.missing.aqHeight')}</li>}
+                            {(!status.sensorFullDistanceCm || status.sensorFullDistanceCm <= 0) && <li>{t('config.missing.sensorFullDistanceCm')}</li>}
+                            {(!status.reservoirVolume || status.reservoirVolume <= 0) && <li>{t('config.missing.reservoirVolume')}</li>}
+                            {(!status.drainFlowRate || status.drainFlowRate <= 0) && <li>{t('config.missing.drainFlowRate')}</li>}
+                            {(!status.refillFlowRate || status.refillFlowRate <= 0) && <li>{t('config.missing.refillFlowRate')}</li>}
+                            {(!status.reservoirSafetyML || status.reservoirSafetyML <= 0) && <li>{t('config.missing.reservoirSafetyML')}</li>}
+                        </ul>
                     </div>
                 )}
                 {status?.tpaInterval ? (() => {
