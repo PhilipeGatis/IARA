@@ -858,7 +858,7 @@ void WebManager::_setupRoutes() {
         request->send(response);
         if (shouldReboot) {
           Serial.println("[OTA] Update Success! Rebooting...");
-          delay(500);
+          delay(2000); // Give time for HTTP response to reach the browser
           ESP.restart();
         }
       },
