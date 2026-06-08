@@ -34,7 +34,6 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
             if (status.tpaMinute !== undefined) setM(status.tpaMinute.toString().padStart(2, '0'));
             if (!pct && status.tpaPercent) setPct(status.tpaPercent.toString());
             if (!safetyML && status.reservoirSafetyML !== undefined) setSafetyML(status.reservoirSafetyML.toString());
-            if (!refillMl && status.reservoirSafetyML) setRefillMl(status.reservoirSafetyML.toString());
             if (!primeRatio && status.primeRatio) setPrimeRatio(status.primeRatio.toString());
             if (!primeML && status.primeML) setPrimeML(status.primeML);
             if (status.primeEnabled !== undefined) setPrimeEnabled(status.primeEnabled);
@@ -249,6 +248,16 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                             {status?.canister ? 'Desligar Canister' : 'Ligar Canister'}
                         </button>
                     </div>
+                    {status?.tpaState !== 'IDLE' && status?.tpaState !== 'COMPLETE' && (
+                        <div className="mt-4 flex flex-col gap-2">
+                            <button
+                                onClick={() => api('POST', '/api/emergency/stop')}
+                                className="rounded-xl bg-danger px-4 py-3 text-sm font-bold uppercase tracking-wider text-white transition hover:bg-red-600 active:scale-95 shadow-md border border-red-500/50"
+                            >
+                                {t('tpa.cancel')} Parada de Emergência
+                            </button>
+                        </div>
+                    )}
 
                 </div>
             </div>

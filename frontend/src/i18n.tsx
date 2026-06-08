@@ -55,6 +55,7 @@ const translations = {
     // ---- TPATab ----
     'tpa.auto': { pt: 'TPA Automática', en: 'Auto TPA', ja: '自動TPA' },
     'tpa.frequency': { pt: 'Frequência (Dias)', en: 'Frequency (Days)', ja: '頻度（日数）' },
+    'tpa.cancel': { pt: 'Cancelar TPA', en: 'Cancel TPA', ja: 'TPAをキャンセル' },
     'tpa.freqHint': { pt: 'Coloque 0 para desativar. (Ex: 7 = Semanal, 15 = Quinzenal)', en: 'Set 0 to disable. (e.g. 7 = Weekly, 15 = Biweekly)', ja: '0で無効。（例: 7 = 毎週, 15 = 隔週）' },
     'tpa.disabled': { pt: '0 = Desativado', en: '0 = Disabled', ja: '0 = 無効' },
     'tpa.volumePct': { pt: 'Volume da TPA (%)', en: 'TPA Volume (%)', ja: 'TPA容量（%）' },

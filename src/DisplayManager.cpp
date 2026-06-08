@@ -160,11 +160,11 @@ void DisplayManager::update() {
 
   unsigned long now = millis();
 
-  // --- Auto-off display after timeout ---
-  if (_displayOn && (now - _lastInteraction >= DISPLAY_TIMEOUT_MS)) {
-    _displayOff();
-    return;
-  }
+  // --- Auto-off display after timeout (DISABLED per user request) ---
+  // if (_displayOn && (now - _lastInteraction >= DISPLAY_TIMEOUT_MS)) {
+  //   _displayOff();
+  //   return;
+  // }
 
   if (!_displayOn)
     return; // screen is off, nothing to draw
@@ -616,13 +616,14 @@ void DisplayManager::_drawAquariumPageLive() {
   _display.setTextSize(2);
   _display.setCursor(4, 42);
   if (dist >= 0) {
-    const float maxDist = 30.0f;
-    float pct = 1.0f - (dist / maxDist);
-    if (pct > 1.0f)
-      pct = 1.0f;
-    if (pct < 0.0f)
-      pct = 0.0f;
-    int pctVal = (int)(pct * 100);
+    uint16_t sf = _web->getSensorFullDistanceCm();
+    uint16_t aqh = _web->getAqHeight();
+    float refCm = (aqh > 0) ? aqh : 20.0f;
+    
+    float pct = 100.0f - (((dist - sf) / refCm) * 100.0f);
+    if (pct > 100.0f) pct = 100.0f;
+    if (pct < 0.0f) pct = 0.0f;
+    int pctVal = (int)pct;
     char lvlBuf[8];
     snprintf(lvlBuf, sizeof(lvlBuf), "%-4d", pctVal); // left-align, pad spaces
     _display.setTextColor(COL_TEXT, COL_BG);

@@ -47,10 +47,13 @@ export type AQStatus = {
   }[];
 };
 
-export const api = (method: string, url: string, body?: any) => {
+export const api = async (method: string, url: string, body?: any) => {
+  const headers: Record<string, string> = {};
+  if (body) headers['Content-Type'] = 'application/json';
+
   fetch(url, {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   })
     .then((r) => r.json())
