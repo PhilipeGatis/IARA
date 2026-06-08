@@ -557,13 +557,16 @@ void DisplayManager::_drawAquariumPage() {
   _display.setTextColor(COL_TEXT);
   _display.setCursor(4, y);
   if (dist >= 0) {
-    const float maxDist = 30.0f;
-    float pct = 1.0f - (dist / maxDist);
-    if (pct > 1.0f)
-      pct = 1.0f;
+    uint16_t sf = _web->getSensorFullDistanceCm();
+    uint16_t aqh = _web->getAqHeight();
+    float refCm = (aqh > 0) ? aqh : 20.0f;
+    
+    float pct = 100.0f - (((dist - sf) / refCm) * 100.0f);
+    if (pct > 100.0f)
+      pct = 100.0f;
     if (pct < 0.0f)
       pct = 0.0f;
-    int pctVal = (int)(pct * 100);
+    int pctVal = (int)pct;
     _display.print(pctVal);
     _display.setTextSize(1);
     _display.print(F(" %"));

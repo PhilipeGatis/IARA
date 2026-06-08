@@ -241,6 +241,14 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                             {t('tpa.fillReservoir')}
                         </button>
                     </div>
+                    <div className="flex gap-2 mt-2">
+                        <button
+                            onClick={() => api('POST', '/api/canister/toggle')}
+                            className={`flex-1 rounded-full px-6 py-2.5 text-sm font-bold uppercase tracking-wider shadow-md transition-all active:scale-95 border ${status?.canister ? 'bg-danger/20 text-danger border-danger/30 hover:bg-danger/30' : 'bg-good/20 text-good border-good/30 hover:bg-good/30'}`}
+                        >
+                            {status?.canister ? 'Desligar Canister' : 'Ligar Canister'}
+                        </button>
+                    </div>
 
                 </div>
             </div>

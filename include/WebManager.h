@@ -44,6 +44,7 @@ public:
     return (uint32_t)effH * _aqLength * _aqWidth / 1000;
   }
   float getLitersPerCm() const { return (float)_aqLength * _aqWidth / 1000.0f; }
+  uint16_t getAqHeight() const { return _aqHeight; }
   uint16_t getSensorFullDistanceCm() const { return _sensorFullDistanceCm; }
   float getReservoirSafetyML() const { return _reservoirSafetyML; }
   uint16_t getReservoirVolume() const { return _reservoirVolume; }

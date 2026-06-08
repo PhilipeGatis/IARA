@@ -283,13 +283,15 @@ void WebManager::_setupRoutes() {
       "/api/tpa/pump", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
       [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
              size_t index, size_t total) {
-        if (_water->getState() != TPAState::IDLE && _water->getState() != TPAState::COMPLETE && _water->getState() != TPAState::ERROR) {
+        String body = String((char *)data).substring(0, len);
+        int st = _extractInt(body, "state");
+        
+        // Only block STARTING a pump if TPA is running. We must always allow STOPPING (st == 0)
+        if (st == 1 && _water->getState() != TPAState::IDLE && _water->getState() != TPAState::COMPLETE && _water->getState() != TPAState::ERROR) {
           request->send(400, "application/json", "{\"error\":\"TPA is running\"}");
           return;
         }
-        String body = String((char *)data).substring(0, len);
         String pStr = _extractString(body, "pump");
-        int st = _extractInt(body, "state");
         float liters = _extractFloat(body, "liters");
         if (liters < 0) liters = 0;
 
@@ -455,6 +457,15 @@ void WebManager::_setupRoutes() {
                    Serial.println("[Web] Maintenance ON");
                  }
                }
+               request->send(200, "application/json", "{\"ok\":true}");
+             });
+
+  // ---- POST /api/canister/toggle ----
+  _server.on("/api/canister/toggle", HTTP_POST,
+             [this](AsyncWebServerRequest *request) {
+               bool current = digitalRead(PIN_CANISTER) == LOW; // SSR LOW=ON
+               digitalWrite(PIN_CANISTER, current ? HIGH : LOW);
+               Serial.printf("[Web] Canister manually turned %s\n", current ? "OFF" : "ON");
                request->send(200, "application/json", "{\"ok\":true}");
              });
 

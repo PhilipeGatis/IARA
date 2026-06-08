@@ -24,6 +24,9 @@ public:
   void putUChar(const char *key, uint8_t val) {
     _store[_makeKey(key)].u8 = val;
   }
+  void putBool(const char *key, bool val) {
+    _store[_makeKey(key)].b = val;
+  }
   void putString(const char *key, const char *val) {
     _strStore[_makeKey(key)] = val ? val : "";
   }
@@ -42,6 +45,10 @@ public:
     auto it = _store.find(_makeKey(key));
     return (it != _store.end()) ? it->second.u8 : defaultVal;
   }
+  bool getBool(const char *key, bool defaultVal = false) {
+    auto it = _store.find(_makeKey(key));
+    return (it != _store.end()) ? it->second.b : defaultVal;
+  }
   String getString(const char *key, const String &defaultVal = String());
   String getString(const char *key, const char *defaultVal);
 
@@ -58,6 +65,7 @@ private:
     uint32_t u32;
     float f;
     uint8_t u8;
+    bool b;
     MockValue() : u32(0) {}
   };
 

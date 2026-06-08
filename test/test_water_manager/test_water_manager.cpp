@@ -185,7 +185,7 @@ void test_fill_timeout_causes_error() {
   goToFilling(wm);
   wm.update();
   unsigned long t = mock_millis_value;
-  mock_millis_value = t + TIMEOUT_FILL_MS + 1;
+  mock_millis_value = t + (2UL * 60 * 60 * 1000) + 1; // 2 hours hard limit
   wm.update();
   TEST_ASSERT_EQUAL(TPAState::ERROR, wm.getState());
   TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_SOLENOID]);
