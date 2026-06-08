@@ -135,6 +135,10 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                         {!status.aqHeight || !status.aqLength || !status.aqWidth ? <li>{t('tpa.dimMissing')}</li> : null}
                         {!status.reservoirVolume ? <li>{t('tpa.reservoirMissing')}</li> : null}
                         {!status.tpaPercent ? <li>{t('tpa.pctMissing')}</li> : null}
+                        {!status.sensorFullDistanceCm ? <li>{t('tpa.sensorMissing')}</li> : null}
+                        {!status.drainFlowRate ? <li>{t('tpa.drainPumpMissing')}</li> : null}
+                        {!status.refillFlowRate ? <li>{t('tpa.refillPumpMissing')}</li> : null}
+                        {!status.reservoirSafetyML ? <li>{t('tpa.safetyMlMissing')}</li> : null}
                     </ul>
                 </div>
             )}
