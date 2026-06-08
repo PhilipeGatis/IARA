@@ -31,7 +31,7 @@ WebManager::WebManager()
       _sensorFullDistanceCm(0), _drainFlowRate(0), _refillFlowRate(0),
       _primeEnabled(true),
       _reservoirVolume(0), _reservoirSafetyML(0), _lastTelemetryMs(0),
-      _lastSSEMs(0) {
+      _lastSSEMs(0), _rebootPending(false), _rebootMs(0) {
 }
 
 // ============================================================================
@@ -79,6 +79,11 @@ void WebManager::setTpaLastRun(uint32_t epoch) {
 
 void WebManager::update() {
 #ifdef USE_WEBSERVER
+  if (_rebootPending && (millis() - _rebootMs > 2000)) {
+    Serial.println("[Web] Rebooting now...");
+    ESP.restart();
+  }
+
   // Send SSE telemetry every 3 seconds to reduce network congestion
   unsigned long now = millis();
   if ((now - _lastSSEMs) >= 3000 && _events.count() > 0) {
@@ -506,7 +511,7 @@ void WebManager::_setupRoutes() {
   });
 
   // ---- POST /api/wifi (Form Data: ssid, pass) ----
-  _server.on("/api/wifi", HTTP_POST, [](AsyncWebServerRequest *request) {
+  _server.on("/api/wifi", HTTP_POST, [this](AsyncWebServerRequest *request) {
     if (request->hasParam("ssid", true) && request->hasParam("pass", true)) {
       String ssid = request->getParam("ssid", true)->value();
       String pass = request->getParam("pass", true)->value();
@@ -522,8 +527,8 @@ void WebManager::_setupRoutes() {
       request->send(200, "application/json", "{\"ok\":true}");
 
       // Give the server time to send the response before rebooting
-      delay(500);
-      ESP.restart();
+      _rebootPending = true;
+      _rebootMs = millis();
     } else {
       request->send(400, "application/json", "{\"error\":\"Missing params\"}");
     }
@@ -857,9 +862,9 @@ void WebManager::_setupRoutes() {
         response->addHeader("Connection", "close");
         request->send(response);
         if (shouldReboot) {
-          Serial.println("[OTA] Update Success! Rebooting...");
-          delay(2000); // Give time for HTTP response to reach the browser
-          ESP.restart();
+          Serial.println("[OTA] Update Success! Scheduling reboot in 2s...");
+          _rebootPending = true;
+          _rebootMs = millis();
         }
       },
       [this](AsyncWebServerRequest *request, String filename, size_t index,

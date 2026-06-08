@@ -95,6 +95,10 @@ private:
   unsigned long _lastTelemetryMs;
   unsigned long _lastSSEMs;
 
+  // Reboot flag
+  bool _rebootPending = false;
+  unsigned long _rebootMs = 0;
+
   // NVS persistence
   void _loadParams();
   void _saveParams();
