@@ -3,7 +3,7 @@
 
 SafetyWatchdog::SafetyWatchdog()
     : _lastDistance(-1), _emergency(false), _sensorsConnected(false),
-      _ultrasonicFailCount(0), _overflowFlag(false), _maintenance(false),
+      _ultrasonicFailCount(0), _overflowConsecutiveCount(0), _overflowFlag(false), _maintenance(false),
       _maintenanceStart(0), _lastCheckMs(0), _emergencyDraining(false),
       _emergencyDrainStart(0) {}
 
@@ -200,10 +200,17 @@ void SafetyWatchdog::_checkOverflow() {
 
   // Lower distance = higher water level
   if (dist < LEVEL_SAFETY_MIN_CM && !_emergencyDraining) {
+    _overflowConsecutiveCount++;
     Serial.printf(
-        "[Safety] OVERFLOW! Distance=%.1f cm < %.1f cm safety limit\n", dist,
-        LEVEL_SAFETY_MIN_CM);
-    emergencyDrain();
+        "[Safety] OVERFLOW WARNING! Distance=%.1f cm < %.1f cm (Count: %d/10)\n", dist,
+        LEVEL_SAFETY_MIN_CM, _overflowConsecutiveCount);
+    
+    if (_overflowConsecutiveCount >= 10) {
+      Serial.println("[Safety] CONFIRMED OVERFLOW (10 consecutive readings). Activating drain.");
+      emergencyDrain();
+    }
+  } else {
+    _overflowConsecutiveCount = 0;
   }
 }
 

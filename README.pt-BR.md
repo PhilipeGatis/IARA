@@ -178,7 +178,7 @@ O sistema foi projetado com abordagem **safety-first** para prevenir alagamentos
 | Proteção | Descrição |
 |---|---|
 | **Watchdog de Hardware (WDT)** | Task WDT do ESP32 com timeout de 10 segundos. Se o loop principal travar, o ESP32 reinicia automaticamente. |
-| **SafetyWatchdog** | Roda com prioridade máxima a cada iteração do loop. Detecta overflow (sensor óptico), condições de emergência e desliga todos os atuadores. |
+| **SafetyWatchdog** | Roda com prioridade máxima a cada iteração do loop. Detecta overflow (sensor óptico), condições de emergência e desliga todos os atuadores. Também implementa um filtro de 10 leituras consecutivas para acionamento do dreno de emergência pelo ultrassom, evitando falsos positivos. |
 | **Loops não-bloqueantes** | Todos os estados de espera (canister, mistura do prime) usam `millis()` em vez de `delay()`, permitindo que o watchdog continue rodando. |
 | **Timeouts por estado** | Cada estado da TPA (`DRAINING`, `FILLING`, `REFILLING`) tem timeout configurável. Ao exceder, entra em ERROR e desliga todos os atuadores. |
 | **Deduplicação NVS** | Evita dose dupla de fertilizantes no mesmo dia, mesmo após reinicializações inesperadas. |

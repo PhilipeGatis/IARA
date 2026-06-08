@@ -59,6 +59,7 @@ private:
   bool _emergency;
   bool _sensorsConnected;
   uint8_t _ultrasonicFailCount;
+  uint8_t _overflowConsecutiveCount;
   bool _overflowFlag;
 
   // Maintenance

@@ -178,7 +178,7 @@ The system is designed with a **safety-first** approach to prevent flooding, equ
 | Protection | Description |
 |---|---|
 | **Hardware Watchdog (WDT)** | ESP32 Task WDT with 10-second timeout. If the main loop freezes for any reason, the ESP32 automatically reboots. |
-| **SafetyWatchdog** | Runs at highest priority every loop iteration. Detects overflow (optical sensor), emergency conditions, and triggers full shutdown of all actuators. |
+| **SafetyWatchdog** | Runs at highest priority every loop iteration. Detects overflow (optical sensor), emergency conditions, and triggers full shutdown of all actuators. Also implements a 10-reading debounce for ultrasonic emergency drains to prevent false positive actuations. |
 | **Non-blocking loops** | All wait states (canister settle, prime mixing) use `millis()` instead of `delay()`, so the safety watchdog keeps running during waits. |
 | **State machine timeouts** | Each TPA state (`DRAINING`, `FILLING`, `REFILLING`) has a configurable timeout. Exceeding it triggers an error state and shuts down all actuators. |
 | **NVS deduplication** | Prevents double-dosing fertilizers on the same day, even after unexpected reboots. |
