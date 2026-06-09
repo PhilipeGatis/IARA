@@ -24,6 +24,7 @@
 #include <LittleFS.h>
 #include <esp_task_wdt.h>
 #include <esp_wifi.h>
+#include <ESPmDNS.h>
 
 // ---- Global instances ----
 SafetyWatchdog safety;
@@ -192,6 +193,14 @@ void setup() {
     char ipBuf[22];
     snprintf(ipBuf, sizeof(ipBuf), "IP: %s", WiFi.localIP().toString().c_str());
     displayMgr.showBootStatus(ipBuf);
+
+    // Start mDNS Responder
+    if (MDNS.begin("iara")) {
+      Serial.println("[mDNS] Responder started at http://iara.local");
+      MDNS.addService("http", "tcp", 80);
+    } else {
+      Serial.println("[mDNS] Error setting up mDNS responder!");
+    }
   } else {
     Serial.println(" FAILED!");
     Serial.print("[WiFi] Error Code: ");

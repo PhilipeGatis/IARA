@@ -116,6 +116,33 @@ void WaterManager::stopManual() {
   _state = TPAState::IDLE;
 }
 
+float WaterManager::getPumpGoalLiters() const {
+  if (_state == TPAState::MANUAL_PUMP_DRAIN || _state == TPAState::MANUAL_PUMP_REFILL) {
+    return _manualPumpGoalLiters;
+  } else if (_state == TPAState::DRAINING) {
+    return (_drainTargetCm > _calStartLevel && _litersPerCm > 0) ? (_drainTargetCm - _calStartLevel) * _litersPerCm : 0.0f;
+  } else if (_state == TPAState::REFILLING) {
+    return (_calStartLevel > _refillTargetCm && _litersPerCm > 0) ? (_calStartLevel - _refillTargetCm) * _litersPerCm : 0.0f;
+  }
+  return 0.0f;
+}
+
+float WaterManager::getPumpProgressLiters() const {
+  if (_state == TPAState::MANUAL_PUMP_DRAIN || _state == TPAState::DRAINING) {
+    return (_stateElapsed() / 60000.0f) * _drainFlowLPM;
+  } else if (_state == TPAState::MANUAL_PUMP_REFILL || _state == TPAState::REFILLING) {
+    return (_stateElapsed() / 60000.0f) * _refillFlowLPM;
+  }
+  return 0.0f;
+}
+
+unsigned long WaterManager::getPumpElapsedMs() const {
+  if (_state == TPAState::IDLE || _state == TPAState::COMPLETE || _state == TPAState::ERROR) {
+    return 0;
+  }
+  return _stateElapsed();
+}
+
 void WaterManager::update() {
   if (_state == TPAState::IDLE || _state == TPAState::COMPLETE ||
       _state == TPAState::ERROR) {

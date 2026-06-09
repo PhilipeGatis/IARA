@@ -25,7 +25,8 @@ O **IARA** é um sistema embarcado completo para automação de aquários planta
 - **Filtração** — controle liga/desliga do canister via relé SSR (corrente AC).
 - **Segurança** — monitoramento contínuo de sensores, watchdog e modo emergência.
 
-O firmware roda em um **ESP32 DevKit V1** e conta com **dashboard web embarcado** (React + Vite servido via LittleFS), **display TFT colorido (ST7735)**, **relógio RTC DS3231** e interface via **comandos serial**.
+O firmware roda em um **ESP32 DevKit V1** e conta com **dashboard web embarcado** (React + Vite servido via LittleFS), **display TFT colorido (ST7735)**, **relógio RTC DS3231** e interface via **comandos serial**. 
+O acesso à interface web na rede local pode ser feito facilmente pelo endereço **http://iara.local** (via mDNS) sem precisar do IP do ESP32.
 
 ---
 

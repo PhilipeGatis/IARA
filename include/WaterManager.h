@@ -48,6 +48,11 @@ public:
   void startManualPump(const String &pump, float goalLiters);
   void stopManual();
 
+  /// Pump Progress Tracking (used for UI/Display during Auto and Manual TPA)
+  float getPumpGoalLiters() const;
+  float getPumpProgressLiters() const;
+  unsigned long getPumpElapsedMs() const;
+
   /// Current state
   TPAState getState() const { return _state; }
   const char *getStateName() const { return tpaStateName(_state); }

@@ -100,6 +100,8 @@ const translations = {
     'tpa.purgeDrain': { pt: '🔁 Segurar para Purgar Diafragma', en: '🔁 Hold to Purge Drain', ja: '🔁 長押しでパージ（排水）' },
     'tpa.refillPump': { pt: 'Bomba de Recalque (Enchimento)', en: 'Refill Pump', ja: '給水ポンプ' },
     'tpa.purgeRefill': { pt: '🔁 Segurar para Purgar Recalque', en: '🔁 Hold to Purge Refill', ja: '🔁 長押しでパージ（給水）' },
+    'tpa.pumpProgress': { pt: 'Progresso (L):', en: 'Progress (L):', ja: '進行状況 (L):' },
+    'tpa.pumpTime': { pt: 'Tempo:', en: 'Time:', ja: '時間:' },
 
     // ---- FertsTab ----
     'fert.loading': { pt: 'Carregando fertilizantes...', en: 'Loading fertilizers...', ja: '肥料を読み込み中...' },

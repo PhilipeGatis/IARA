@@ -206,8 +206,8 @@ void SafetyWatchdog::_checkOverflow() {
         LEVEL_SAFETY_MIN_CM, _overflowConsecutiveCount);
     
     if (_overflowConsecutiveCount >= 10) {
-      Serial.println("[Safety] CONFIRMED OVERFLOW (10 consecutive readings). Activating drain.");
-      emergencyDrain();
+      Serial.println("[Safety] CONFIRMED OVERFLOW (10 consecutive readings). Drain temporarily disabled!");
+      // emergencyDrain();
     }
   } else {
     _overflowConsecutiveCount = 0;

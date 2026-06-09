@@ -26,6 +26,7 @@
 - **Safety** — continuous sensor monitoring, watchdog timer, and emergency shutdown mode.
 
 The firmware runs on an **ESP32 DevKit V1** and features an **embedded web dashboard** (React + Vite served via LittleFS), **color TFT display (ST7735)**, **DS3231 RTC clock**, and a **serial command interface**.
+You can easily access the web interface on your local network by navigating to **http://iara.local** (via mDNS), without needing to find the ESP32's IP address.
 
 ---
 

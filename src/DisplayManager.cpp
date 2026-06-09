@@ -658,6 +658,24 @@ void DisplayManager::_drawAquariumPageLive() {
   _display.setCursor(64, 104); // after "CANISTER: " label
   _display.setTextColor(canOn ? COL_GOOD : COL_ERR, COL_BG);
   _display.print(canOn ? F("ON ") : F("OFF"));
+
+  // Pump Progress (y=116, size 1)
+  float goal = _water->getPumpGoalLiters();
+  if (goal > 0) {
+    float prog = _water->getPumpProgressLiters();
+    unsigned long ms = _water->getPumpElapsedMs();
+    uint8_t sec = (ms / 1000) % 60;
+    uint8_t min = (ms / 60000);
+    char buf[26];
+    snprintf(buf, sizeof(buf), "%.1f/%.1fL %02d:%02d      ", prog, goal, min, sec);
+    _display.setCursor(4, 116);
+    _display.setTextColor(COL_ACCENT, COL_BG);
+    _display.print(buf);
+  } else {
+    _display.setCursor(4, 116);
+    _display.setTextColor(COL_BG, COL_BG);
+    _display.print(F("                      ")); // clear line
+  }
 }
 
 // =============================================================================

@@ -157,6 +157,11 @@ String WebManager::_buildStatusJSON() {
   json += (isTpaConfigReady() ? "true" : "false");
   json += ",";
   json += "\"language\":" + String(_language) + ",";
+  if (_water) {
+    json += "\"pumpGoalLiters\":" + String(_water->getPumpGoalLiters(), 2) + ",";
+    json += "\"pumpProgressLiters\":" + String(_water->getPumpProgressLiters(), 2) + ",";
+    json += "\"pumpElapsedMs\":" + String(_water->getPumpElapsedMs()) + ",";
+  }
   // Stocks
   json += "\"stocks\":[";
   if (_fert) {
@@ -438,14 +443,21 @@ void WebManager::_setupRoutes() {
           float rate = ml / 3.0f;
           if (pStr == "drain") {
             _drainFlowRate = rate;
-            Serial.printf("[Web] Drain flow rate calibrated: %.2f mL/s\n",
-                          rate);
+            if (_water) _water->setDrainFlowLPM(rate * 0.06f);
+            Serial.printf("[Web] Drain flow rate calibrated: %.2f mL/s\n", rate);
           } else if (pStr == "refill") {
             _refillFlowRate = rate;
-            Serial.printf("[Web] Refill flow rate calibrated: %.2f mL/s\n",
-                          rate);
+            if (_water) _water->setRefillFlowLPM(rate * 0.06f);
+            Serial.printf("[Web] Refill flow rate calibrated: %.2f mL/s\n", rate);
           }
           _saveParams();
+          if (_water) {
+            Preferences calPref;
+            calPref.begin("pumpcal", false);
+            calPref.putFloat("drainLPM", _water->getDrainFlowLPM());
+            calPref.putFloat("refillLPM", _water->getRefillFlowLPM());
+            calPref.end();
+          }
         }
         request->send(200, "application/json", "{\"ok\":true}");
       });

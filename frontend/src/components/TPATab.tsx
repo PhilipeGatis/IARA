@@ -61,6 +61,26 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
 
     return (
         <div className="flex flex-col gap-4 pb-4">
+            {/* TPA PROGRESS BANNER */}
+            {status && status.pumpGoalLiters !== undefined && status.pumpGoalLiters > 0 && (
+                <div className="rounded-2xl bg-card p-5 shadow-md border-l-4 border-accent">
+                    <div className="flex justify-between items-center mb-2">
+                        <h2 className="text-sm font-bold tracking-wide text-accent uppercase">{t('tpa.pumpProgress')}</h2>
+                        <span className="text-xs font-mono text-muted">{t('tpa.pumpTime')} {Math.floor((status.pumpElapsedMs || 0) / 60000).toString().padStart(2, '0')}:{Math.floor(((status.pumpElapsedMs || 0) / 1000) % 60).toString().padStart(2, '0')}</span>
+                    </div>
+                    <div className="w-full bg-white/10 rounded-full h-4 mb-1 overflow-hidden relative">
+                        <div 
+                            className="bg-accent h-4 rounded-full transition-all duration-1000 ease-linear"
+                            style={{ width: `${Math.min(100, Math.max(0, ((status.pumpProgressLiters || 0) / status.pumpGoalLiters) * 100))}%` }}
+                        ></div>
+                    </div>
+                    <div className="flex justify-between text-[10px] text-muted font-bold px-1">
+                        <span>{(status.pumpProgressLiters || 0).toFixed(1)} L</span>
+                        <span>{status.pumpGoalLiters.toFixed(1)} L</span>
+                    </div>
+                </div>
+            )}
+
             {/* TPA SCHEDULING CARD */}
             <div className="rounded-2xl bg-card p-5 shadow-md">
                 <h2 className="mb-4 text-base font-medium tracking-wide text-text/90 uppercase">{t('tpa.auto')}</h2>

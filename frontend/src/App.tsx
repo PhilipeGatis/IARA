@@ -34,6 +34,9 @@ export type AQStatus = {
   primeRatio: number;
   reservoirVolume: number;
   reservoirSafetyML: number;
+  pumpGoalLiters?: number;
+  pumpProgressLiters?: number;
+  pumpElapsedMs?: number;
   language: number;
   stocks: {
     name: string;
