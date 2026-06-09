@@ -294,6 +294,12 @@ void WaterManager::_handleFillingReservoir() {
     return;
   }
 
+  // Safety timeout (2 hours hard limit)
+  if (_stateElapsed() >= 2UL * 60 * 60 * 1000) {
+    digitalWrite(PIN_SOLENOID, LOW);
+    _error("Reservoir fill timeout exceeded!");
+    return;
+  }
 }
 
 void WaterManager::_handleDosingPrime() {
