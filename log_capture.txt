@@ -1,1 +1,0 @@
-[31mUserSideException: [Errno 35] Could not exclusively lock port /dev/cu.usbserial-310: [Errno 35] Resource temporarily unavailable[0m
