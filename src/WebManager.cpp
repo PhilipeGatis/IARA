@@ -51,6 +51,15 @@ void WebManager::begin(TimeManager *time, WaterManager *water,
 
   if (_water) {
     _water->setPrimeML(_primeML);
+
+    // Sincroniza a vazão real caso as Preferences do WebManager ('drFR') 
+    // tenham se perdido ou zerado, garantindo que a UI reflita a calibração do pumpcal.
+    if (_water->getDrainFlowLPM() > 0) {
+      _drainFlowRate = _water->getDrainFlowLPM() / 0.06f;
+    }
+    if (_water->getRefillFlowLPM() > 0) {
+      _refillFlowRate = _water->getRefillFlowLPM() / 0.06f;
+    }
   }
 
 #ifdef USE_WEBSERVER
