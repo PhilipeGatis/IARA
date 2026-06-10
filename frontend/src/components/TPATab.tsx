@@ -9,6 +9,7 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
     const { t } = useT();
     // Schedule Builder States
     const [interval, setInterval] = useState('');
+    const [autoEnabled, setAutoEnabled] = useState(false);
     const [h, setH] = useState('10');
     const [m, setM] = useState('00');
     const [pct, setPct] = useState('20');
@@ -29,6 +30,7 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
 
     useEffect(() => {
         if (status) {
+            if (status.tpaAutoEnabled !== undefined) setAutoEnabled(status.tpaAutoEnabled);
             if (!interval && status.tpaInterval !== undefined) setInterval(status.tpaInterval.toString());
             if (status.tpaHour !== undefined) setH(status.tpaHour.toString().padStart(2, '0'));
             if (status.tpaMinute !== undefined) setM(status.tpaMinute.toString().padStart(2, '0'));
@@ -43,6 +45,7 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
     const handleSaveSchedule = () => {
         api('POST', '/api/schedule', {
             tpaInterval: parseInt(interval) || 0,
+            tpaAutoEnabled: autoEnabled ? 1 : 0,
             tpaHour: parseInt(h) || 0,
             tpaMinute: parseInt(m) || 0,
             tpaPercent: parseInt(pct) || 20
@@ -86,6 +89,19 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                 <h2 className="mb-4 text-base font-medium tracking-wide text-text/90 uppercase">{t('tpa.auto')}</h2>
 
                 <div className="flex flex-col gap-4">
+                    <div className="flex items-center gap-3 bg-white/5 rounded-md p-3 border border-muted/20">
+                        <input
+                            type="checkbox"
+                            checked={autoEnabled}
+                            onChange={(e) => setAutoEnabled(e.target.checked)}
+                            className="w-5 h-5 accent-accent"
+                        />
+                        <div className="flex flex-col">
+                            <span className="text-sm font-bold text-text">{t('tpa.autoEnabled')}</span>
+                            <span className="text-[10px] text-muted">{t('tpa.autoEnabledHint')}</span>
+                        </div>
+                    </div>
+
                     <div className="flex flex-col gap-1">
                         <label className="text-xs font-bold text-muted uppercase tracking-wider">{t('tpa.frequency')}</label>
                         <input
@@ -134,7 +150,7 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
 
                     <div className="mt-5 flex items-center justify-between">
                         <span className="text-xs text-muted italic">
-                            {t('tpa.scheduled')} <strong className="text-accent">{parseInt(interval) > 0 ? `${pct}% a cada ${interval} dias às ${h.padStart(2, '0')}:${m.padStart(2, '0')}` : t('tpa.disabledLabel')}</strong>
+                            {t('tpa.scheduled')} <strong className="text-accent">{autoEnabled ? `${pct}% a cada ${interval} dias às ${h.padStart(2, '0')}:${m.padStart(2, '0')}` : t('tpa.disabledLabel')}</strong>
                         </span>
                         <button
                             onClick={handleSaveSchedule}

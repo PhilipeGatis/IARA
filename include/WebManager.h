@@ -28,6 +28,7 @@ public:
 
   // ---- Schedule parameters (read by main loop) ----
   uint16_t getTpaInterval() const { return _tpaInterval; }
+  bool getTpaAutoEnabled() const { return _tpaAutoEnabled; }
   uint8_t getTpaHour() const { return _tpaHour; }
   uint8_t getTpaMinute() const { return _tpaMinute; }
   uint32_t getTpaLastRun() const { return _tpaLastRun; }
@@ -68,6 +69,7 @@ private:
 
   // Schedule parameters
   uint16_t _tpaInterval;
+  bool _tpaAutoEnabled;
   uint8_t _tpaHour;
   uint8_t _tpaMinute;
   uint32_t _tpaLastRun;

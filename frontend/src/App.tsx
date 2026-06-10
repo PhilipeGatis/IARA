@@ -16,6 +16,7 @@ export type AQStatus = {
   tpaState: string;
   canister: boolean;
   tpaInterval: number;
+  tpaAutoEnabled: boolean;
   tpaHour: number;
   tpaMinute: number;
   tpaLastRun: number;

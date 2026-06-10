@@ -54,6 +54,8 @@ const translations = {
 
     // ---- TPATab ----
     'tpa.auto': { pt: 'TPA Automática', en: 'Auto TPA', ja: '自動TPA' },
+    'tpa.autoEnabled': { pt: 'Habilitar TPA Automática', en: 'Enable Auto TPA', ja: '自動TPAを有効にする' },
+    'tpa.autoEnabledHint': { pt: 'Se desmarcado, a TPA não rodará automaticamente, apenas via comando manual.', en: 'If unchecked, TPA will not run automatically, only manually.', ja: 'チェックを外すと、TPAは自動実行されず、手動コマンドのみで実行されます。' },
     'tpa.frequency': { pt: 'Frequência (Dias)', en: 'Frequency (Days)', ja: '頻度（日数）' },
     'tpa.cancel': { pt: 'Cancelar TPA', en: 'Cancel TPA', ja: 'TPAをキャンセル' },
     'tpa.freqHint': { pt: 'Coloque 0 para desativar. (Ex: 7 = Semanal, 15 = Quinzenal)', en: 'Set 0 to disable. (e.g. 7 = Weekly, 15 = Biweekly)', ja: '0で無効。（例: 7 = 毎週, 15 = 隔週）' },

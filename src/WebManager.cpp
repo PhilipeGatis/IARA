@@ -25,7 +25,7 @@ WebManager::WebManager()
     :
 #endif
       _time(nullptr), _water(nullptr), _fert(nullptr), _safety(nullptr),
-      _tpaInterval(7), _tpaHour(10), _tpaMinute(0), _tpaLastRun(0),
+      _tpaInterval(7), _tpaAutoEnabled(false), _tpaHour(10), _tpaMinute(0), _tpaLastRun(0),
       _tpaPercent(20), _canisterSafePct(0), _language(0),
       _primeML(DEFAULT_PRIME_ML), _aqHeight(0), _aqLength(0), _aqWidth(0),
       _sensorFullDistanceCm(0), _drainFlowRate(0), _refillFlowRate(0),
@@ -134,6 +134,7 @@ String WebManager::_buildStatusJSON() {
 
   // Schedule
   json += "\"tpaInterval\":" + String(_tpaInterval) + ",";
+  json += "\"tpaAutoEnabled\":" + String(_tpaAutoEnabled ? "true" : "false") + ",";
   json += "\"tpaHour\":" + String(_tpaHour) + ",";
   json += "\"tpaMinute\":" + String(_tpaMinute) + ",";
   json += "\"tpaPercent\":" + String(_tpaPercent) + ",";
@@ -557,6 +558,11 @@ void WebManager::_setupRoutes() {
         int inv = _extractInt(body, "tpaInterval");
         if (inv >= 0) {
           _tpaInterval = inv;
+          changed = true;
+        }
+        int tae = _extractInt(body, "tpaAutoEnabled");
+        if (tae >= 0) {
+          _tpaAutoEnabled = (tae == 1);
           changed = true;
         }
         int hh = _extractInt(body, "tpaHour");
@@ -1011,6 +1017,7 @@ void WebManager::_updateTelemetry() {
 void WebManager::_loadParams() {
   _prefs.begin("aqua", true);
   _tpaInterval = _prefs.getUShort("tpaInt", 7);
+  _tpaAutoEnabled = _prefs.getBool("tpaEn", false);
   _tpaHour = _prefs.getUChar("tpaH", 10);
   _tpaMinute = _prefs.getUChar("tpaM", 0);
   _tpaLastRun = _prefs.getUInt("tpaRun", 0);
@@ -1039,6 +1046,7 @@ void WebManager::_loadParams() {
 void WebManager::_saveParams() {
   _prefs.begin("aqua", false);
   _prefs.putUShort("tpaInt", _tpaInterval);
+  _prefs.putBool("tpaEn", _tpaAutoEnabled);
   _prefs.putUChar("tpaH", _tpaHour);
   _prefs.putUChar("tpaM", _tpaMinute);
   _prefs.putUInt("tpaRun", _tpaLastRun);

@@ -398,7 +398,9 @@ void loop() {
       if (!waterMgr.isRunning() && isTPADay) {
         if (timeMgr.isDailyScheduleTime(webMgr.getTpaHour(),
                                         webMgr.getTpaMinute())) {
-          if (!webMgr.isTpaConfigReady()) {
+          if (!webMgr.getTpaAutoEnabled()) {
+            Serial.println("[Main] TPA schedule triggered but Auto-TPA is DISABLED - skipping.");
+          } else if (!webMgr.isTpaConfigReady()) {
             Serial.println("[Main] TPA schedule triggered but config "
                            "incomplete - skipping.");
           } else {
