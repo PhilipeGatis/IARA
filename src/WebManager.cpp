@@ -122,6 +122,7 @@ String WebManager::_buildStatusJSON() {
   extern const char *bootResetReason;
   json += "\"resetReason\":\"" + String(bootResetReason) + "\",";
   json += "\"uptimeMs\":" + String(millis()) + ",";
+  json += "\"firmwareVersion\":\"" + String(FIRMWARE_VERSION) + "\",";
   if (_time) {
     json += "\"time\":\"" + _time->getFormattedTime() + "\",";
   }

@@ -109,7 +109,7 @@ void setup() {
 
   Serial.println("\n==========================================");
   Serial.println("  AQUARIUM AUTOMATION - ESP32 Firmware");
-  Serial.println("  v3.1.0 - Pump Log + Safety");
+  Serial.printf("  v%s - Pump Log + Safety\n", FIRMWARE_VERSION);
   Serial.printf("  Reset reason: %s\n", resetStr);
   Serial.println("==========================================\n");
 

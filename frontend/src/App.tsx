@@ -6,6 +6,8 @@ import ConfigTab from './components/ConfigTab';
 import LogsTab from './components/LogsTab';
 import { I18nProvider, useT } from './i18n';
 
+declare const __APP_VERSION__: string;
+
 export type AQStatus = {
   wifiConnected: boolean;
   time: string;
@@ -40,6 +42,9 @@ export type AQStatus = {
   pumpProgressLiters?: number;
   pumpElapsedMs?: number;
   language: number;
+  firmwareVersion?: string;
+  resetReason?: string;
+  uptimeMs?: number;
   stocks: {
     name: string;
     stock: number;
@@ -111,13 +116,20 @@ function AppContent() {
   return (
     <div className="min-h-screen pb-20">
       {/* Header */}
-      <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 bg-card shadow-md px-4 py-4">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <span
-            className={`h-2.5 w-2.5 flex-none rounded-full ${wifiDot ? 'bg-accent2 shadow-[0_0_8px_var(--accent2)]' : 'bg-danger shadow-[0_0_8px_var(--danger)]'
-              }`}
-          />
-          <h1 className="truncate text-base font-medium tracking-wide sm:text-lg">Aquarium Controller</h1>
+      <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 bg-card shadow-md px-4 py-3">
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex items-center gap-3">
+            <span
+              className={`h-2.5 w-2.5 flex-none rounded-full ${wifiDot ? 'bg-accent2 shadow-[0_0_8px_var(--accent2)]' : 'bg-danger shadow-[0_0_8px_var(--danger)]'
+                }`}
+            />
+            <h1 className="truncate text-base font-medium tracking-wide sm:text-lg">Aquarium Controller</h1>
+          </div>
+          <div className="ml-[22px] flex gap-2 text-[9px] text-muted/50 font-mono">
+            <span>FW:{status?.firmwareVersion || '?'}</span>
+            <span>UI:{__APP_VERSION__}</span>
+            {status?.resetReason && <span>RST:{status.resetReason}</span>}
+          </div>
         </div>
         <span className="flex-none font-mono text-sm tracking-widest text-accent sm:text-base">
           {status?.time || '--:--:--'}
