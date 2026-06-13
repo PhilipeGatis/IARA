@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Config.h"
+#include "PumpLog.h"
 #include <Arduino.h>
 
 // Forward declarations
@@ -87,6 +88,11 @@ public:
   float getRefillFlowLPM() const { return _refillFlowLPM; }
   bool isCalibrated() const { return _drainFlowLPM > 0 && _refillFlowLPM > 0; }
 
+  /// Save calibrated flow rates to NVS
+  void saveCalibration();
+  /// Load calibrated flow rates from NVS
+  void loadCalibration();
+
   /// Canister filter state
   bool isCanisterOn() const {
     return digitalRead(PIN_CANISTER) == LOW;
@@ -144,11 +150,16 @@ private:
   void _handleRefilling();
   void _handleCanisterOn();
   void _handleManualReservoirFill();
-  void _handleManualPumpDrain();
-  void _handleManualPumpRefill();
+  void _handleManualPump(uint8_t pin, float flowLPM, bool checkOptical);
 
-  /// Capture refill flow rate from inline calibration data
+  /// Stop all TPA actuators (DRY helper)
+  void _stopAllTpaActuators(PumpReason reason);
+
+  /// Capture inline calibration flow rate
   void _captureRefillCalibration();
+
+  /// Calculate flow rate from calibration data (DRY helper)
+  float _calcFlowRate(float startLevel, float endLevel, unsigned long startMs) const;
 
   /// Elapsed time in current state (ms)
   unsigned long _stateElapsed() const { return millis() - _stateStartMs; }

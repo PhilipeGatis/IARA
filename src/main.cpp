@@ -13,6 +13,7 @@
 // =============================================================================
 
 #include "Config.h"
+#include "PumpLog.h"
 #include "DisplayManager.h"
 #include "FertManager.h"
 #include "NotifyManager.h"
@@ -55,8 +56,8 @@ void setup() {
   // --- Step 1: Initialize all output pins LOW FIRST (safety critical) ---
   for (uint8_t i = 0; i < NUM_OUTPUT_PINS; i++) {
     pinMode(OUTPUT_PINS[i], OUTPUT);
-    digitalWrite(OUTPUT_PINS[i], LOW);
   }
+  allPumpsOff(PumpReason::BOOT_INIT);
 
   // --- Step 2: Serial ---
   Serial.begin(115200);
@@ -249,6 +250,7 @@ void setup() {
   // --- Step 5: Time Manager (RTC + NTP — needs WiFi) ---
   displayMgr.showBootStatus("RTC + NTP");
   timeMgr.begin();
+  pumpLogInit([]() -> String { return timeMgr.getFormattedTime(); });
 
   // --- Step 5: Fertilizer Manager (NVS state) ---
   fertMgr.begin();
@@ -257,26 +259,7 @@ void setup() {
   waterMgr.begin(&safety, &fertMgr);
 
   // Load calibrated pump flow rates from NVS
-  {
-    Preferences calPref;
-    calPref.begin("pumpcal", true); // read-only
-    float drainLPM = calPref.getFloat("drainLPM", 0);
-    float refillLPM = calPref.getFloat("refillLPM", 0);
-    calPref.end();
-    if (drainLPM > 0) {
-      waterMgr.setDrainFlowLPM(drainLPM);
-      Serial.printf("[Main] Loaded drain calibration: %.2f L/min\n", drainLPM);
-    }
-    if (refillLPM > 0) {
-      waterMgr.setRefillFlowLPM(refillLPM);
-      Serial.printf("[Main] Loaded refill calibration: %.2f L/min\n",
-                    refillLPM);
-    }
-    if (drainLPM <= 0 && refillLPM <= 0) {
-      Serial.println(
-          "[Main] No pump calibration found. Using safe defaults (30s/15s).");
-    }
-  }
+  waterMgr.loadCalibration();
 
   // --- Step 7: Web Dashboard + Serial UI ---
   displayMgr.showBootStatus("Web server");
@@ -288,7 +271,7 @@ void setup() {
   delay(1000); // pause to show final boot log
 
   // --- Step 8: Canister filter ON by default ---
-  digitalWrite(PIN_CANISTER, LOW); // SSR: LOW = relay ON
+  pumpOff(PIN_CANISTER, PumpReason::BOOT_INIT); // SSR: LOW = relay ON
   Serial.println("[Main] Canister filter ON (default).\n");
 
   // --- Step 9: Notifications ---
@@ -469,15 +452,7 @@ void loop() {
 
     // Save calibrated flow rates for next TPA
     if (waterMgr.getDrainFlowLPM() > 0 || waterMgr.getRefillFlowLPM() > 0) {
-      Preferences calPref;
-      calPref.begin("pumpcal", false);
-      if (waterMgr.getDrainFlowLPM() > 0)
-        calPref.putFloat("drainLPM", waterMgr.getDrainFlowLPM());
-      if (waterMgr.getRefillFlowLPM() > 0)
-        calPref.putFloat("refillLPM", waterMgr.getRefillFlowLPM());
-      calPref.end();
-      Serial.printf("[Main] Calibration saved: drain=%.2f refill=%.2f L/min\n",
-                    waterMgr.getDrainFlowLPM(), waterMgr.getRefillFlowLPM());
+      waterMgr.saveCalibration();
     }
 
     if (!tpaCompleteNotified) {

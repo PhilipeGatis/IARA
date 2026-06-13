@@ -1,4 +1,5 @@
 #include "SafetyWatchdog.h"
+#include "PumpLog.h"
 #include <algorithm> // std::sort
 
 SafetyWatchdog::SafetyWatchdog()
@@ -109,24 +110,17 @@ bool SafetyWatchdog::isReservoirFull() {
 // ============================================================================
 
 void SafetyWatchdog::emergencyShutdown() {
-  Serial.println("[EMERGENCY] >>> SHUTDOWN: All outputs OFF <<<");
-  for (uint8_t i = 0; i < NUM_OUTPUT_PINS; i++) {
-    digitalWrite(OUTPUT_PINS[i], LOW);
-  }
+  allPumpsOff(PumpReason::EMERGENCY_SHUTDOWN);
   _emergency = true;
   _emergencyDraining = false;
 }
 
 void SafetyWatchdog::emergencyDrain() {
-  Serial.println("[EMERGENCY] >>> OVERFLOW DRAIN ACTIVATED <<<");
-
   // Shut everything off first
-  for (uint8_t i = 0; i < NUM_OUTPUT_PINS; i++) {
-    digitalWrite(OUTPUT_PINS[i], LOW);
-  }
+  allPumpsOff(PumpReason::EMERGENCY_DRAIN);
 
   // Open drain valve
-  digitalWrite(PIN_DRAIN, HIGH);
+  pumpOn(PIN_DRAIN, PumpReason::EMERGENCY_DRAIN);
 
   _emergency = true;
   _emergencyDraining = true;
@@ -182,8 +176,8 @@ void SafetyWatchdog::update() {
   // -- Optical sensor: immediate stop if water at max --
   if (isOpticalHigh()) {
     // Always stop refill/solenoid when optical is triggered
-    digitalWrite(PIN_REFILL, LOW);
-    digitalWrite(PIN_SOLENOID, LOW);
+    pumpOff(PIN_REFILL, PumpReason::SAFETY_STOP);
+    pumpOff(PIN_SOLENOID, PumpReason::SAFETY_STOP);
     _overflowFlag = true;
   } else {
     _overflowFlag = false;
@@ -223,8 +217,7 @@ void SafetyWatchdog::_updateEmergencyDrain() {
   // Check if water is now at safe level
   float dist = _lastDistance;
   if (dist > LEVEL_SAFETY_MIN_CM + 5.0f) {
-    Serial.println("[Safety] Emergency drain: water at safe level. Stopping.");
-    digitalWrite(PIN_DRAIN, LOW);
+    pumpOff(PIN_DRAIN, PumpReason::SAFETY_STOP);
     _emergencyDraining = false;
     _emergency = false;
     return;

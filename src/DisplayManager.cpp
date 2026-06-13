@@ -448,11 +448,7 @@ void DisplayManager::_drawHeaderLevelBar() {
   _display.fillRect(barX, barY, barW, barH, COL_ACCENT);
 
   if (dist >= 0) {
-    float pct = 1.0f - (dist / maxDist);
-    if (pct > 1.0f)
-      pct = 1.0f;
-    if (pct < 0.0f)
-      pct = 0.0f;
+    float pct = _calcWaterPct(dist) / 100.0f; // header bar uses 0-1 range
 
     _display.drawRect(barX, barY, barW, barH, COL_BG);
     uint8_t fillW = (uint8_t)(pct * (barW - 2));
@@ -557,16 +553,7 @@ void DisplayManager::_drawAquariumPage() {
   _display.setTextColor(COL_TEXT);
   _display.setCursor(4, y);
   if (dist >= 0) {
-    uint16_t sf = _web->getSensorFullDistanceCm();
-    uint16_t aqh = _web->getAqHeight();
-    float refCm = (aqh > 0) ? aqh : 20.0f;
-    
-    float pct = 100.0f - (((dist - sf) / refCm) * 100.0f);
-    if (pct > 100.0f)
-      pct = 100.0f;
-    if (pct < 0.0f)
-      pct = 0.0f;
-    int pctVal = (int)pct;
+    int pctVal = (int)_calcWaterPct(dist);
     _display.print(pctVal);
     _display.setTextSize(1);
     _display.print(F(" %"));
@@ -616,16 +603,9 @@ void DisplayManager::_drawAquariumPageLive() {
   _display.setTextSize(2);
   _display.setCursor(4, 42);
   if (dist >= 0) {
-    uint16_t sf = _web->getSensorFullDistanceCm();
-    uint16_t aqh = _web->getAqHeight();
-    float refCm = (aqh > 0) ? aqh : 20.0f;
-    
-    float pct = 100.0f - (((dist - sf) / refCm) * 100.0f);
-    if (pct > 100.0f) pct = 100.0f;
-    if (pct < 0.0f) pct = 0.0f;
-    int pctVal = (int)pct;
+    int pctVal = (int)_calcWaterPct(dist);
     char lvlBuf[8];
-    snprintf(lvlBuf, sizeof(lvlBuf), "%-4d", pctVal); // left-align, pad spaces
+    snprintf(lvlBuf, sizeof(lvlBuf), "%-4d", pctVal);
     _display.setTextColor(COL_TEXT, COL_BG);
     _display.print(lvlBuf);
     _display.setTextSize(1);
@@ -796,4 +776,16 @@ void DisplayManager::_drawSchedulePage() {
     _display.print(F(" "));
     _display.print(STR_DAYS[lang]);
   }
+}
+
+// =============================================================================
+// WATER LEVEL PERCENTAGE (DRY #2)
+// =============================================================================
+float DisplayManager::_calcWaterPct(float distCm) const {
+  float sf = (float)_web->getSensorFullDistanceCm();
+  float refCm = (_web->getAqHeight() > 0) ? (float)_web->getAqHeight() : 20.0f;
+  float pct = 100.0f - (((distCm - sf) / refCm) * 100.0f);
+  if (pct > 100.0f) pct = 100.0f;
+  if (pct < 0.0f) pct = 0.0f;
+  return pct;
 }

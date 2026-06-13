@@ -80,7 +80,7 @@ void FertManager::update(DateTime now) {
 }
 
 bool FertManager::doseChannel(uint8_t ch, float ml) {
-  if (ch > NUM_FERTS)
+  if (!_isValidChannel(ch))
     return false;
   if (ml <= 0)
     return false;
@@ -116,7 +116,7 @@ bool FertManager::doseChannel(uint8_t ch, float ml) {
 }
 
 void FertManager::manualPump(uint8_t ch, bool state) {
-  if (ch > NUM_FERTS)
+  if (!_isValidChannel(ch))
     return;
   ledcWrite(ch, state ? _pwm[ch] : 0);
   Serial.printf("[Fert] Manual pump CH%d set to %s (PWM: %d)\n", ch + 1,
@@ -124,32 +124,32 @@ void FertManager::manualPump(uint8_t ch, bool state) {
 }
 
 void FertManager::setPWM(uint8_t ch, uint8_t pwm) {
-  if (ch <= NUM_FERTS) {
+  if (_isValidChannel(ch)) {
     _pwm[ch] = pwm;
     saveState();
   }
 }
 
 void FertManager::setDoseML(uint8_t ch, uint8_t dayOfWeek, float ml) {
-  if (ch <= NUM_FERTS && dayOfWeek < 7) {
+  if (_isValidChannel(ch) && dayOfWeek < 7) {
     _doseML[ch][dayOfWeek] = ml;
   }
 }
 
 float FertManager::getDoseML(uint8_t ch, uint8_t dayOfWeek) const {
-  return (ch <= NUM_FERTS && dayOfWeek < 7) ? _doseML[ch][dayOfWeek] : 0.0f;
+  return (_isValidChannel(ch) && dayOfWeek < 7) ? _doseML[ch][dayOfWeek] : 0.0f;
 }
 
 void FertManager::setScheduleTime(uint8_t ch, uint8_t day, uint8_t hour,
                                   uint8_t minute) {
-  if (ch <= NUM_FERTS && day < 7) {
+  if (_isValidChannel(ch) && day < 7) {
     _schedHour[ch][day] = hour;
     _schedMinute[ch][day] = minute;
   }
 }
 
 void FertManager::setScheduleTimeAll(uint8_t ch, uint8_t hour, uint8_t minute) {
-  if (ch <= NUM_FERTS) {
+  if (_isValidChannel(ch)) {
     for (uint8_t d = 0; d < 7; d++) {
       _schedHour[ch][d] = hour;
       _schedMinute[ch][d] = minute;
@@ -158,23 +158,23 @@ void FertManager::setScheduleTimeAll(uint8_t ch, uint8_t hour, uint8_t minute) {
 }
 
 void FertManager::setFlowRate(uint8_t ch, float mlPerSec) {
-  if (ch <= NUM_FERTS && mlPerSec > 0.01f) {
+  if (_isValidChannel(ch) && mlPerSec > 0.01f) {
     _flowRateMLps[ch] = mlPerSec;
   }
 }
 
 float FertManager::getStockML(uint8_t ch) const {
-  return (ch <= NUM_FERTS) ? _stockML[ch] : 0;
+  return _isValidChannel(ch) ? _stockML[ch] : 0;
 }
 
 void FertManager::setStockML(uint8_t ch, float ml) {
-  if (ch <= NUM_FERTS) {
+  if (_isValidChannel(ch)) {
     _stockML[ch] = ml;
   }
 }
 
 void FertManager::resetStock(uint8_t ch, float ml) {
-  if (ch <= NUM_FERTS) {
+  if (_isValidChannel(ch)) {
     _stockML[ch] = ml;
     saveState();
     Serial.printf("[Fert] Stock CH%d reset to %.1f ml\n", ch + 1, ml);
@@ -182,7 +182,7 @@ void FertManager::resetStock(uint8_t ch, float ml) {
 }
 
 void FertManager::setLowStockThreshold(uint8_t ch, float ml) {
-  if (ch <= NUM_FERTS && ml >= 0) {
+  if (_isValidChannel(ch) && ml >= 0) {
     _lowStockThreshold[ch] = ml;
     saveState();
     Serial.printf("[Fert] CH%d low stock threshold set to %.0f mL\n", ch + 1,
@@ -191,24 +191,24 @@ void FertManager::setLowStockThreshold(uint8_t ch, float ml) {
 }
 
 float FertManager::getLowStockThreshold(uint8_t ch) const {
-  return (ch <= NUM_FERTS) ? _lowStockThreshold[ch] : 50.0f;
+  return _isValidChannel(ch) ? _lowStockThreshold[ch] : 50.0f;
 }
 
 bool FertManager::isLowStock(uint8_t ch) const {
-  if (ch > NUM_FERTS)
+  if (!_isValidChannel(ch))
     return false;
   return _stockML[ch] < _lowStockThreshold[ch] && _lowStockThreshold[ch] > 0;
 }
 
 String FertManager::getName(uint8_t ch) const {
-  if (ch <= NUM_FERTS) {
+  if (_isValidChannel(ch)) {
     return _names[ch];
   }
   return "";
 }
 
 void FertManager::setName(uint8_t ch, const String &name) {
-  if (ch <= NUM_FERTS) {
+  if (_isValidChannel(ch)) {
     // Truncate name to save NVS space (max 15 chars)
     String safeName = name.substring(0, 15);
     _names[ch] = safeName;
@@ -218,11 +218,11 @@ void FertManager::setName(uint8_t ch, const String &name) {
 }
 
 bool FertManager::isEnabled(uint8_t ch) const {
-  return (ch <= NUM_FERTS) ? _enabled[ch] : false;
+  return _isValidChannel(ch) ? _enabled[ch] : false;
 }
 
 void FertManager::setEnabled(uint8_t ch, bool enabled) {
-  if (ch <= NUM_FERTS) {
+  if (_isValidChannel(ch)) {
     _enabled[ch] = enabled;
     saveState();
     Serial.printf("[Fert] CH%d schedule set to %s\n", ch + 1, enabled ? "ENABLED" : "DISABLED");
@@ -342,7 +342,7 @@ void FertManager::_loadState() {
 }
 
 void FertManager::_markDosed(uint8_t ch, DateTime now) {
-  if (ch <= NUM_FERTS) {
+  if (_isValidChannel(ch)) {
     _lastDoseKey[ch] = _dateKey(now);
 
     char key[16];

@@ -43,16 +43,16 @@ public:
   /// Set same time for all 7 days (convenience)
   void setScheduleTimeAll(uint8_t ch, uint8_t hour, uint8_t minute);
   uint8_t getSchedHour(uint8_t ch, uint8_t day) const {
-    return (ch <= NUM_FERTS && day < 7) ? _schedHour[ch][day] : 0;
+    return (_isValidChannel(ch) && day < 7) ? _schedHour[ch][day] : 0;
   }
   uint8_t getSchedMinute(uint8_t ch, uint8_t day) const {
-    return (ch <= NUM_FERTS && day < 7) ? _schedMinute[ch][day] : 0;
+    return (_isValidChannel(ch) && day < 7) ? _schedMinute[ch][day] : 0;
   }
 
   // ---- Flow Rate Calibration (NVS) ----
   void setFlowRate(uint8_t ch, float mlPerSec);
   float getFlowRate(uint8_t ch) const {
-    return (ch <= NUM_FERTS) ? _flowRateMLps[ch] : 1.5f;
+    return _isValidChannel(ch) ? _flowRateMLps[ch] : 1.5f;
   }
 
   // ---- Stock tracking ----
@@ -72,7 +72,7 @@ public:
   // ---- PWM Control (NVS) ----
   void setPWM(uint8_t ch, uint8_t pwm);
   uint8_t getPWM(uint8_t ch) const {
-    return (ch <= NUM_FERTS) ? _pwm[ch] : 255;
+    return _isValidChannel(ch) ? _pwm[ch] : 255;
   }
 
   // ---- Custom Names (NVS) ----
@@ -123,6 +123,9 @@ private:
 
   /// Mark today as dosed for a channel in NVS
   void _markDosed(uint8_t ch, DateTime now);
+
+  /// Check if a channel index is valid (0-NUM_FERTS inclusive) (DRY #7)
+  bool _isValidChannel(uint8_t ch) const { return ch <= NUM_FERTS; }
 
   /// Get the GPIO pin for a channel (0-3 = fert, 4 = prime)
   uint8_t _pinForChannel(uint8_t ch) const;

@@ -98,4 +98,7 @@ private:
   void _drawHeader(const char *title);
   void _drawHeaderLevelBar();
   void _drawHeaderTitle(const char *title);
+
+  /// Calculate water level percentage from ultrasonic distance (DRY helper)
+  float _calcWaterPct(float distCm) const;
 };

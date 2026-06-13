@@ -1,4 +1,5 @@
 #include "WebManager.h"
+#include "PumpLog.h"
 #include "FertManager.h"
 #include "NotifyManager.h"
 #include "SafetyWatchdog.h"
@@ -55,10 +56,10 @@ void WebManager::begin(TimeManager *time, WaterManager *water,
     // Sincroniza a vazão real caso as Preferences do WebManager ('drFR') 
     // tenham se perdido ou zerado, garantindo que a UI reflita a calibração do pumpcal.
     if (_water->getDrainFlowLPM() > 0) {
-      _drainFlowRate = _water->getDrainFlowLPM() / 0.06f;
+      _drainFlowRate = _water->getDrainFlowLPM() * LPM_TO_ML_PER_SEC;
     }
     if (_water->getRefillFlowLPM() > 0) {
-      _refillFlowRate = _water->getRefillFlowLPM() / 0.06f;
+      _refillFlowRate = _water->getRefillFlowLPM() * LPM_TO_ML_PER_SEC;
     }
   }
 
@@ -207,19 +208,7 @@ String WebManager::_buildStatusJSON() {
 
   // Notify status
   if (_notify) {
-    json += ",\"notify\":{";
-    json +=
-        "\"enabled\":" + String(_notify->isEnabled() ? "true" : "false") + ",";
-    json += "\"dailyCount\":" + String(_notify->getDailyCount()) + ",";
-    json += "\"reportHour\":" + String(_notify->getDailyReportHour()) + ",";
-    json += "\"reportMinute\":" + String(_notify->getDailyReportMinute()) + ",";
-    json += "\"types\":[";
-    for (uint8_t i = 0; i < NOTIFY_TYPE_COUNT; i++) {
-      if (i > 0)
-        json += ",";
-      json += _notify->isTypeEnabled((NotifyType)i) ? "true" : "false";
-    }
-    json += "]}";
+    json += ",\"notify\":" + _buildNotifyJSON();
   }
 
   // Low stock thresholds
@@ -322,17 +311,17 @@ void WebManager::_setupRoutes() {
             _water->startManualPump(pStr, liters);
           } else {
              // Fallback for direct toggle if needed
-             if (pStr == "drain") digitalWrite(PIN_DRAIN, HIGH);
-             else if (pStr == "refill") digitalWrite(PIN_REFILL, HIGH);
-             else if (pStr == "solenoid") digitalWrite(PIN_SOLENOID, HIGH);
+             if (pStr == "drain") pumpOn(PIN_DRAIN, PumpReason::MANUAL_PUMP);
+             else if (pStr == "refill") pumpOn(PIN_REFILL, PumpReason::MANUAL_PUMP);
+             else if (pStr == "solenoid") pumpOn(PIN_SOLENOID, PumpReason::MANUAL_SOLENOID);
           }
         } else {
           if (_water && _water->isRunning()) {
             _water->stopManual();
           } else {
-             if (pStr == "drain") digitalWrite(PIN_DRAIN, LOW);
-             else if (pStr == "refill") digitalWrite(PIN_REFILL, LOW);
-             else if (pStr == "solenoid") digitalWrite(PIN_SOLENOID, LOW);
+             if (pStr == "drain") pumpOff(PIN_DRAIN, PumpReason::MANUAL_PUMP);
+             else if (pStr == "refill") pumpOff(PIN_REFILL, PumpReason::MANUAL_PUMP);
+             else if (pStr == "solenoid") pumpOff(PIN_SOLENOID, PumpReason::MANUAL_SOLENOID);
           }
         }
         request->send(200, "application/json", "{\"ok\":true}");
@@ -429,12 +418,9 @@ void WebManager::_setupRoutes() {
           pin = PIN_REFILL;
 
         if (pin > 0) {
-          digitalWrite(pin, HIGH);
-          unsigned long start = millis();
-          while ((millis() - start) < 3000) {
-            delay(10);
-          }
-          digitalWrite(pin, LOW);
+          pumpOn(pin, PumpReason::CALIBRATION);
+          _blockForCalibrationPulse();
+          pumpOff(pin, PumpReason::CALIBRATION);
           Serial.printf("[Web] %s pump ran for 3s\n", pStr.c_str());
         }
         request->send(200, "application/json", "{\"ok\":true}");
@@ -450,24 +436,18 @@ void WebManager::_setupRoutes() {
         String pStr = _extractString(body, "pump");
         float ml = _extractFloat(body, "ml");
         if (ml > 0.1f) {
-          float rate = ml / 3.0f;
+          float rate = ml / (CALIBRATION_PULSE_MS / 1000.0f);
           if (pStr == "drain") {
             _drainFlowRate = rate;
-            if (_water) _water->setDrainFlowLPM(rate * 0.06f);
+            if (_water) _water->setDrainFlowLPM(rate * ML_PER_SEC_TO_LPM);
             Serial.printf("[Web] Drain flow rate calibrated: %.2f mL/s\n", rate);
           } else if (pStr == "refill") {
             _refillFlowRate = rate;
-            if (_water) _water->setRefillFlowLPM(rate * 0.06f);
+            if (_water) _water->setRefillFlowLPM(rate * ML_PER_SEC_TO_LPM);
             Serial.printf("[Web] Refill flow rate calibrated: %.2f mL/s\n", rate);
           }
           _saveParams();
-          if (_water) {
-            Preferences calPref;
-            calPref.begin("pumpcal", false);
-            calPref.putFloat("drainLPM", _water->getDrainFlowLPM());
-            calPref.putFloat("refillLPM", _water->getRefillFlowLPM());
-            calPref.end();
-          }
+          if (_water) _water->saveCalibration();
         }
         request->send(200, "application/json", "{\"ok\":true}");
       });
@@ -488,10 +468,14 @@ void WebManager::_setupRoutes() {
              });
 
   // ---- POST /api/canister/toggle ----
-  _server.on("/api/canister/toggle", HTTP_POST,
+   _server.on("/api/canister/toggle", HTTP_POST,
              [this](AsyncWebServerRequest *request) {
                bool current = digitalRead(PIN_CANISTER) == LOW; // SSR LOW=ON
-               digitalWrite(PIN_CANISTER, current ? HIGH : LOW);
+               if (current) {
+                 pumpOn(PIN_CANISTER, PumpReason::MANUAL_PUMP); // HIGH = OFF
+               } else {
+                 pumpOff(PIN_CANISTER, PumpReason::MANUAL_PUMP); // LOW = ON
+               }
                Serial.printf("[Web] Canister manually turned %s\n", current ? "OFF" : "ON");
                request->send(200, "application/json", "{\"ok\":true}");
              });
@@ -691,10 +675,7 @@ void WebManager::_setupRoutes() {
         if (ch >= 0 && ch <= 4 && _fert) {
           // Block and pulse
           _fert->manualPump(ch, true);
-          unsigned long start = millis();
-          while ((millis() - start) < 3000) {
-            delay(10);
-          }
+          _blockForCalibrationPulse();
           _fert->manualPump(ch, false);
         }
         request->send(200, "application/json", "{\"ok\":true}");
@@ -802,28 +783,7 @@ void WebManager::_setupRoutes() {
           request->send(200, "application/json", "{\"enabled\":false}");
           return;
         }
-        String json = "{";
-        json +=
-            "\"enabled\":" + String(_notify->isEnabled() ? "true" : "false") +
-            ",";
-        // Mask key for security
-        String key = _notify->getPrivateKey();
-        if (key.length() > 4) {
-          key = key.substring(0, 4) + "****";
-        }
-        json += "\"key\":\"" + key + "\",";
-        json += "\"dailyCount\":" + String(_notify->getDailyCount()) + ",";
-        json += "\"reportHour\":" + String(_notify->getDailyReportHour()) + ",";
-        json +=
-            "\"reportMinute\":" + String(_notify->getDailyReportMinute()) + ",";
-        json += "\"types\":[";
-        for (uint8_t i = 0; i < NOTIFY_TYPE_COUNT; i++) {
-          if (i > 0)
-            json += ",";
-          json += _notify->isTypeEnabled((NotifyType)i) ? "true" : "false";
-        }
-        json += "]}";
-        request->send(200, "application/json", json);
+        request->send(200, "application/json", _buildNotifyJSON());
       });
 
   // ---- POST /api/notify/key ----
@@ -992,31 +952,45 @@ void WebManager::_updateTelemetry() {
     return;
   _lastTelemetryMs = now;
 
-  Serial.println("--- Telemetry ---");
-  if (_time) {
-    Serial.printf("  Time: %s\n", _time->getFormattedTime().c_str());
+  // DRY #4: Reuse _printStatus instead of duplicating the same output
+  _printStatus();
+}
+
+// ============================================================================
+// NOTIFY JSON BUILDER (DRY #5)
+// ============================================================================
+
+String WebManager::_buildNotifyJSON() const {
+  if (!_notify) return "{}";
+  String json = "{";
+  json += "\"enabled\":" + String(_notify->isEnabled() ? "true" : "false") + ",";
+  // Mask key for security
+  String key = _notify->getPrivateKey();
+  if (key.length() > 4) {
+    key = key.substring(0, 4) + "****";
   }
-  if (_safety) {
-    Serial.printf("  Water Level: %.1f cm\n", _safety->getLastDistance());
-    Serial.printf("  Optical: %s | Float: %s\n",
-                  _safety->isOpticalHigh() ? "HIGH" : "low",
-                  _safety->isReservoirFull() ? "FULL" : "empty");
-    Serial.printf("  Emergency: %s | Maintenance: %s\n",
-                  _safety->isEmergency() ? "YES" : "no",
-                  _safety->isMaintenanceMode() ? "YES" : "no");
+  json += "\"key\":\"" + key + "\",";
+  json += "\"dailyCount\":" + String(_notify->getDailyCount()) + ",";
+  json += "\"reportHour\":" + String(_notify->getDailyReportHour()) + ",";
+  json += "\"reportMinute\":" + String(_notify->getDailyReportMinute()) + ",";
+  json += "\"types\":[";
+  for (uint8_t i = 0; i < NOTIFY_TYPE_COUNT; i++) {
+    if (i > 0) json += ",";
+    json += _notify->isTypeEnabled((NotifyType)i) ? "true" : "false";
   }
-  if (_water) {
-    Serial.printf("  TPA State: %s | Canister: %s\n", _water->getStateName(),
-                  _water->isCanisterOn() ? "ON" : "OFF");
+  json += "]}";
+  return json;
+}
+
+// ============================================================================
+// CALIBRATION PULSE HELPER (DRY #6)
+// ============================================================================
+
+void WebManager::_blockForCalibrationPulse() {
+  unsigned long start = millis();
+  while ((millis() - start) < CALIBRATION_PULSE_MS) {
+    delay(10);
   }
-  if (_fert) {
-    for (uint8_t i = 0; i < NUM_FERTS; i++) {
-      Serial.printf("  Fert CH%d: stock=%.0f ml\n", i + 1,
-                    _fert->getStockML(i));
-    }
-    Serial.printf("  Prime: stock=%.0f ml\n", _fert->getStockML(NUM_FERTS));
-  }
-  Serial.println("-----------------");
 }
 
 // ============================================================================
@@ -1147,10 +1121,10 @@ void WebManager::processSerialCommands() {
       Serial.printf("[CMD] Refill target set to %.1f cm\n", cm);
     }
   } else if (cmd == "canister_on") {
-    digitalWrite(PIN_CANISTER, LOW); // SSR: LOW = ON
+    pumpOff(PIN_CANISTER, PumpReason::MANUAL_PUMP); // SSR: LOW = ON
     Serial.println("[CMD] Canister ON.");
   } else if (cmd == "canister_off") {
-    digitalWrite(PIN_CANISTER, HIGH); // SSR: HIGH = OFF
+    pumpOn(PIN_CANISTER, PumpReason::MANUAL_PUMP); // SSR: HIGH = OFF
     Serial.println("[CMD] Canister OFF.");
   } else if (cmd == "emergency_stop") {
     if (_safety)
@@ -1217,31 +1191,31 @@ void WebManager::_printHelp() {
 }
 
 void WebManager::_printStatus() {
-  Serial.println("\n=== System Status ===");
+  Serial.println("\n--- Telemetry ---");
   if (_time) {
-    Serial.printf("Time: %s\n", _time->getFormattedTime().c_str());
+    Serial.printf("  Time: %s\n", _time->getFormattedTime().c_str());
   }
   if (_safety) {
-    Serial.printf("Water: %.1f cm | Emergency: %s | Maintenance: %s\n",
-                  _safety->getLastDistance(),
+    Serial.printf("  Water Level: %.1f cm\n", _safety->getLastDistance());
+    Serial.printf("  Optical: %s | Float: %s\n",
+                  _safety->isOpticalHigh() ? "HIGH" : "low",
+                  _safety->isReservoirFull() ? "FULL" : "empty");
+    Serial.printf("  Emergency: %s | Maintenance: %s\n",
                   _safety->isEmergency() ? "YES" : "no",
                   _safety->isMaintenanceMode() ? "YES" : "no");
   }
   if (_water) {
-    Serial.printf("TPA: %s | Canister: %s\n", _water->getStateName(),
+    Serial.printf("  TPA State: %s | Canister: %s\n", _water->getStateName(),
                   _water->isCanisterOn() ? "ON" : "OFF");
   }
-  Serial.printf("Schedule: TPA=Every %d days at %02d:%02d\n", _tpaInterval,
+  Serial.printf("  Schedule: TPA=Every %d days at %02d:%02d\n", _tpaInterval,
                 _tpaHour, _tpaMinute);
   if (_fert) {
     for (uint8_t i = 0; i < NUM_FERTS; i++) {
-      Serial.printf("CH%d: dose[Sun]=%.1f ml, stock=%.0f ml, rate=%.2f mL/s\n",
-                    i + 1, _fert->getDoseML(i, 0), _fert->getStockML(i),
-                    _fert->getFlowRate(i));
+      Serial.printf("  Fert CH%d: stock=%.0f ml\n", i + 1,
+                    _fert->getStockML(i));
     }
-    Serial.printf("Prime: dose[Sun]=%.1f ml, stock=%.0f ml, rate=%.2f mL/s\n",
-                  _fert->getDoseML(NUM_FERTS, 0), _fert->getStockML(NUM_FERTS),
-                  _fert->getFlowRate(NUM_FERTS));
+    Serial.printf("  Prime: stock=%.0f ml\n", _fert->getStockML(NUM_FERTS));
   }
-  Serial.println("=====================\n");
+  Serial.println("-----------------");
 }

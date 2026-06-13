@@ -103,3 +103,12 @@ constexpr uint8_t DEFAULT_FERT_MINUTE = 0;
 // -- Loop timing --
 constexpr unsigned long TELEMETRY_INTERVAL_MS = 10000;  // 10s
 constexpr unsigned long SAFETY_CHECK_INTERVAL_MS = 500; // 500ms
+
+// -- Unit conversions --
+// mL/s to L/min: multiply mL/s by 0.06 (= 60 / 1000)
+constexpr float ML_PER_SEC_TO_LPM = 0.06f;
+constexpr float LPM_TO_ML_PER_SEC = 1.0f / ML_PER_SEC_TO_LPM;
+
+// -- Calibration pulse duration --
+constexpr unsigned long CALIBRATION_PULSE_MS = 3000; // 3 seconds
+

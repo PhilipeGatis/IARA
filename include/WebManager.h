@@ -120,6 +120,12 @@ private:
   static bool _extractFloatArray(const String &json, const char *key,
                                  float *outArray, uint8_t expectedSize);
 
+  /// Build notify status JSON fragment (DRY #5)
+  String _buildNotifyJSON() const;
+
+  /// Block for CALIBRATION_PULSE_MS with yield (DRY #6)
+  static void _blockForCalibrationPulse();
+
 #ifdef USE_WEBSERVER
   AsyncWebServer _server;
   AsyncEventSource _events;
