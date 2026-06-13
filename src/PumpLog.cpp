@@ -1,5 +1,9 @@
 #include "PumpLog.h"
 
+#ifndef UNIT_TEST
+#include <LittleFS.h>
+#endif
+
 // ============================================================================
 // INTERNAL STATE
 // ============================================================================
@@ -11,11 +15,101 @@ static PumpLogEntry _logBuffer[PUMP_LOG_MAX];
 static uint8_t _logHead = 0;  // Next write position
 static uint8_t _logCount = 0; // Current number of entries
 
+// Persistence state
+static bool _dirty = false;
+static unsigned long _lastFlushMs = 0;
+
+#ifndef UNIT_TEST
+
+static const char *LOG_FILE = "/pumplog.bin";
+
+// File header magic to detect valid log files
+static const uint32_t LOG_MAGIC = 0x504C4F47; // "PLOG"
+
+struct PumpLogHeader {
+  uint32_t magic;
+  uint8_t count;
+  uint8_t head;
+  uint8_t version; // for future format changes
+  uint8_t _pad;
+};
+
 // ============================================================================
 // INITIALIZATION
 // ============================================================================
 
 void pumpLogInit(TimeFormatCallback cb) { _timeCb = cb; }
+
+// ============================================================================
+// PERSISTENCE — LittleFS
+// ============================================================================
+
+void pumpLogLoad() {
+  File f = LittleFS.open(LOG_FILE, "r");
+  if (!f) {
+    Serial.println("[PumpLog] No saved log file found. Starting fresh.");
+    return;
+  }
+
+  PumpLogHeader hdr;
+  if (f.read((uint8_t *)&hdr, sizeof(hdr)) != sizeof(hdr) ||
+      hdr.magic != LOG_MAGIC || hdr.count > PUMP_LOG_MAX) {
+    Serial.println("[PumpLog] Invalid log file. Starting fresh.");
+    f.close();
+    return;
+  }
+
+  size_t dataSize = PUMP_LOG_MAX * sizeof(PumpLogEntry);
+  size_t readSize = f.read((uint8_t *)_logBuffer, dataSize);
+  f.close();
+
+  if (readSize != dataSize) {
+    Serial.println("[PumpLog] Corrupt log file. Starting fresh.");
+    memset(_logBuffer, 0, dataSize);
+    _logCount = 0;
+    _logHead = 0;
+    return;
+  }
+
+  _logCount = hdr.count;
+  _logHead = hdr.head;
+  Serial.printf("[PumpLog] Loaded %d events from flash.\n", _logCount);
+}
+
+void pumpLogFlush() {
+  if (!_dirty) return;
+
+  unsigned long now = millis();
+  if (now - _lastFlushMs < PUMP_LOG_FLUSH_INTERVAL_MS) return;
+
+  File f = LittleFS.open(LOG_FILE, "w");
+  if (!f) {
+    Serial.println("[PumpLog] Failed to open log file for writing!");
+    return;
+  }
+
+  PumpLogHeader hdr;
+  hdr.magic = LOG_MAGIC;
+  hdr.count = _logCount;
+  hdr.head = _logHead;
+  hdr.version = 1;
+  hdr._pad = 0;
+
+  f.write((uint8_t *)&hdr, sizeof(hdr));
+  f.write((uint8_t *)_logBuffer, PUMP_LOG_MAX * sizeof(PumpLogEntry));
+  f.close();
+
+  _dirty = false;
+  _lastFlushMs = now;
+}
+
+#else // UNIT_TEST stubs
+
+void pumpLogInit(TimeFormatCallback cb) { _timeCb = cb; }
+void pumpLogLoad() {}
+void pumpLogFlush() {}
+
+#endif // UNIT_TEST
 
 // ============================================================================
 // NAME LOOKUPS
@@ -74,11 +168,13 @@ static void _addEntry(uint8_t pin, bool state, PumpReason reason) {
   entry.pin = pin;
   entry.state = state;
   entry.reason = reason;
+  entry._pad = 0;
 
   _logHead = (_logHead + 1) % PUMP_LOG_MAX;
   if (_logCount < PUMP_LOG_MAX) {
     _logCount++;
   }
+  _dirty = true;
 }
 
 uint8_t pumpLogCount() { return _logCount; }
@@ -91,7 +187,7 @@ String pumpLogGetJSON() {
   if (_logCount > 0) {
     // Start index: oldest entry in the ring buffer
     uint8_t start =
-        (_logCount < PUMP_LOG_MAX) ? 0 : _logHead; // If full, head points to oldest
+        (_logCount < PUMP_LOG_MAX) ? 0 : _logHead;
 
     for (uint8_t i = 0; i < _logCount; i++) {
       uint8_t idx = (start + i) % PUMP_LOG_MAX;
@@ -119,7 +215,7 @@ String pumpLogGetJSON() {
 // ============================================================================
 
 static void _log(uint8_t pin, bool state, PumpReason reason) {
-  // Store in ring buffer
+  // Store in ring buffer (+ mark dirty for flash persistence)
   _addEntry(pin, state, reason);
 
   // Also print to Serial for USB debugging

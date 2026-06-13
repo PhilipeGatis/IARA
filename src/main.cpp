@@ -144,6 +144,9 @@ void setup() {
     Serial.println("[LittleFS] Mounted successfully.");
   }
 
+  // Load persisted pump log from flash
+  pumpLogLoad();
+
   // --- Step 3: WiFi (must be before NTP/WebServer) ---
   displayMgr.showBootStatus("WiFi scan");
   Preferences wifiPref;
@@ -522,6 +525,9 @@ void loop() {
   // ---- 7. OLED DISPLAY ----
   displayMgr.update();
 
-  // ---- 8. YIELD ----
+  // ---- 8. PUMP LOG PERSISTENCE ----
+  pumpLogFlush(); // Write to flash every 10s if dirty
+
+  // ---- 9. YIELD ----
   delay(50); // ~20 Hz loop: enough for safety, yields to FreeRTOS IDLE
 }

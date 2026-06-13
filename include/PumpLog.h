@@ -32,18 +32,22 @@ enum class PumpReason : uint8_t {
 };
 
 // ============================================================================
-// RING BUFFER — in-memory pump event log (survives across requests, NOT reboots)
+// RING BUFFER — persisted to LittleFS, survives reboots
 // ============================================================================
 
-/// Max entries in ring buffer (~2.5 KB RAM)
+/// Max entries in ring buffer (~2.5 KB RAM + ~2.5 KB flash)
 constexpr uint8_t PUMP_LOG_MAX = 100;
 
-/// Single pump event entry
+/// Flush interval: write to flash at most every 10 seconds (flash wear protection)
+constexpr unsigned long PUMP_LOG_FLUSH_INTERVAL_MS = 10000;
+
+/// Single pump event entry (24 bytes)
 struct PumpLogEntry {
   char timestamp[20]; // "YYYY/MM/DD HH:MM:SS" or "12345ms"
   uint8_t pin;
   bool state;         // true=ON, false=OFF
   PumpReason reason;
+  uint8_t _pad;       // alignment padding
 };
 
 // ============================================================================
@@ -55,16 +59,21 @@ struct PumpLogEntry {
 /// If not called or callback is nullptr, falls back to millis().
 void pumpLogInit(TimeFormatCallback cb);
 
+/// @brief Load pump log from LittleFS into RAM ring buffer.
+/// Call once in setup() AFTER LittleFS.begin().
+void pumpLogLoad();
+
+/// @brief Flush dirty ring buffer to LittleFS (debounced).
+/// Call periodically from loop(). Only writes if dirty and interval elapsed.
+void pumpLogFlush();
+
 /// @brief Activate an actuator pin (HIGH) with logging.
-/// Logs: [PUMP] HH:MM:SS | PIN_NAME | ON | REASON
 void pumpOn(uint8_t pin, PumpReason reason);
 
 /// @brief Deactivate an actuator pin (LOW) with logging.
-/// Logs: [PUMP] HH:MM:SS | PIN_NAME | OFF | REASON
 void pumpOff(uint8_t pin, PumpReason reason);
 
 /// @brief Deactivate ALL output pins with logging.
-/// Iterates OUTPUT_PINS[] and calls pumpOff() for each.
 void allPumpsOff(PumpReason reason);
 
 /// @brief Get human-readable name for a pin.
@@ -74,7 +83,6 @@ const char *pinName(uint8_t pin);
 const char *reasonName(PumpReason r);
 
 /// @brief Get the ring buffer as a JSON string.
-/// Returns: {"count":N,"log":[{"t":"...","pin":"...","state":"ON","reason":"..."},...]
 /// Entries are ordered oldest → newest.
 String pumpLogGetJSON();
 
