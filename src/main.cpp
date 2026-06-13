@@ -71,6 +71,10 @@ bool tpaErrorNotified = false;    // Prevent repeated TPA error notifications
 unsigned long lastWiFiRetryTime = 0;
 const unsigned long WIFI_RETRY_INTERVAL_MS = 30000; // 30 seconds
 
+// ---- Boot diagnostics (exposed via /api/status) ----
+const char *bootResetReason = "UNKNOWN";
+unsigned long bootTimeMs = 0; // millis() at end of setup
+
 // =============================================================================
 // SETUP
 // =============================================================================
@@ -84,9 +88,29 @@ void setup() {
   // --- Step 2: Serial ---
   Serial.begin(115200);
   delay(2000);
+
+  // --- Step 2a: Log reset reason (diagnostic) ---
+  esp_reset_reason_t resetReason = esp_reset_reason();
+  const char *resetStr = "UNKNOWN";
+  switch (resetReason) {
+    case ESP_RST_POWERON:  resetStr = "POWER_ON"; break;
+    case ESP_RST_EXT:      resetStr = "EXTERNAL"; break;
+    case ESP_RST_SW:       resetStr = "SOFTWARE"; break;
+    case ESP_RST_PANIC:    resetStr = "PANIC_EXCEPTION"; break;
+    case ESP_RST_INT_WDT:  resetStr = "INTERRUPT_WATCHDOG"; break;
+    case ESP_RST_TASK_WDT: resetStr = "TASK_WATCHDOG"; break;
+    case ESP_RST_WDT:      resetStr = "OTHER_WATCHDOG"; break;
+    case ESP_RST_DEEPSLEEP:resetStr = "DEEP_SLEEP"; break;
+    case ESP_RST_BROWNOUT: resetStr = "BROWNOUT"; break;
+    case ESP_RST_SDIO:     resetStr = "SDIO"; break;
+    default:               resetStr = "UNKNOWN"; break;
+  }
+  bootResetReason = resetStr;
+
   Serial.println("\n==========================================");
   Serial.println("  AQUARIUM AUTOMATION - ESP32 Firmware");
-  Serial.println("  v3.0.0 - Web Dashboard");
+  Serial.println("  v3.1.0 - Pump Log + Safety");
+  Serial.printf("  Reset reason: %s\n", resetStr);
   Serial.println("==========================================\n");
 
   // --- Step 2b: I2C bus scan (diagnostic) ---

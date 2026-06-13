@@ -118,6 +118,10 @@ String WebManager::_buildStatusJSON() {
   json += "\"wifiConnected\":" +
           String(WiFi.status() == WL_CONNECTED ? "true" : "false") + ",";
 
+  // Boot diagnostics
+  extern const char *bootResetReason;
+  json += "\"resetReason\":\"" + String(bootResetReason) + "\",";
+  json += "\"uptimeMs\":" + String(millis()) + ",";
   if (_time) {
     json += "\"time\":\"" + _time->getFormattedTime() + "\",";
   }
