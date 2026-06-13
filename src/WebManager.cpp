@@ -776,6 +776,12 @@ void WebManager::_setupRoutes() {
         request->send(200, "application/json", "{\"ok\":true}");
       });
 
+  // ---- GET /api/pump/log ----
+  _server.on(
+      "/api/pump/log", HTTP_GET, [](AsyncWebServerRequest *request) {
+        request->send(200, "application/json", pumpLogGetJSON());
+      });
+
   // ---- GET /api/notify/status ----
   _server.on(
       "/api/notify/status", HTTP_GET, [this](AsyncWebServerRequest *request) {

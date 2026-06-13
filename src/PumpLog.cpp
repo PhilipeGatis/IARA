@@ -6,6 +6,11 @@
 
 static TimeFormatCallback _timeCb = nullptr;
 
+// Ring buffer
+static PumpLogEntry _logBuffer[PUMP_LOG_MAX];
+static uint8_t _logHead = 0;  // Next write position
+static uint8_t _logCount = 0; // Current number of entries
+
 // ============================================================================
 // INITIALIZATION
 // ============================================================================
@@ -51,11 +56,73 @@ const char *reasonName(PumpReason r) {
 }
 
 // ============================================================================
+// RING BUFFER
+// ============================================================================
+
+static void _addEntry(uint8_t pin, bool state, PumpReason reason) {
+  PumpLogEntry &entry = _logBuffer[_logHead];
+
+  // Timestamp
+  if (_timeCb) {
+    String ts = _timeCb();
+    strncpy(entry.timestamp, ts.c_str(), sizeof(entry.timestamp) - 1);
+    entry.timestamp[sizeof(entry.timestamp) - 1] = '\0';
+  } else {
+    snprintf(entry.timestamp, sizeof(entry.timestamp), "%lums", millis());
+  }
+
+  entry.pin = pin;
+  entry.state = state;
+  entry.reason = reason;
+
+  _logHead = (_logHead + 1) % PUMP_LOG_MAX;
+  if (_logCount < PUMP_LOG_MAX) {
+    _logCount++;
+  }
+}
+
+uint8_t pumpLogCount() { return _logCount; }
+
+String pumpLogGetJSON() {
+  String json = "{\"count\":";
+  json += String(_logCount);
+  json += ",\"log\":[";
+
+  if (_logCount > 0) {
+    // Start index: oldest entry in the ring buffer
+    uint8_t start =
+        (_logCount < PUMP_LOG_MAX) ? 0 : _logHead; // If full, head points to oldest
+
+    for (uint8_t i = 0; i < _logCount; i++) {
+      uint8_t idx = (start + i) % PUMP_LOG_MAX;
+      const PumpLogEntry &e = _logBuffer[idx];
+
+      if (i > 0) json += ",";
+      json += "{\"t\":\"";
+      json += e.timestamp;
+      json += "\",\"pin\":\"";
+      json += pinName(e.pin);
+      json += "\",\"state\":\"";
+      json += e.state ? "ON" : "OFF";
+      json += "\",\"reason\":\"";
+      json += reasonName(e.reason);
+      json += "\"}";
+    }
+  }
+
+  json += "]}";
+  return json;
+}
+
+// ============================================================================
 // LOGGING CORE
 // ============================================================================
 
 static void _log(uint8_t pin, bool state, PumpReason reason) {
-  // Get timestamp: prefer callback, fallback to millis
+  // Store in ring buffer
+  _addEntry(pin, state, reason);
+
+  // Also print to Serial for USB debugging
   if (_timeCb) {
     Serial.printf("[PUMP] %s | %-9s | %-3s | %s\n",
                   _timeCb().c_str(), pinName(pin),
@@ -84,7 +151,11 @@ void allPumpsOff(PumpReason reason) {
   for (uint8_t i = 0; i < NUM_OUTPUT_PINS; i++) {
     digitalWrite(OUTPUT_PINS[i], LOW);
   }
-  // Single summary log instead of one per pin
+  // Log each pin individually in the ring buffer for traceability
+  for (uint8_t i = 0; i < NUM_OUTPUT_PINS; i++) {
+    _addEntry(OUTPUT_PINS[i], false, reason);
+  }
+  // Single summary log to Serial
   if (_timeCb) {
     Serial.printf("[PUMP] %s | ALL       | OFF | %s\n",
                   _timeCb().c_str(), reasonName(reason));

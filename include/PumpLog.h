@@ -32,6 +32,21 @@ enum class PumpReason : uint8_t {
 };
 
 // ============================================================================
+// RING BUFFER — in-memory pump event log (survives across requests, NOT reboots)
+// ============================================================================
+
+/// Max entries in ring buffer (~2.5 KB RAM)
+constexpr uint8_t PUMP_LOG_MAX = 100;
+
+/// Single pump event entry
+struct PumpLogEntry {
+  char timestamp[20]; // "YYYY/MM/DD HH:MM:SS" or "12345ms"
+  uint8_t pin;
+  bool state;         // true=ON, false=OFF
+  PumpReason reason;
+};
+
+// ============================================================================
 // PUMP LOG API
 // ============================================================================
 
@@ -57,3 +72,11 @@ const char *pinName(uint8_t pin);
 
 /// @brief Get human-readable name for a reason.
 const char *reasonName(PumpReason r);
+
+/// @brief Get the ring buffer as a JSON string.
+/// Returns: {"count":N,"log":[{"t":"...","pin":"...","state":"ON","reason":"..."},...]
+/// Entries are ordered oldest → newest.
+String pumpLogGetJSON();
+
+/// @brief Get the number of entries currently in the ring buffer.
+uint8_t pumpLogCount();
