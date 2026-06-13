@@ -3,6 +3,7 @@ import HomeTab from './components/HomeTab';
 import TPATab from './components/TPATab';
 import FertsTab from './components/FertsTab';
 import ConfigTab from './components/ConfigTab';
+import LogsTab from './components/LogsTab';
 import { I18nProvider, useT } from './i18n';
 
 export type AQStatus = {
@@ -69,7 +70,7 @@ export const api = async (method: string, url: string, body?: any) => {
 
 function AppContent() {
   const { t } = useT();
-  const [tab, setTab] = useState<'home' | 'tpa' | 'ferts' | 'config'>('home');
+  const [tab, setTab] = useState<'home' | 'tpa' | 'ferts' | 'logs' | 'config'>('home');
   const [status, setStatus] = useState<AQStatus | null>(null);
   const [wifiDot, setWifiDot] = useState(false);
 
@@ -135,6 +136,7 @@ function AppContent() {
         {tab === 'home' && <HomeTab status={status} />}
         {tab === 'tpa' && <TPATab status={status} />}
         {tab === 'ferts' && <FertsTab status={status} />}
+        {tab === 'logs' && <LogsTab />}
         {tab === 'config' && <ConfigTab status={status} />}
       </div>
 
@@ -144,6 +146,7 @@ function AppContent() {
           { id: 'home', icon: '🏠', label: t('nav.home') },
           { id: 'tpa', icon: '💧', label: t('nav.tpa') },
           { id: 'ferts', icon: '🧪', label: t('nav.ferts') },
+          { id: 'logs', icon: '📋', label: t('nav.logs') },
           { id: 'config', icon: '⚙️', label: t('nav.config') },
         ].map((tb) => (
           <button

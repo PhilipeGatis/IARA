@@ -204,6 +204,15 @@ const translations = {
     'notify.dailyLevel': { pt: 'Nível Diário', en: 'Daily Level', ja: '日次水位' },
     'notify.keySaved': { pt: 'Chave salva com sucesso!', en: 'Key saved successfully!', ja: 'キーが保存されました！' },
     'notify.noKey': { pt: 'Insira uma chave válida.', en: 'Enter a valid key.', ja: '有効なキーを入力してください。' },
+
+    // ---- LogsTab ----
+    'nav.logs': { pt: 'Logs', en: 'Logs', ja: 'ログ' },
+    'logs.title': { pt: 'Log de Bombas', en: 'Pump Log', ja: 'ポンプログ' },
+    'logs.events': { pt: 'eventos', en: 'events', ja: 'イベント' },
+    'logs.refresh': { pt: 'Atualizar', en: 'Refresh', ja: '更新' },
+    'logs.all': { pt: 'TODOS', en: 'ALL', ja: 'すべて' },
+    'logs.empty': { pt: 'Nenhum evento registrado desde o último boot.', en: 'No events recorded since last boot.', ja: '前回起動以降のイベントなし。' },
+    'logs.info': { pt: '💡 O log armazena os últimos 100 eventos de bomba na memória. Os dados são perdidos ao reiniciar o ESP32. Útil para diagnosticar ativações inesperadas.', en: '💡 The log stores the last 100 pump events in memory. Data is lost on ESP32 reboot. Useful for diagnosing unexpected activations.', ja: '💡 ログはメモリ内に最後の100件のポンプイベントを保存します。ESP32の再起動でデータは失われます。予期せぬ動作の診断に役立ちます。' },
 } as const;
 
 type TranslationKey = keyof typeof translations;
