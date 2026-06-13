@@ -26,6 +26,28 @@
 #include <esp_task_wdt.h>
 #include <esp_wifi.h>
 #include <ESPmDNS.h>
+#include <driver/gpio.h>
+
+// ============================================================================
+// PRE-BOOT SAFETY: Force all output GPIOs LOW before Arduino setup()
+// This eliminates the ~100-200ms window where pins float during ESP32 boot,
+// which can briefly activate relays and trigger siphon effects.
+// Runs automatically before app_main() via GCC constructor attribute.
+// ============================================================================
+static void __attribute__((constructor)) earlyPinInit() {
+  const gpio_num_t pins[] = {
+      (gpio_num_t)PIN_FERT1,    (gpio_num_t)PIN_FERT2,
+      (gpio_num_t)PIN_FERT3,    (gpio_num_t)PIN_FERT4,
+      (gpio_num_t)PIN_PRIME,    (gpio_num_t)PIN_DRAIN,
+      (gpio_num_t)PIN_REFILL,   (gpio_num_t)PIN_SOLENOID,
+      (gpio_num_t)PIN_CANISTER,
+  };
+  for (auto pin : pins) {
+    gpio_reset_pin(pin);
+    gpio_set_direction(pin, GPIO_MODE_OUTPUT);
+    gpio_set_level(pin, 0); // LOW — relay OFF
+  }
+}
 
 // ---- Global instances ----
 SafetyWatchdog safety;
