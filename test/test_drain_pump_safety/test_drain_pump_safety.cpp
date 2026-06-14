@@ -62,12 +62,17 @@ void goToFilling(WaterManager &wm) {
   wm.update(); // → FILLING_RESERVOIR
 }
 
+// Helper: simulate float sensor triggering (debounced — needs N consecutive reads)
+void simulateFloatFull(WaterManager &wm) {
+  mock_pin_read_value[PIN_FLOAT] = LOW;
+  for (int i = 0; i < 5; i++) { wm.update(); }
+}
+
 // Helper: advance to DOSING_PRIME
 void goToDosingPrime(WaterManager &wm) {
   goToFilling(wm);
   wm.update(); // Opens solenoid
-  mock_pin_read_value[PIN_FLOAT] = LOW; // Reservoir full
-  wm.update(); // → DOSING_PRIME
+  simulateFloatFull(wm); // Debounced → DOSING_PRIME
 }
 
 // Helper: advance to REFILLING
@@ -286,7 +291,7 @@ void test_manual_reservoir_fill_completes_on_float() {
   TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_SOLENOID]);
 
   mock_pin_read_value[PIN_FLOAT] = LOW; // Reservoir full
-  wm.update();
+  simulateFloatFull(wm);
   TEST_ASSERT_EQUAL(TPAState::COMPLETE, wm.getState());
   TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_SOLENOID]);
 }
@@ -495,7 +500,7 @@ void test_prime_disabled_skips_dosing() {
   goToFilling(wm);
   wm.update(); // Opens solenoid
   mock_pin_read_value[PIN_FLOAT] = LOW; // Reservoir full
-  wm.update(); // FILLING → DOSING_PRIME (enters the state)
+  simulateFloatFull(wm);
   TEST_ASSERT_EQUAL(TPAState::DOSING_PRIME, wm.getState());
   wm.update(); // DOSING_PRIME handler: prime disabled → skip to REFILLING
   TEST_ASSERT_EQUAL(TPAState::REFILLING, wm.getState());

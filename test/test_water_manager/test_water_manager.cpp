@@ -59,12 +59,17 @@ void goToFilling(WaterManager &wm) {
   TEST_ASSERT_EQUAL(TPAState::FILLING_RESERVOIR, wm.getState());
 }
 
+// Helper: simulate float sensor triggering (debounced — needs N consecutive reads)
+void simulateFloatFull(WaterManager &wm) {
+  mock_pin_read_value[PIN_FLOAT] = LOW;
+  for (int i = 0; i < 5; i++) { wm.update(); }
+}
+
 // Helper: advance to DOSING_PRIME
 void goToDosingPrime(WaterManager &wm) {
   goToFilling(wm);
   wm.update();                          // Opens solenoid
-  mock_pin_read_value[PIN_FLOAT] = LOW; // Reservoir full
-  wm.update();                          // Float triggers → DOSING_PRIME
+  simulateFloatFull(wm);                // Debounced → DOSING_PRIME
   TEST_ASSERT_EQUAL(TPAState::DOSING_PRIME, wm.getState());
 }
 
@@ -174,8 +179,7 @@ void test_fill_stops_on_float_switch() {
   WaterManager wm = makeWM();
   goToFilling(wm);
   wm.update(); // Opens solenoid
-  mock_pin_read_value[PIN_FLOAT] = LOW;
-  wm.update();
+  simulateFloatFull(wm);
   TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_SOLENOID]);
   TEST_ASSERT_EQUAL(TPAState::DOSING_PRIME, wm.getState());
 }
@@ -320,9 +324,8 @@ void test_refill_calibration_during_tpa() {
   mock_pulseIn_value = 1200; // ~20.4cm
   wm.update();               // → FILLING_RESERVOIR
 
-  // Float switch triggered (reservoir full)
-  mock_pin_read_value[PIN_FLOAT] = LOW;
-  wm.update(); // → DOSING_PRIME
+  // Float switch triggered (reservoir full) - debounced
+  simulateFloatFull(wm); // → DOSING_PRIME
 
   // First DOSING_PRIME tick: doses and sets wait
   wm.update();

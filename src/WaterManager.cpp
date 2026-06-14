@@ -29,6 +29,8 @@ const char *tpaStateName(TPAState s) {
     return "MANUAL_PUMP_DRAIN";
   case TPAState::MANUAL_PUMP_REFILL:
     return "MANUAL_PUMP_REFILL";
+  case TPAState::CALIBRATING_RESERVOIR:
+    return "CALIBRATING_RESERVOIR";
   default:
     return "UNKNOWN";
   }
@@ -180,6 +182,9 @@ void WaterManager::update() {
   case TPAState::MANUAL_PUMP_REFILL:
     _handleManualPump(PIN_REFILL, _refillFlowLPM, true);
     break;
+  case TPAState::CALIBRATING_RESERVOIR:
+    _handleCalibratingReservoir();
+    break;
   default:
     break;
   }
@@ -192,6 +197,7 @@ void WaterManager::update() {
 void WaterManager::_enterState(TPAState newState) {
   _state = newState;
   _stateStartMs = millis();
+  _floatFullCount = 0; // Reset debounce on state transition
   Serial.printf("[TPA] -> State: %s\n", tpaStateName(newState));
 }
 
@@ -272,15 +278,19 @@ void WaterManager::_handleFillingReservoir() {
     Serial.println("[TPA] Solenoid OPEN. Filling reservoir...");
   }
 
-  if (_safety && _safety->isReservoirFull()) {
+  if (_isReservoirFullDebounced()) {
     Serial.println("[TPA] Reservoir FULL (float switch triggered).");
     pumpOff(PIN_SOLENOID, PumpReason::TPA_TARGET_REACHED);
     _enterState(TPAState::DOSING_PRIME);
     return;
   }
 
-  // Safety timeout (2 hours hard limit)
-  if (_stateElapsed() >= 2UL * 60 * 60 * 1000) {
+  // Safety timeout: use calibrated time × 1.5, or 2h hard limit
+  unsigned long timeout = (_solenoidFillTimeSec > 0)
+    ? (unsigned long)(_solenoidFillTimeSec * 1500) // 1.5× calibrated time
+    : 2UL * 60 * 60 * 1000; // 2h fallback
+
+  if (_stateElapsed() >= timeout) {
     pumpOff(PIN_SOLENOID, PumpReason::ERROR_STOP);
     _error("Reservoir fill timeout exceeded!");
     return;
@@ -376,10 +386,21 @@ void WaterManager::_handleManualReservoirFill() {
     Serial.println("[TPA] Solenoid OPEN. Manual filling reservoir...");
   }
 
-  if (_safety && _safety->isReservoirFull()) {
+  if (_isReservoirFullDebounced()) {
     Serial.println("[TPA] Reservoir FULL. Manual fill complete.");
     pumpOff(PIN_SOLENOID, PumpReason::TPA_TARGET_REACHED);
     _state = TPAState::COMPLETE;
+    return;
+  }
+
+  // Safety timeout: calibrated × 1.5, or 30 min fallback
+  unsigned long timeout = (_solenoidFillTimeSec > 0)
+    ? (unsigned long)(_solenoidFillTimeSec * 1500)
+    : 30UL * 60 * 1000;
+
+  if (_stateElapsed() >= timeout) {
+    pumpOff(PIN_SOLENOID, PumpReason::ERROR_STOP);
+    _error("Manual reservoir fill timeout exceeded!");
     return;
   }
 }
@@ -512,6 +533,7 @@ void WaterManager::loadCalibration() {
   calPref.begin("pumpcal", true); // read-only
   float drainLPM = calPref.getFloat("drainLPM", 0);
   float refillLPM = calPref.getFloat("refillLPM", 0);
+  _solenoidFillTimeSec = calPref.getFloat("solFillS", 0);
   calPref.end();
   if (drainLPM > 0) {
     _drainFlowLPM = drainLPM;
@@ -521,7 +543,79 @@ void WaterManager::loadCalibration() {
     _refillFlowLPM = refillLPM;
     Serial.printf("[TPA] Loaded refill calibration: %.2f L/min\n", refillLPM);
   }
+  if (_solenoidFillTimeSec > 0) {
+    Serial.printf("[TPA] Loaded solenoid fill time: %.0f sec\n", _solenoidFillTimeSec);
+  }
   if (drainLPM <= 0 && refillLPM <= 0) {
     Serial.println("[TPA] No pump calibration found. Using safe defaults.");
   }
+}
+
+// ============================================================================
+// FLOAT SENSOR DEBOUNCE
+// ============================================================================
+
+bool WaterManager::_isReservoirFullDebounced() {
+  if (_safety && _safety->isReservoirFull()) {
+    _floatFullCount++;
+    if (_floatFullCount >= FLOAT_DEBOUNCE_COUNT) {
+      return true;
+    }
+  } else {
+    _floatFullCount = 0;
+  }
+  return false;
+}
+
+// ============================================================================
+// RESERVOIR SOLENOID CALIBRATION
+// ============================================================================
+
+void WaterManager::startReservoirCalibration() {
+  if (isRunning()) {
+    Serial.println("[TPA] Already running, ignoring startReservoirCalibration().");
+    return;
+  }
+  _floatFullCount = 0;
+  Serial.println("[TPA] ====== RESERVOIR CALIBRATION STARTED ======");
+  _enterState(TPAState::CALIBRATING_RESERVOIR);
+}
+
+void WaterManager::_handleCalibratingReservoir() {
+  // Open solenoid
+  if (digitalRead(PIN_SOLENOID) == LOW) {
+    pumpOn(PIN_SOLENOID, PumpReason::TPA_SOLENOID);
+    Serial.println("[TPA] Calibration: Solenoid OPEN. Timing fill...");
+  }
+
+  // Wait for float sensor (debounced)
+  if (_isReservoirFullDebounced()) {
+    float fillTimeSec = _stateElapsed() / 1000.0f;
+    _solenoidFillTimeSec = fillTimeSec;
+    pumpOff(PIN_SOLENOID, PumpReason::TPA_TARGET_REACHED);
+
+    // Save to NVS
+    Preferences calPref;
+    calPref.begin("pumpcal", false);
+    calPref.putFloat("solFillS", _solenoidFillTimeSec);
+    calPref.end();
+
+    Serial.printf("[TPA] ====== RESERVOIR CALIBRATION COMPLETE ======\n");
+    Serial.printf("[TPA] Fill time: %.1f seconds\n", fillTimeSec);
+    _state = TPAState::COMPLETE;
+    return;
+  }
+
+  // Hard timeout: 1 hour (safety)
+  if (_stateElapsed() >= 3600000UL) {
+    pumpOff(PIN_SOLENOID, PumpReason::ERROR_STOP);
+    _error("Reservoir calibration timeout (1h)!");
+  }
+}
+
+float WaterManager::getReservoirVolume() const {
+  // Returns estimated reservoir volume based on calibrated fill time
+  // Assumes typical residential solenoid flow of ~5 L/min
+  // User can override via config
+  return 0; // TODO: calculate from fill time + known flow rate
 }

@@ -52,6 +52,7 @@ void WebManager::begin(TimeManager *time, WaterManager *water,
 
   if (_water) {
     _water->setPrimeML(_primeML);
+    _water->setPrimeEnabled(_primeEnabled);
 
     // Sincroniza a vazão real caso as Preferences do WebManager ('drFR') 
     // tenham se perdido ou zerado, garantindo que a UI reflita a calibração do pumpcal.
@@ -177,6 +178,8 @@ String WebManager::_buildStatusJSON() {
     json += "\"pumpGoalLiters\":" + String(_water->getPumpGoalLiters(), 2) + ",";
     json += "\"pumpProgressLiters\":" + String(_water->getPumpProgressLiters(), 2) + ",";
     json += "\"pumpElapsedMs\":" + String(_water->getPumpElapsedMs()) + ",";
+    json += "\"solenoidFillTimeSec\":" + String(_water->getSolenoidFillTimeSec(), 1) + ",";
+    json += "\"reservoirCalibrated\":" + String(_water->isReservoirCalibrated() ? "true" : "false") + ",";
   }
   // Stocks
   json += "\"stocks\":[";
@@ -268,6 +271,18 @@ void WebManager::_setupRoutes() {
                  _water->abortTPA();
                Serial.println("[Web] TPA aborted via dashboard");
                request->send(200, "application/json", "{\"ok\":true}");
+             });
+
+  // ---- POST /api/tpa/calibrate-reservoir ----
+  _server.on("/api/tpa/calibrate-reservoir", HTTP_POST,
+             [this](AsyncWebServerRequest *request) {
+               if (_water) {
+                 _water->startReservoirCalibration();
+                 Serial.println("[Web] Reservoir calibration started via dashboard");
+                 request->send(200, "application/json", "{\"ok\":true}");
+               } else {
+                 request->send(500, "application/json", "{\"error\":\"WaterManager not available\"}");
+               }
              });
 
   // ---- POST /api/tpa/config (reservoir safety margin) ----
@@ -364,6 +379,7 @@ void WebManager::_setupRoutes() {
         int pe = _extractInt(body, "primeEnabled");
         if (pe >= 0) {
           _primeEnabled = (pe == 1);
+          if (_water) _water->setPrimeEnabled(_primeEnabled);
           changed = true;
         }
         int rv = _extractInt(body, "reservoirVolume");
