@@ -62,6 +62,14 @@ void WebManager::begin(TimeManager *time, WaterManager *water,
     if (_water->getRefillFlowLPM() > 0) {
       _refillFlowRate = _water->getRefillFlowLPM() * LPM_TO_ML_PER_SEC;
     }
+
+    Serial.println("[Config] ====== WebManager <-> WaterManager SYNC ======");
+    Serial.printf("[Config]   WaterMgr drain: %.2f LPM, refill: %.2f LPM\n",
+      _water->getDrainFlowLPM(), _water->getRefillFlowLPM());
+    Serial.printf("[Config]   WebMgr   drain: %.2f mL/s, refill: %.2f mL/s\n",
+      _drainFlowRate, _refillFlowRate);
+    Serial.printf("[Config]   Prime: %.1f mL, enabled=%s\n",
+      _primeML, _primeEnabled ? "YES" : "NO");
   }
 
 #ifdef USE_WEBSERVER
@@ -1051,6 +1059,20 @@ void WebManager::_loadParams() {
   if (_reservoirVolume > 0 && _primeRatio > 0) {
     _primeML = _reservoirVolume * _primeRatio;
   }
+
+  Serial.println("[Config] ====== NVS LOADED (namespace: aqua) ======");
+  Serial.printf("[Config]   TPA: interval=%dd, auto=%s, hour=%02d:%02d, pct=%d%%\n",
+    _tpaInterval, _tpaAutoEnabled ? "ON" : "OFF", _tpaHour, _tpaMinute, _tpaPercent);
+  Serial.printf("[Config]   Aquarium: %dx%dx%d cm, sensorFull=%d cm\n",
+    _aqHeight, _aqLength, _aqWidth, _sensorFullDistanceCm);
+  Serial.printf("[Config]   Drain flow: %.2f mL/s, Refill flow: %.2f mL/s\n",
+    _drainFlowRate, _refillFlowRate);
+  Serial.printf("[Config]   Prime: %.1f mL, ratio=%.5f, enabled=%s\n",
+    _primeML, _primeRatio, _primeEnabled ? "YES" : "NO");
+  Serial.printf("[Config]   Reservoir: vol=%d mL, safetyML=%.1f\n",
+    _reservoirVolume, _reservoirSafetyML);
+  Serial.printf("[Config]   Canister safe: %d%%, lang=%d\n",
+    _canisterSafePct, _language);
 }
 
 void WebManager::_saveParams() {
@@ -1075,6 +1097,12 @@ void WebManager::_saveParams() {
   _prefs.putUShort("rVol", _reservoirVolume);
   _prefs.putFloat("resSf", _reservoirSafetyML);
   _prefs.end();
+
+  Serial.println("[Config] ====== NVS SAVED (namespace: aqua) ======");
+  Serial.printf("[Config]   Drain flow: %.2f mL/s, Refill flow: %.2f mL/s\n",
+    _drainFlowRate, _refillFlowRate);
+  Serial.printf("[Config]   Prime: %.1f mL, enabled=%s\n",
+    _primeML, _primeEnabled ? "YES" : "NO");
 }
 
 // ============================================================================
