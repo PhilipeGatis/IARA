@@ -23,22 +23,24 @@ export default function FertConfigModal({ index, s, onClose }: Props) {
 
     const shortDays = t('fert.shortDays').split(',');
 
-    // Init doses from server
+    // Init doses from server (only once)
+    const [doseInit, setDoseInit] = useState(false);
     useEffect(() => {
-        if (s.doses && doses.every(d => d === '0')) {
+        if (!doseInit && s.doses) {
             setDoses(s.doses.map(d => d.toString()));
+            setDoseInit(true);
         }
-    }, [s.doses]);
+    }, [s.doses, doseInit]);
 
-    // Init per-day times from server
+    // Init per-day times from server (only once)
+    const [timeInit, setTimeInit] = useState(false);
     useEffect(() => {
-        if (s.sH && Array.isArray(s.sH)) {
+        if (!timeInit && s.sH && Array.isArray(s.sH) && s.sM && Array.isArray(s.sM)) {
             setHours(s.sH.map(h => h.toString()));
-        }
-        if (s.sM && Array.isArray(s.sM)) {
             setMins(s.sM.map(m => m.toString()));
+            setTimeInit(true);
         }
-    }, [s.sH, s.sM]);
+    }, [s.sH, s.sM, timeInit]);
 
     useEffect(() => {
         if (s.pwm !== undefined) setPwm(s.pwm);
