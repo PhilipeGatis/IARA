@@ -1,3 +1,4 @@
+#include "nvs_flash.h"
 #include "WebManager.h"
 #include "PumpLog.h"
 #include "FertManager.h"
@@ -56,11 +57,17 @@ void WebManager::begin(TimeManager *time, WaterManager *water,
 
     // Sincroniza a vazão real caso as Preferences do WebManager ('drFR') 
     // tenham se perdido ou zerado, garantindo que a UI reflita a calibração do pumpcal.
+    // E vice-versa: se pumpcal estiver vazio (ex: após OTA de versão antiga), migra do WebManager.
     if (_water->getDrainFlowLPM() > 0) {
       _drainFlowRate = _water->getDrainFlowLPM() * LPM_TO_ML_PER_SEC;
+    } else if (_drainFlowRate > 0) {
+      _water->setDrainFlowLPM(_drainFlowRate * ML_PER_SEC_TO_LPM);
     }
+
     if (_water->getRefillFlowLPM() > 0) {
       _refillFlowRate = _water->getRefillFlowLPM() * LPM_TO_ML_PER_SEC;
+    } else if (_refillFlowRate > 0) {
+      _water->setRefillFlowLPM(_refillFlowRate * ML_PER_SEC_TO_LPM);
     }
 
     Serial.println("[Config] ====== WebManager <-> WaterManager SYNC ======");
@@ -134,6 +141,8 @@ String WebManager::_buildStatusJSON() {
   json += "\"firmwareVersion\":\"" + String(FIRMWARE_VERSION) + "\",";
   if (_time) {
     json += "\"time\":\"" + _time->getFormattedTime() + "\",";
+    json += "\"rtcConnected\":" + String(_time->isRtcConnected() ? "true" : "false") + ",";
+    json += "\"rtcLostPower\":" + String(_time->hasRtcLostPower() ? "true" : "false") + ",";
   }
   if (_safety) {
     json += "\"waterLevel\":" + String(_safety->getLastDistance(), 1) + ",";
@@ -433,6 +442,23 @@ void WebManager::_setupRoutes() {
                request->send(500, "application/json", "{\"error\":\"Sensor error\"}");
              });
 
+  // ---- GET /api/debug/nvs ----
+  _server.on("/api/debug/nvs", HTTP_GET, [this](AsyncWebServerRequest *request) {
+    nvs_stats_t nvs_stats;
+    esp_err_t err = nvs_get_stats(NULL, &nvs_stats);
+    if (err == ESP_OK) {
+      String json = "{";
+      json += "\"used_entries\":" + String(nvs_stats.used_entries) + ",";
+      json += "\"free_entries\":" + String(nvs_stats.free_entries) + ",";
+      json += "\"total_entries\":" + String(nvs_stats.total_entries) + ",";
+      json += "\"namespace_count\":" + String(nvs_stats.namespace_count);
+      json += "}";
+      request->send(200, "application/json", json);
+    } else {
+      request->send(500, "application/json", "{\"error\":\"Failed to get NVS stats\"}");
+    }
+  });
+
   // ---- POST /api/tpa/run3s (JSON body: {"pump": "drain" | "refill"}) ----
   _server.on(
       "/api/tpa/run3s", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
@@ -455,30 +481,41 @@ void WebManager::_setupRoutes() {
         request->send(200, "application/json", "{\"ok\":true}");
       });
 
-  // ---- POST /api/tpa/calibrate (JSON: {"pump":"drain"|"refill","ml":150}) --
   _server.on(
-      "/api/tpa/calibrate", HTTP_POST, [](AsyncWebServerRequest *request) {},
-      NULL,
-      [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
-             size_t index, size_t total) {
-        String body = String((char *)data).substring(0, len);
-        String pStr = _extractString(body, "pump");
-        float ml = _extractFloat(body, "ml");
-        if (ml > 0.1f) {
-          float rate = ml / (CALIBRATION_PULSE_MS / 1000.0f);
-          if (pStr == "drain") {
-            _drainFlowRate = rate;
-            if (_water) _water->setDrainFlowLPM(rate * ML_PER_SEC_TO_LPM);
-            Serial.printf("[Web] Drain flow rate calibrated: %.2f mL/s\n", rate);
-          } else if (pStr == "refill") {
-            _refillFlowRate = rate;
-            if (_water) _water->setRefillFlowLPM(rate * ML_PER_SEC_TO_LPM);
-            Serial.printf("[Web] Refill flow rate calibrated: %.2f mL/s\n", rate);
+      "/api/tpa/calibrate", HTTP_POST, [this](AsyncWebServerRequest *request) {
+        if (request->_tempObject) {
+          String body = *(String *)request->_tempObject;
+          String pStr = _extractString(body, "pump");
+          float ml = _extractFloat(body, "ml");
+          if (ml > 0.1f) {
+            float rate = ml / (CALIBRATION_PULSE_MS / 1000.0f);
+            if (pStr == "drain") {
+              _drainFlowRate = rate;
+              if (_water) _water->setDrainFlowLPM(rate * ML_PER_SEC_TO_LPM);
+              Serial.printf("[Web] Drain flow rate calibrated: %.2f mL/s\n", rate);
+            } else if (pStr == "refill") {
+              _refillFlowRate = rate;
+              if (_water) _water->setRefillFlowLPM(rate * ML_PER_SEC_TO_LPM);
+              Serial.printf("[Web] Refill flow rate calibrated: %.2f mL/s\n", rate);
+            }
+            _saveParams();
+            if (_water) _water->saveCalibration();
           }
-          _saveParams();
-          if (_water) _water->saveCalibration();
+          request->send(200, "application/json", "{\"ok\":true}");
+          delete (String *)request->_tempObject;
+          request->_tempObject = NULL;
+        } else {
+          request->send(400, "application/json", "{\"error\":\"No body\"}");
         }
-        request->send(200, "application/json", "{\"ok\":true}");
+      },
+      NULL,
+      [](AsyncWebServerRequest *request, uint8_t *data, size_t len,
+             size_t index, size_t total) {
+        if (!index) {
+          request->_tempObject = new String();
+        }
+        String *body = (String *)request->_tempObject;
+        body->concat((char *)data, len);
       });
 
   // ---- POST /api/maintenance/toggle ----
@@ -712,31 +749,43 @@ void WebManager::_setupRoutes() {
 
   // ---- Pump Calibration: Save Flow Rate ----
   _server.on(
-      "/api/fert/calibrate", HTTP_POST, [](AsyncWebServerRequest *request) {},
-      NULL,
-      [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
-             size_t index, size_t total) {
-        String body = String((char *)data).substring(0, len);
-        int ch = _extractInt(body, "channel");
+      "/api/fert/calibrate", HTTP_POST, [this](AsyncWebServerRequest *request) {
+        if (request->_tempObject) {
+          String body = *(String *)request->_tempObject;
+          int ch = _extractInt(body, "channel");
 
-        int startIdx = body.indexOf("\"ml\":");
-        if (startIdx != -1 && ch >= 0 && ch <= 4 && _fert) {
-          startIdx += 5;
-          int endIdx = body.indexOf(",", startIdx);
-          if (endIdx == -1)
-            endIdx = body.indexOf("}", startIdx);
-          if (endIdx != -1) {
-            float measuredML = body.substring(startIdx, endIdx).toFloat();
-            if (measuredML > 0.1f) {
-              float newRate = measuredML / 3.0f; // 3 seconds baseline
-              _fert->setFlowRate(ch, newRate);
-              _fert->saveState();
-              Serial.printf("[Web] CH%d flow rate calibrated to %.2f mL/s\n",
-                            ch + 1, newRate);
+          int startIdx = body.indexOf("\"ml\":");
+          if (startIdx != -1 && ch >= 0 && ch <= 4 && _fert) {
+            startIdx += 5;
+            int endIdx = body.indexOf(",", startIdx);
+            if (endIdx == -1)
+              endIdx = body.indexOf("}", startIdx);
+            if (endIdx != -1) {
+              float measuredML = body.substring(startIdx, endIdx).toFloat();
+              if (measuredML > 0.1f) {
+                float newRate = measuredML / 3.0f; // 3 seconds baseline
+                _fert->setFlowRate(ch, newRate);
+                _fert->saveState();
+                Serial.printf("[Web] CH%d flow rate calibrated to %.2f mL/s\n",
+                              ch + 1, newRate);
+              }
             }
           }
+          request->send(200, "application/json", "{\"ok\":true}");
+          delete (String *)request->_tempObject;
+          request->_tempObject = NULL;
+        } else {
+          request->send(400, "application/json", "{\"error\":\"No body\"}");
         }
-        request->send(200, "application/json", "{\"ok\":true}");
+      },
+      NULL,
+      [](AsyncWebServerRequest *request, uint8_t *data, size_t len,
+             size_t index, size_t total) {
+        if (!index) {
+          request->_tempObject = new String();
+        }
+        String *body = (String *)request->_tempObject;
+        body->concat((char *)data, len);
       });
 
   // Obsolete: /api/dose replaced by full /api/fert/schedule usage.

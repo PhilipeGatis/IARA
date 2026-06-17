@@ -11,6 +11,8 @@ declare const __APP_VERSION__: string;
 export type AQStatus = {
   wifiConnected: boolean;
   time: string;
+  rtcConnected?: boolean;
+  rtcLostPower?: boolean;
   waterLevel: number;
   optical: boolean;
   float: boolean;
@@ -148,7 +150,7 @@ function AppContent() {
         {tab === 'home' && <HomeTab status={status} />}
         {tab === 'tpa' && <TPATab status={status} />}
         {tab === 'ferts' && <FertsTab status={status} />}
-        {tab === 'logs' && <LogsTab />}
+        {tab === 'logs' && <LogsTab rtcConnected={status?.rtcConnected} rtcLostPower={status?.rtcLostPower} />}
         {tab === 'config' && <ConfigTab status={status} />}
       </div>
 

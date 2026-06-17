@@ -2,7 +2,7 @@
 
 TimeManager::TimeManager()
     : _timeClient(_ntpUDP, "pool.ntp.org", UTC_OFFSET_BRASILIA),
-      _rtcConnected(false), _ntpStarted(false), _lastNtpSync(0) {}
+      _rtcConnected(false), _rtcLostPower(false), _ntpStarted(false), _lastNtpSync(0) {}
 
 void TimeManager::begin() {
   // Initialize I2C and RTC
@@ -11,12 +11,16 @@ void TimeManager::begin() {
   if (!_rtc.begin()) {
     Serial.println("[Time] RTC DS3231 not found — using NTP only.");
     _rtcConnected = false;
+    _rtcLostPower = false;
   } else {
     _rtcConnected = true;
     Serial.println("[Time] RTC DS3231 detected.");
 
     if (_rtc.lostPower()) {
       Serial.println("[Time] RTC lost power, needs sync.");
+      _rtcLostPower = true;
+    } else {
+      _rtcLostPower = false;
     }
   }
 

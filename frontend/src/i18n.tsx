@@ -53,6 +53,8 @@ const translations = {
     'home.shortDays': { pt: 'D,S,T,Q,Q,S,S', en: 'S,M,T,W,T,F,S', ja: '日,月,火,水,木,金,土' },
 
     // ---- TPATab ----
+    'tpa.start': { pt: 'Iniciar TPA', en: 'Start TPA', ja: 'TPA開始' },
+    'tpa.abort': { pt: 'Abortar TPA', en: 'Abort TPA', ja: 'TPA中止' },
     'tpa.auto': { pt: 'TPA Automática', en: 'Auto TPA', ja: '自動TPA' },
     'tpa.autoEnabled': { pt: 'Habilitar TPA Automática', en: 'Enable Auto TPA', ja: '自動TPAを有効にする' },
     'tpa.autoEnabledHint': { pt: 'Se desmarcado, a TPA não rodará automaticamente, apenas via comando manual.', en: 'If unchecked, TPA will not run automatically, only manually.', ja: 'チェックを外すと、TPAは自動実行されず、手動コマンドのみで実行されます。' },

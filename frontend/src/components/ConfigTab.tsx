@@ -100,7 +100,11 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
         try {
             const res = await fetch('/api/wifi/scan');
             const data = await res.json();
-            setNetworks(data.networks || []);
+            if (data.networks) {
+                setNetworks(data.networks.map((n: any) => n.ssid || n));
+            } else if (data.status === 'scanning') {
+                alert('Scanning in progress. Please try again in 5 seconds.');
+            }
         } catch {
             alert(t('config.scanError'));
         }
@@ -110,10 +114,10 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
     const handleSaveWifi = async () => {
         if (!ssid) return;
         try {
-            const res = await fetch('/api/wifi/save', {
+            const res = await fetch('/api/wifi', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ssid, password: pass }),
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ ssid, pass }).toString(),
             });
             const data = await res.json();
             if (data.ok) alert(t('config.wifiOk'));

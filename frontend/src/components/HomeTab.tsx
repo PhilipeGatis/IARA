@@ -1,4 +1,4 @@
-import type { AQStatus } from '../App';
+import { api, type AQStatus } from '../App';
 import { useT } from '../i18n';
 
 function Badge({ label, on, texts }: { label: string; on?: boolean; texts: [string, string] }) {
@@ -185,9 +185,29 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
             {/* Routine State Card */}
             <div className="rounded-2xl bg-card p-5 shadow-md">
                 <h2 className="mb-4 text-base font-medium tracking-wide text-text/90 uppercase">{t('home.systemState')}</h2>
-                <div className="flex flex-col">
+                <div className="flex flex-col mb-4">
                     <Badge label={t('home.tpaState')} on={status?.tpaState !== 'IDLE'} texts={[status?.tpaState || '', 'IDLE']} />
                     <Badge label={t('home.maintenance')} on={status?.maintenance} texts={[t('home.maintActive'), t('home.maintInactive')]} />
+                </div>
+                
+                {/* TPA Controls */}
+                <div className="flex gap-2 mt-4 pt-4 border-t border-white/5">
+                    {status?.tpaState === 'IDLE' ? (
+                        <button
+                            onClick={() => api('POST', '/api/tpa/start')}
+                            className="flex-1 rounded-xl bg-accent2 py-3 text-sm font-bold text-[#141517] shadow-sm transition active:scale-95 disabled:opacity-50"
+                            disabled={!status.tpaConfigReady}
+                        >
+                            {t('tpa.start')}
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => api('POST', '/api/tpa/abort')}
+                            className="flex-1 rounded-xl bg-danger py-3 text-sm font-bold text-white shadow-sm transition active:scale-95"
+                        >
+                            {t('tpa.abort')}
+                        </button>
+                    )}
                 </div>
             </div>
 

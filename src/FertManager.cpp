@@ -229,43 +229,39 @@ void FertManager::setEnabled(uint8_t ch, bool enabled) {
   }
 }
 
+struct FertChannelData {
+  float doseML[7];
+  uint8_t schedHour[7];
+  uint8_t schedMinute[7];
+  float stockML;
+  float flowRateMLps;
+  float lowStockThreshold;
+  uint32_t lastDoseKey;
+  uint8_t pwm;
+  bool enabled;
+};
+
 void FertManager::saveState() {
   for (uint8_t i = 0; i < NUM_FERTS + 1; i++) {
     char key[16];
-
-    for (uint8_t d = 0; d < 7; d++) {
-      snprintf(key, sizeof(key), "d%d_%d", i, d); // e.g. d0_0, d0_6
-      _prefs.putFloat(key, _doseML[i][d]);
-    }
-
-    snprintf(key, sizeof(key), "stock%d", i);
-    _prefs.putFloat(key, _stockML[i]);
-
     snprintf(key, sizeof(key), "name%d", i);
     _prefs.putString(key, _names[i]);
 
-    snprintf(key, sizeof(key), "lk%d", i); // Last key
-    _prefs.putUInt(key, _lastDoseKey[i]);
-
-    // Schedule Hours/Minutes per day of week
+    FertChannelData data;
     for (uint8_t d = 0; d < 7; d++) {
-      snprintf(key, sizeof(key), "sH%d_%d", i, d);
-      _prefs.putUChar(key, _schedHour[i][d]);
-      snprintf(key, sizeof(key), "sM%d_%d", i, d);
-      _prefs.putUChar(key, _schedMinute[i][d]);
+      data.doseML[d] = _doseML[i][d];
+      data.schedHour[d] = _schedHour[i][d];
+      data.schedMinute[d] = _schedMinute[i][d];
     }
+    data.stockML = _stockML[i];
+    data.flowRateMLps = _flowRateMLps[i];
+    data.lowStockThreshold = _lowStockThreshold[i];
+    data.lastDoseKey = _lastDoseKey[i];
+    data.pwm = _pwm[i];
+    data.enabled = _enabled[i];
 
-    snprintf(key, sizeof(key), "fR%d", i); // Flow Rate
-    _prefs.putFloat(key, _flowRateMLps[i]);
-
-    snprintf(key, sizeof(key), "pwm%d", i); // PWM Config
-    _prefs.putUChar(key, _pwm[i]);
-
-    snprintf(key, sizeof(key), "lt%d", i); // Low stock Threshold
-    _prefs.putFloat(key, _lowStockThreshold[i]);
-
-    snprintf(key, sizeof(key), "en%d", i); // Enabled toggle
-    _prefs.putBool(key, _enabled[i]);
+    snprintf(key, sizeof(key), "ch%d", i);
+    _prefs.putBytes(key, &data, sizeof(FertChannelData));
   }
 }
 
@@ -288,56 +284,86 @@ uint32_t FertManager::_dateKey(DateTime dt) const {
 void FertManager::_loadState() {
   for (uint8_t i = 0; i < NUM_FERTS + 1; i++) {
     char key[16];
-
-    // Backwards Compatibility: Read legacy single-dose to use as fallback
-    snprintf(key, sizeof(key), "dose%d", i);
-    float legacyDose = _prefs.getFloat(key, (i == NUM_FERTS) ? DEFAULT_PRIME_ML
-                                                             : DEFAULT_DOSE_ML);
-
-    // If a channel was previously disabled via schedule bitmask, respect it
-    snprintf(key, sizeof(key), "sD%d", i);
-    uint8_t legacyMask = _prefs.getUChar(key, 127);
-
-    for (uint8_t d = 0; d < 7; d++) {
-      snprintf(key, sizeof(key), "d%d_%d", i, d);
-      float defaultDose = ((legacyMask & (1 << d)) != 0) ? legacyDose : 0.0f;
-      _doseML[i][d] = _prefs.getFloat(key, defaultDose);
-    }
-
-    snprintf(key, sizeof(key), "stock%d", i);
-    _stockML[i] = _prefs.getFloat(key, DEFAULT_STOCK_ML);
-
+    
     snprintf(key, sizeof(key), "name%d", i);
-    String defaultName =
-        (i < NUM_FERTS) ? String("CH") + String(i + 1) : "Prime";
+    String defaultName = (i < NUM_FERTS) ? String("CH") + String(i + 1) : "Prime";
     _names[i] = _prefs.getString(key, defaultName);
 
-    snprintf(key, sizeof(key), "lk%d", i);
-    _lastDoseKey[i] = _prefs.getUInt(key, 0);
+    snprintf(key, sizeof(key), "ch%d", i);
+    FertChannelData data;
+    if (_prefs.getBytes(key, &data, sizeof(FertChannelData)) == sizeof(FertChannelData)) {
+      for (uint8_t d = 0; d < 7; d++) {
+        _doseML[i][d] = data.doseML[d];
+        _schedHour[i][d] = data.schedHour[d];
+        _schedMinute[i][d] = data.schedMinute[d];
+      }
+      _stockML[i] = data.stockML;
+      _flowRateMLps[i] = data.flowRateMLps;
+      _lowStockThreshold[i] = data.lowStockThreshold;
+      _lastDoseKey[i] = data.lastDoseKey;
+      _pwm[i] = data.pwm;
+      _enabled[i] = data.enabled;
+    } else {
+      // Backwards Compatibility: Read legacy keys and clear them to free NVS space
+      snprintf(key, sizeof(key), "dose%d", i);
+      float legacyDose = _prefs.getFloat(key, (i == NUM_FERTS) ? DEFAULT_PRIME_ML : DEFAULT_DOSE_ML);
+      _prefs.remove(key);
 
-    // Per-day schedule times with backward compat from legacy single keys
-    snprintf(key, sizeof(key), "sH%d", i);
-    uint8_t legacyHour = _prefs.getUChar(key, DEFAULT_FERT_HOUR);
-    snprintf(key, sizeof(key), "sM%d", i);
-    uint8_t legacyMin = _prefs.getUChar(key, DEFAULT_FERT_MINUTE);
-    for (uint8_t d = 0; d < 7; d++) {
-      snprintf(key, sizeof(key), "sH%d_%d", i, d);
-      _schedHour[i][d] = _prefs.getUChar(key, legacyHour);
-      snprintf(key, sizeof(key), "sM%d_%d", i, d);
-      _schedMinute[i][d] = _prefs.getUChar(key, legacyMin);
+      snprintf(key, sizeof(key), "sD%d", i);
+      uint8_t legacyMask = _prefs.getUChar(key, 127);
+      _prefs.remove(key);
+
+      for (uint8_t d = 0; d < 7; d++) {
+        snprintf(key, sizeof(key), "d%d_%d", i, d);
+        float defaultDose = ((legacyMask & (1 << d)) != 0) ? legacyDose : 0.0f;
+        _doseML[i][d] = _prefs.getFloat(key, defaultDose);
+        _prefs.remove(key);
+      }
+
+      snprintf(key, sizeof(key), "stock%d", i);
+      _stockML[i] = _prefs.getFloat(key, DEFAULT_STOCK_ML);
+      _prefs.remove(key);
+
+      snprintf(key, sizeof(key), "lk%d", i);
+      _lastDoseKey[i] = _prefs.getUInt(key, 0);
+      _prefs.remove(key);
+
+      snprintf(key, sizeof(key), "sH%d", i);
+      uint8_t legacyHour = _prefs.getUChar(key, DEFAULT_FERT_HOUR);
+      _prefs.remove(key);
+
+      snprintf(key, sizeof(key), "sM%d", i);
+      uint8_t legacyMin = _prefs.getUChar(key, DEFAULT_FERT_MINUTE);
+      _prefs.remove(key);
+
+      for (uint8_t d = 0; d < 7; d++) {
+        snprintf(key, sizeof(key), "sH%d_%d", i, d);
+        _schedHour[i][d] = _prefs.getUChar(key, legacyHour);
+        _prefs.remove(key);
+        snprintf(key, sizeof(key), "sM%d_%d", i, d);
+        _schedMinute[i][d] = _prefs.getUChar(key, legacyMin);
+        _prefs.remove(key);
+      }
+
+      snprintf(key, sizeof(key), "fR%d", i);
+      _flowRateMLps[i] = _prefs.getFloat(key, FLOW_RATE_ML_PER_SEC);
+      _prefs.remove(key);
+
+      snprintf(key, sizeof(key), "pwm%d", i);
+      _pwm[i] = _prefs.getUChar(key, 255);
+      _prefs.remove(key);
+
+      snprintf(key, sizeof(key), "lt%d", i);
+      _lowStockThreshold[i] = _prefs.getFloat(key, 50.0f);
+      _prefs.remove(key);
+
+      snprintf(key, sizeof(key), "en%d", i);
+      _enabled[i] = _prefs.getBool(key, true);
+      _prefs.remove(key);
+
+      // Force save the new struct blob now that we've migrated and cleared keys
+      saveState();
     }
-
-    snprintf(key, sizeof(key), "fR%d", i);
-    _flowRateMLps[i] = _prefs.getFloat(key, FLOW_RATE_ML_PER_SEC);
-
-    snprintf(key, sizeof(key), "pwm%d", i);
-    _pwm[i] = _prefs.getUChar(key, 255);
-
-    snprintf(key, sizeof(key), "lt%d", i);
-    _lowStockThreshold[i] = _prefs.getFloat(key, 50.0f);
-
-    snprintf(key, sizeof(key), "en%d", i);
-    _enabled[i] = _prefs.getBool(key, true);
   }
 }
 

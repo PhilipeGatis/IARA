@@ -32,6 +32,7 @@ public:
 
   /// RTC physically connected?
   bool isRtcConnected() const { return _rtcConnected; }
+  bool hasRtcLostPower() const { return _rtcLostPower; }
 
 private:
   RTC_DS3231 _rtc;
@@ -39,6 +40,7 @@ private:
   NTPClient _timeClient;
 
   bool _rtcConnected;
+  bool _rtcLostPower;
   bool _ntpStarted;
   unsigned long _lastNtpSync;
 

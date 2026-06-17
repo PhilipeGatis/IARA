@@ -70,7 +70,7 @@ void WaterManager::startTPA() {
   }
 
   Serial.println("[TPA] ====== TPA CYCLE STARTED ======");
-  _enterState(TPAState::CANISTER_OFF);
+  _enterState(TPAState::FILLING_RESERVOIR);
 }
 
 void WaterManager::abortTPA() {
@@ -250,7 +250,7 @@ void WaterManager::_handleDraining() {
         Serial.printf("[TPA] Drain calibrated: %.2f L/min\n", _drainFlowLPM);
       }
 
-      _enterState(TPAState::FILLING_RESERVOIR);
+      _enterState(TPAState::REFILLING);
       return;
     }
   }
@@ -300,7 +300,7 @@ void WaterManager::_handleFillingReservoir() {
 void WaterManager::_handleDosingPrime() {
   // Step 4: Dose Prime (dechlorinator) into reservoir
   if (!_primeEnabled) {
-    _enterState(TPAState::REFILLING);
+    _enterState(TPAState::CANISTER_OFF);
     return;
   }
 
@@ -326,7 +326,7 @@ void WaterManager::_handleDosingPrime() {
   if (!_isWaiting()) {
     _waitUntilMs = 0;
     _doseCompleted = false;
-    _enterState(TPAState::REFILLING);
+    _enterState(TPAState::CANISTER_OFF);
   }
 }
 

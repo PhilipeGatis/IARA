@@ -30,7 +30,7 @@ const STATE_BADGE = {
     OFF: 'bg-white/5 text-muted',
 };
 
-export default function LogsTab() {
+export default function LogsTab({ rtcConnected, rtcLostPower }: { rtcConnected?: boolean, rtcLostPower?: boolean }) {
     const { t } = useT();
     const [logs, setLogs] = useState<PumpLogResponse | null>(null);
     const [loading, setLoading] = useState(false);
@@ -189,9 +189,21 @@ export default function LogsTab() {
 
             {/* Info Card */}
             <div className="rounded-2xl bg-card/50 p-4 shadow-md">
-                <p className="text-[10px] text-muted/60 leading-relaxed">
+                <p className="text-[10px] text-muted/60 leading-relaxed mb-3">
                     {t('logs.info')}
                 </p>
+                
+                {rtcConnected !== undefined && (
+                    <div className="flex items-center gap-2 border-t border-border/30 pt-3">
+                        <div className={`w-2 h-2 rounded-full ${rtcConnected ? (rtcLostPower ? 'bg-danger' : 'bg-accent2') : 'bg-muted'}`} />
+                        <span className="text-[10px] font-medium text-muted">
+                            RTC Status: 
+                            <span className={rtcConnected ? (rtcLostPower ? 'text-danger ml-1' : 'text-accent2 ml-1') : 'text-muted ml-1'}>
+                                {rtcConnected ? (rtcLostPower ? 'Battery Dead / Lost Power' : 'OK') : 'Not Found'}
+                            </span>
+                        </span>
+                    </div>
+                )}
             </div>
         </div>
     );
