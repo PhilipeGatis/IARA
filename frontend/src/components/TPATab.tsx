@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api, type AQStatus } from '../App';
 import { FertCard } from './FertsTab';
 import FertConfigModal from './FertConfigModal';
@@ -28,16 +28,19 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
     // Prime config modal
     const [showPrimeConfig, setShowPrimeConfig] = useState(false);
 
+    const initialized = useRef(false);
+
     useEffect(() => {
-        if (status) {
+        if (status && !initialized.current) {
+            initialized.current = true;
             if (status.tpaAutoEnabled !== undefined) setAutoEnabled(status.tpaAutoEnabled);
-            if (!interval && status.tpaInterval !== undefined) setInterval(status.tpaInterval.toString());
+            if (status.tpaInterval !== undefined) setInterval(status.tpaInterval.toString());
             if (status.tpaHour !== undefined) setH(status.tpaHour.toString().padStart(2, '0'));
             if (status.tpaMinute !== undefined) setM(status.tpaMinute.toString().padStart(2, '0'));
-            if (!pct && status.tpaPercent) setPct(status.tpaPercent.toString());
-            if (!safetyML && status.reservoirSafetyML !== undefined) setSafetyML(status.reservoirSafetyML.toString());
-            if (!primeRatio && status.primeRatio) setPrimeRatio(status.primeRatio.toString());
-            if (!primeML && status.primeML) setPrimeML(status.primeML);
+            if (status.tpaPercent) setPct(status.tpaPercent.toString());
+            if (status.reservoirSafetyML !== undefined) setSafetyML(status.reservoirSafetyML.toString());
+            if (status.primeRatio) setPrimeRatio(status.primeRatio.toString());
+            if (status.primeML) setPrimeML(status.primeML);
             if (status.primeEnabled !== undefined) setPrimeEnabled(status.primeEnabled);
         }
     }, [status]);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api, type AQStatus } from '../App';
 import { useT, type Lang } from '../i18n';
 
@@ -55,15 +55,18 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
     const [reportM, setReportM] = useState('');
     const [typeToggles, setTypeToggles] = useState<boolean[]>([]);
 
+    const initialized = useRef(false);
+
     useEffect(() => {
-        if (status) {
-            if (!height && status.aqHeight) setHeight(status.aqHeight.toString());
-            if (!length && status.aqLength) setLength(status.aqLength.toString());
-            if (!width && status.aqWidth) setWidth(status.aqWidth.toString());
-            if (!sensorFull && status.sensorFullDistanceCm !== undefined) setSensorFull(status.sensorFullDistanceCm.toString());
-            if (!primeRatio && status.primeRatio) setPrimeRatio(status.primeRatio.toString());
-            if (!reservoirVol && status.reservoirVolume) setReservoirVol(status.reservoirVolume.toString());
-            if (!canisterSafePct && (status as any).canisterSafePct) setCanisterSafePct((status as any).canisterSafePct.toString());
+        if (status && !initialized.current) {
+            initialized.current = true;
+            if (status.aqHeight) setHeight(status.aqHeight.toString());
+            if (status.aqLength) setLength(status.aqLength.toString());
+            if (status.aqWidth) setWidth(status.aqWidth.toString());
+            if (status.sensorFullDistanceCm !== undefined) setSensorFull(status.sensorFullDistanceCm.toString());
+            if (status.primeRatio) setPrimeRatio(status.primeRatio.toString());
+            if (status.reservoirVolume) setReservoirVol(status.reservoirVolume.toString());
+            if ((status as any).canisterSafePct) setCanisterSafePct((status as any).canisterSafePct.toString());
         }
     }, [status]);
 
