@@ -16,8 +16,6 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
 
     // Reservoir Safety
     const [safetyML, setSafetyML] = useState('');
-    const [primeRatio, setPrimeRatio] = useState('');
-    const [primeML, setPrimeML] = useState(0);
     const [primeEnabled, setPrimeEnabled] = useState(true);
     const [drainMl, setDrainMl] = useState('');
     const [refillMl, setRefillMl] = useState('');
@@ -39,8 +37,6 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
             if (status.tpaMinute !== undefined) setM(status.tpaMinute.toString().padStart(2, '0'));
             if (status.tpaPercent) setPct(status.tpaPercent.toString());
             if (status.reservoirSafetyML !== undefined) setSafetyML(status.reservoirSafetyML.toString());
-            if (status.primeRatio) setPrimeRatio(status.primeRatio.toString());
-            if (status.primeML) setPrimeML(status.primeML);
             if (status.primeEnabled !== undefined) setPrimeEnabled(status.primeEnabled);
         }
     }, [status]);
