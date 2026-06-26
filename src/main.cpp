@@ -436,7 +436,7 @@ void loop() {
             Serial.println("[Main] TPA schedule triggered but config "
                            "incomplete - skipping.");
           } else {
-            if (webMgr.triggerTPA()) {
+            if (webMgr.triggerTPA(false)) { // Scheduled = not manual
               tpaDoneThisMinute = true;
             }
           }
@@ -458,18 +458,38 @@ void loop() {
     }
 
     if (!tpaCompleteNotified) {
-      notifyMgr.notifyTPAComplete();
+      if (!waterMgr.isManualTPA()) {
+        notifyMgr.notifyTPAComplete();
+      }
       tpaCompleteNotified = true;
     }
   } else if (waterMgr.getState() == TPAState::ERROR) {
     if (!tpaErrorNotified) {
-      notifyMgr.notifyTPAError(waterMgr.getLastErrorMsg().c_str());
+      if (!waterMgr.isManualTPA()) {
+        notifyMgr.notifyTPAError(waterMgr.getLastErrorMsg().c_str());
+      }
       tpaErrorNotified = true;
     }
   } else if (waterMgr.isRunning()) {
     // Reset flags while TPA is actively running
     tpaCompleteNotified = false;
     tpaErrorNotified = false;
+  }
+
+  // ---- 5b. CANISTER AUTO-ON TIMER ----
+  static unsigned long canisterOffSince = 0;
+  if (waterMgr.isCanisterOn()) {
+    canisterOffSince = 0;
+  } else {
+    if (canisterOffSince == 0) {
+      canisterOffSince = millis();
+    } else if (millis() - canisterOffSince > 3600000UL) { // 1 hour
+      if (!waterMgr.isRunning() && !safety.isEmergency() && !safety.isMaintenanceMode()) {
+        Serial.println("[Main] Canister was off for >1h. Turning on automatically.");
+        pumpOff(PIN_CANISTER, PumpReason::MANUAL_PUMP); // LOW = ON
+        canisterOffSince = 0;
+      }
+    }
   }
 
   // ---- 6. WEB DASHBOARD + TELEMETRY ----

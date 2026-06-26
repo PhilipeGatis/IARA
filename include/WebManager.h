@@ -26,8 +26,8 @@ public:
   /// Run web server + update telemetry (call from loop)
   void update();
 
-  /// Trigger TPA manually
-  bool triggerTPA();
+  /// Trigger TPA manually from dashboard or schedule
+  bool triggerTPA(bool manual = true);
 
   // ---- Schedule parameters (read by main loop) ----
   uint16_t getTpaInterval() const { return _tpaInterval; }

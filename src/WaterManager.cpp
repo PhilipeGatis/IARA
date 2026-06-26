@@ -37,17 +37,15 @@ const char *tpaStateName(TPAState s) {
 }
 
 WaterManager::WaterManager()
-    : _state(TPAState::IDLE), _safety(nullptr), _fert(nullptr),
+    : _state(TPAState::IDLE), _safety(nullptr), _fert(nullptr), _isManualTPA(false),
       _stateStartMs(0), _waitUntilMs(0), _doseCompleted(false),
-      _drainTargetCm(LEVEL_DRAIN_TARGET_CM),
-      _refillTargetCm(LEVEL_REFILL_TARGET_CM),
+      _drainTargetCm(0), _refillTargetCm(0),
       _canisterSafeLevelCm(15.0f), // Default: 15cm (safe for most canisters)
-      _primeML(DEFAULT_PRIME_ML),
-      _timeoutDrainMs(30UL * 1000),  // 30s safe default (uncalibrated)
-      _timeoutRefillMs(15UL * 1000), // 15s safe default (uncalibrated)
+      _primeML(0), _timeoutDrainMs(1200000),   // Default: 20 min
+      _timeoutRefillMs(1200000), // Default: 20 min
       _litersPerCm(0), _aqEffectiveHeightCm(0), _calStartLevel(0),
-      _calStartMs(0), _drainFlowLPM(0), _refillFlowLPM(0),
-      _manualPumpGoalLiters(0) {}
+      _calStartMs(0), _drainFlowLPM(0), _refillFlowLPM(0), _lastTPATime("N/A"),
+      _lastErrorMsg(""), _manualPumpTarget(""), _manualPumpGoalLiters(0) {}
 
 void WaterManager::begin(SafetyWatchdog *safety, FertManager *fert) {
   _safety = safety;
@@ -55,22 +53,27 @@ void WaterManager::begin(SafetyWatchdog *safety, FertManager *fert) {
   Serial.println("[TPA] WaterManager initialized.");
 }
 
-void WaterManager::startTPA() {
+// ============================================================================
+// START / ABORT
+// ============================================================================
+
+void WaterManager::startTPA(bool manual) {
   if (isRunning()) {
-    Serial.println("[TPA] Already running, ignoring startTPA().");
-    return;
-  }
-  if (_safety && !_safety->areSensorsConnected()) {
-    Serial.println("[TPA] Cannot start: ultrasonic sensor not connected.");
+    Serial.println("[Water] Cannot start TPA: already running.");
     return;
   }
   if (_safety && _safety->isEmergency()) {
-    Serial.println("[TPA] Cannot start: system in emergency state.");
+    Serial.println("[Water] Cannot start TPA: emergency mode.");
+    return;
+  }
+  if (_safety && _safety->isMaintenanceMode()) {
+    Serial.println("[Water] Cannot start TPA: maintenance mode.");
     return;
   }
 
-  Serial.println("[TPA] ====== TPA CYCLE STARTED ======");
-  _enterState(TPAState::FILLING_RESERVOIR);
+  Serial.println("[Water] === TPA CYCLE STARTED ===");
+  _isManualTPA = manual;
+  _enterState(TPAState::CANISTER_OFF);
 }
 
 void WaterManager::abortTPA() {

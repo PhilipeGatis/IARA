@@ -1327,7 +1327,7 @@ void WebManager::_printStatus() {
   }
   Serial.println("-----------------");
 }
-bool WebManager::triggerTPA() {
+bool WebManager::triggerTPA(bool manual) {
   if (!_water || !_safety) return false;
   if (!isTpaConfigReady()) {
     Serial.println("[Web] TPA config incomplete. Cannot trigger.");
@@ -1370,7 +1370,7 @@ bool WebManager::triggerTPA() {
     _water->setTimeoutRefillMs(t);
   }
 
-  _water->startTPA();
+  _water->startTPA(manual);
   if (_time) {
     setTpaLastRun(_time->now().unixtime());
   }

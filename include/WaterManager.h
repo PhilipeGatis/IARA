@@ -40,7 +40,7 @@ public:
   void update();
 
   /// Start TPA cycle
-  void startTPA();
+  void startTPA(bool manual = false);
 
   /// Abort TPA cycle immediately (emergency or user cancel)
   void abortTPA();
@@ -58,6 +58,9 @@ public:
   /// Current state
   TPAState getState() const { return _state; }
   const char *getStateName() const { return tpaStateName(_state); }
+
+  /// Is the current TPA manually triggered?
+  bool isManualTPA() const { return _isManualTPA; }
 
   /// Is a TPA cycle currently running?
   bool isRunning() const {
@@ -116,6 +119,7 @@ private:
   TPAState _state;
   SafetyWatchdog *_safety;
   FertManager *_fert;
+  bool _isManualTPA;
 
   // State timing
   unsigned long _stateStartMs;
