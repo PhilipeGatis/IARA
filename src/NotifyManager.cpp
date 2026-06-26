@@ -8,9 +8,7 @@
 
 static Preferences _nPrefs;
 
-// ============================================================================
 // CONSTRUCTOR
-// ============================================================================
 
 NotifyManager::NotifyManager()
     : _lang(LANG_PT), _dailyReportHour(8), _dailyReportMinute(0),
@@ -24,9 +22,7 @@ NotifyManager::NotifyManager()
 #endif
 }
 
-// ============================================================================
 // BEGIN
-// ============================================================================
 
 void NotifyManager::begin() {
   _loadConfig();
@@ -46,9 +42,7 @@ void NotifyManager::begin() {
                 _dailyReportMinute);
 }
 
-// ============================================================================
 // UPDATE (called from loop — checks daily report schedule)
-// ============================================================================
 
 void NotifyManager::update(uint8_t currentHour, uint8_t currentMinute) {
   // Reset daily counter at midnight
@@ -77,9 +71,7 @@ void NotifyManager::update(uint8_t currentHour, uint8_t currentMinute) {
   }
 }
 
-// ============================================================================
 // TYPED NOTIFICATIONS
-// ============================================================================
 
 void NotifyManager::notifyTPAComplete() {
   if (!_canSend(NOTIFY_TPA_COMPLETE))
@@ -145,9 +137,7 @@ void NotifyManager::sendTest() {
   Serial.printf("[Notify] Test notification %s.\n", ok ? "SENT" : "FAILED");
 }
 
-// ============================================================================
 // RATE LIMITING
-// ============================================================================
 
 bool NotifyManager::_canSend(NotifyType type) {
   if (!isEnabled()) {
@@ -179,9 +169,7 @@ bool NotifyManager::_canSend(NotifyType type) {
   return true;
 }
 
-// ============================================================================
 // HTTPS SEND
-// ============================================================================
 
 bool NotifyManager::_send(NotifyType type, const char *title,
                           const char *message, const char *priority,
@@ -271,9 +259,7 @@ bool NotifyManager::_send(NotifyType type, const char *title,
 #endif
 }
 
-// ============================================================================
 // CONFIGURATION
-// ============================================================================
 
 void NotifyManager::setTopic(const String &topic) {
   _topic = topic;
@@ -303,9 +289,7 @@ void NotifyManager::setDailyReportHour(uint8_t h, uint8_t m) {
   Serial.printf("[Notify] Daily report set to %02d:%02d\n", h, m);
 }
 
-// ============================================================================
 // NVS PERSISTENCE
-// ============================================================================
 
 void NotifyManager::_loadConfig() {
   _nPrefs.begin("notify", true); // readonly
