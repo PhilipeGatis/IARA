@@ -4,7 +4,7 @@ import { useT, type Lang } from '../i18n';
 
 type NotifyStatus = {
     enabled: boolean;
-    key: string;
+    topic: string;
     dailyCount: number;
     reportHour: number;
     reportMinute: number;
@@ -50,7 +50,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
 
     // Notification state
     const [notifyStatus, setNotifyStatus] = useState<NotifyStatus | null>(null);
-    const [pushKey, setPushKey] = useState('');
+    const [topicInput, setTopicInput] = useState('');
     const [reportH, setReportH] = useState('');
     const [reportM, setReportM] = useState('');
     const [typeToggles, setTypeToggles] = useState<boolean[]>([]);
@@ -152,8 +152,8 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
     };
 
     // Notification handlers
-    const handleSaveKey = async () => {
-        if (!pushKey.trim()) {
+    const handleSaveTopic = async () => {
+        if (!topicInput.trim()) {
             alert(t('notify.noKey'));
             return;
         }
@@ -161,14 +161,14 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
             await fetch('/api/notify/key', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key: pushKey.trim() }),
+                body: JSON.stringify({ topic: topicInput.trim() }),
             });
             alert(t('notify.keySaved'));
             // Refresh status
             const res = await fetch('/api/notify/status');
             const data = await res.json();
             setNotifyStatus(data);
-            setPushKey('');
+            setTopicInput('');
         } catch {
             alert(t('config.commError'));
         }
@@ -452,7 +452,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                 </div>
             </div>
 
-            {/* NOTIFICATIONS (Pushsafer) */}
+            {/* NOTIFICATIONS (ntfy.sh) */}
             <div className="rounded-2xl bg-card p-5 shadow-md">
                 <div className="mb-4 flex items-center justify-between">
                     <h2 className="text-base font-medium tracking-wide text-text/90 uppercase">{t('notify.title')}</h2>
@@ -470,14 +470,14 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                         <label className="text-xs font-bold text-muted uppercase tracking-wider">{t('notify.key')}</label>
                         <div className="flex gap-2">
                             <input
-                                type="password"
-                                placeholder={notifyStatus?.key || '••••••••'}
+                                type="text"
+                                placeholder={notifyStatus?.topic || 'iara_topic'}
                                 className="flex-1 rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
-                                value={pushKey}
-                                onChange={(e) => setPushKey(e.target.value)}
+                                value={topicInput}
+                                onChange={(e) => setTopicInput(e.target.value)}
                             />
                             <button
-                                onClick={handleSaveKey}
+                                onClick={handleSaveTopic}
                                 className="flex-none rounded-md bg-accent/20 px-4 py-2 text-xs font-bold uppercase tracking-wider text-accent transition hover:bg-accent/30 active:scale-95"
                             >
                                 {t('notify.save')}

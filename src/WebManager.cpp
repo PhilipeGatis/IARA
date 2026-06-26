@@ -275,10 +275,12 @@ void WebManager::_setupRoutes() {
   // ---- POST /api/tpa/start ----
   _server.on("/api/tpa/start", HTTP_POST,
              [this](AsyncWebServerRequest *request) {
-               if (_water)
-                 _water->startTPA();
-               Serial.println("[Web] TPA started via dashboard");
-               request->send(200, "application/json", "{\"ok\":true}");
+               if (triggerTPA()) {
+                 Serial.println("[Web] TPA started via dashboard");
+                 request->send(200, "application/json", "{\"ok\":true}");
+               } else {
+                 request->send(400, "application/json", "{\"error\":\"Cannot start TPA\"}");
+               }
              });
 
   // ---- POST /api/tpa/abort ----
@@ -876,9 +878,9 @@ void WebManager::_setupRoutes() {
       [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
              size_t index, size_t total) {
         String body = String((char *)data).substring(0, len);
-        String key = _extractString(body, "key");
+        String topic = _extractString(body, "topic");
         if (_notify) {
-          _notify->setPrivateKey(key);
+          _notify->setTopic(topic);
         }
         request->send(200, "application/json", "{\"ok\":true}");
       });
@@ -1049,11 +1051,11 @@ String WebManager::_buildNotifyJSON() const {
   String json = "{";
   json += "\"enabled\":" + String(_notify->isEnabled() ? "true" : "false") + ",";
   // Mask key for security
-  String key = _notify->getPrivateKey();
+  String key = _notify->getTopic();
   if (key.length() > 4) {
     key = key.substring(0, 4) + "****";
   }
-  json += "\"key\":\"" + key + "\",";
+  json += "\"topic\":\"" + key + "\",";
   json += "\"dailyCount\":" + String(_notify->getDailyCount()) + ",";
   json += "\"reportHour\":" + String(_notify->getDailyReportHour()) + ",";
   json += "\"reportMinute\":" + String(_notify->getDailyReportMinute()) + ",";
@@ -1233,13 +1235,13 @@ void WebManager::processSerialCommands() {
   } else if (cmd == "emergency_stop") {
     if (_safety)
       _safety->emergencyShutdown();
-  } else if (cmd.startsWith("pushsafer_key ")) {
-    String key = cmd.substring(14);
-    key.trim();
+  } else if (cmd.startsWith("notify_topic ")) {
+    String topic = cmd.substring(13);
+    topic.trim();
     if (_notify) {
-      _notify->setPrivateKey(key);
-      Serial.printf("[CMD] Pushsafer key %s.\n",
-                    key.length() > 0 ? "set" : "cleared");
+      _notify->setTopic(topic);
+      Serial.printf("[CMD] ntfy.sh topic %s.\n",
+                    topic.length() > 0 ? "set" : "cleared");
     }
   } else if (cmd == "test_notify") {
     if (_notify) {
@@ -1250,8 +1252,10 @@ void WebManager::processSerialCommands() {
   } else if (cmd == "notify_config") {
     if (_notify) {
       Serial.println("--- Notification Config ---");
-      Serial.printf("  Pushsafer: %s\n",
-                    _notify->isEnabled() ? "ENABLED" : "DISABLED");
+      Serial.printf("  Enabled: %s\n",
+                    _notify->isEnabled() ? "YES" : "NO");
+      Serial.printf("  ntfy.sh Topic: %s\n",
+                    _notify->getTopic().length() > 0 ? _notify->getTopic().c_str() : "NOT SET");
       Serial.printf("  Daily report: %02d:%02d\n",
                     _notify->getDailyReportHour(),
                     _notify->getDailyReportMinute());
@@ -1288,7 +1292,7 @@ void WebManager::_printHelp() {
   Serial.println("  set_refill CM — Set refill target");
   Serial.println("  canister_on/off — Canister relay");
   Serial.println("  emergency_stop — All outputs OFF");
-  Serial.println("  pushsafer_key KEY — Set Pushsafer key");
+  Serial.println("  notify_topic TOPIC — Set ntfy.sh topic");
   Serial.println("  test_notify   — Send test notification");
   Serial.println("  notify_config — Show notification config");
   Serial.println("========================\n");
@@ -1322,4 +1326,53 @@ void WebManager::_printStatus() {
     Serial.printf("  Prime: stock=%.0f ml\n", _fert->getStockML(NUM_FERTS));
   }
   Serial.println("-----------------");
+}
+bool WebManager::triggerTPA() {
+  if (!_water || !_safety) return false;
+  if (!isTpaConfigReady()) {
+    Serial.println("[Web] TPA config incomplete. Cannot trigger.");
+    return false;
+  }
+  if (_water->isRunning()) {
+    Serial.println("[Web] TPA already running.");
+    return false;
+  }
+
+  float currentLevel = _safety->readUltrasonic();
+  float lPerCm = getLitersPerCm();
+  float aqVol = (float)getAquariumVolume();
+  float drainLiters = aqVol * getTpaPercent() / 100.0f;
+
+  float resAvail = (float)getReservoirVolume() - getReservoirSafetyML() / 1000.0f;
+  if (resAvail > 0 && drainLiters > resAvail) {
+    drainLiters = resAvail;
+    Serial.printf("[Web] TPA capped to %.1f L (reservoir limit)\n", drainLiters);
+  }
+
+  float cmToDrain = (lPerCm > 0) ? drainLiters / lPerCm : 0;
+  _water->setDrainTargetCm(currentLevel + cmToDrain);
+  _water->setRefillTargetCm(currentLevel);
+  _water->setLitersPerCm(lPerCm);
+
+  float effH = aqVol / lPerCm;
+  float canisterSafeCm = effH * (100.0f - getCanisterSafePct()) / 100.0f;
+  _water->setCanisterSafeLevelCm(canisterSafeCm);
+  _water->setAqEffectiveHeightCm(effH);
+
+  float drainLPM = _water->getDrainFlowLPM();
+  float refillLPM = _water->getRefillFlowLPM();
+  if (drainLPM > 0) {
+    unsigned long t = (unsigned long)((drainLiters / drainLPM) * 1.5f * 60000.0f);
+    _water->setTimeoutDrainMs(t);
+  }
+  if (refillLPM > 0) {
+    unsigned long t = (unsigned long)((drainLiters / refillLPM) * 1.5f * 60000.0f);
+    _water->setTimeoutRefillMs(t);
+  }
+
+  _water->startTPA();
+  if (_time) {
+    setTpaLastRun(_time->now().unixtime());
+  }
+  return true;
 }

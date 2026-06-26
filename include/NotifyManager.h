@@ -15,7 +15,7 @@ enum NotifyType : uint8_t {
   NOTIFY_TYPE_COUNT // = 6
 };
 
-/// @brief Pushsafer push notification manager with rate limiting and per-type
+/// @brief ntfy.sh push notification manager with rate limiting and per-type
 /// toggles.
 class NotifyManager {
 public:
@@ -39,9 +39,9 @@ public:
 
   // ---- Configuration (persisted in NVS namespace "notify") ----
 
-  void setPrivateKey(const String &key);
-  String getPrivateKey() const { return _privateKey; }
-  bool isEnabled() const { return _privateKey.length() > 0; }
+  void setTopic(const String &topic);
+  String getTopic() const { return _topic; }
+  bool isEnabled() const { return _topic.length() > 0; }
 
   void setLanguage(uint8_t lang) {
     _lang = (lang < LANG_COUNT) ? (Lang)lang : LANG_PT;
@@ -66,7 +66,7 @@ public:
 #endif
 
 private:
-  String _privateKey;
+  String _topic;
   Lang _lang;
   bool _typeEnabled[NOTIFY_TYPE_COUNT];
   uint8_t _dailyReportHour;
@@ -86,10 +86,10 @@ private:
   /// Check if a notification of given type can be sent (rate limiting)
   bool _canSend(NotifyType type);
 
-  /// Send notification via Pushsafer HTTPS API
+  /// Send notification via ntfy.sh HTTPS API
   /// @return true if sent successfully
   bool _send(NotifyType type, const char *title, const char *message,
-             const char *icon, const char *sound);
+             const char *priority, const char *tags);
 
   void _loadConfig();
   void _saveConfig();

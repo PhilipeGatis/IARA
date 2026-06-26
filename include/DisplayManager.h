@@ -11,7 +11,9 @@ class TimeManager;
 class WaterManager;
 class FertManager;
 class SafetyWatchdog;
+class SafetyWatchdog;
 class WebManager;
+class NotifyManager;
 
 /// @brief Manages the ST7735 TFT display with auto-cycling pages.
 class DisplayManager {
@@ -26,7 +28,7 @@ public:
 
   /// Full initialization with manager pointers (call after all managers ready)
   void begin(TimeManager *time, WaterManager *water, FertManager *fert,
-             SafetyWatchdog *safety, WebManager *web);
+             SafetyWatchdog *safety, WebManager *web, NotifyManager *notify);
 
   /// Update display — call from loop(). Cycles pages every PAGE_CYCLE_MS.
   void update();
@@ -54,6 +56,7 @@ private:
   FertManager *_fert;
   SafetyWatchdog *_safety;
   WebManager *_web;
+  NotifyManager *_notify;
 
   // Page cycling
   uint8_t _currentPage;

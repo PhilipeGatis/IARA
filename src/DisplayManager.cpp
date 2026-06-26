@@ -4,6 +4,7 @@
 #include "TimeManager.h"
 #include "WaterManager.h"
 #include "WebManager.h"
+#include "NotifyManager.h"
 #include <WiFi.h>
 
 // =============================================================================
@@ -141,12 +142,13 @@ void DisplayManager::showBootStatus(const char *msg, const char *detail) {
 // =============================================================================
 void DisplayManager::begin(TimeManager *time, WaterManager *water,
                            FertManager *fert, SafetyWatchdog *safety,
-                           WebManager *web) {
+                           WebManager *web, NotifyManager *notify) {
   _time = time;
   _water = water;
   _fert = fert;
   _safety = safety;
   _web = web;
+  _notify = notify;
   _lastPageSwitch = millis();
   _lastInteraction = millis();
 }
@@ -513,6 +515,22 @@ void DisplayManager::_drawNetworkPage() {
                                      : (rssi > -80 ? COL_WARN : COL_ERR));
     _display.print(rssi);
     _display.print(F(" dBm"));
+    
+    // ntfy.sh topic
+    if (_notify && _notify->isEnabled()) {
+      y += 14;
+      _display.setTextSize(1);
+      _display.setTextColor(COL_DIM);
+      _display.setCursor(4, y);
+      _display.print(F("Topic: "));
+      _display.setTextColor(COL_ACCENT);
+      // Truncate if too long (max ~15 chars fits)
+      String topic = _notify->getTopic();
+      if (topic.length() > 14) {
+        topic = topic.substring(0, 12) + "..";
+      }
+      _display.print(topic);
+    }
   } else {
     _display.fillCircle(12, y + 4, 5, COL_ERR);
     _display.setTextColor(COL_ERR);

@@ -315,7 +315,7 @@ void setup() {
   webMgr.begin(&timeMgr, &waterMgr, &fertMgr, &safety, &notifyMgr);
 
   // --- Step 7b: OLED Display (full init with managers) ---
-  displayMgr.begin(&timeMgr, &waterMgr, &fertMgr, &safety, &webMgr);
+  displayMgr.begin(&timeMgr, &waterMgr, &fertMgr, &safety, &webMgr, &notifyMgr);
   displayMgr.showBootStatus("System ready!");
   delay(1000); // pause to show final boot log
 
@@ -436,56 +436,9 @@ void loop() {
             Serial.println("[Main] TPA schedule triggered but config "
                            "incomplete - skipping.");
           } else {
-            // Compute dynamic drain/refill targets
-            float currentLevel = safety.readUltrasonic();
-            float lPerCm = webMgr.getLitersPerCm();
-            float aqVol = (float)webMgr.getAquariumVolume();
-            float drainLiters = aqVol * webMgr.getTpaPercent() / 100.0f;
-
-            // Cap by reservoir available volume (minus safety margin)
-            float resAvail = (float)webMgr.getReservoirVolume() -
-                             webMgr.getReservoirSafetyML() / 1000.0f;
-            if (resAvail > 0 && drainLiters > resAvail) {
-              drainLiters = resAvail;
-              Serial.printf("[Main] TPA capped to %.1f L (reservoir limit)\n",
-                            drainLiters);
+            if (webMgr.triggerTPA()) {
+              tpaDoneThisMinute = true;
             }
-
-            float cmToDrain = (lPerCm > 0) ? drainLiters / lPerCm : 0;
-            waterMgr.setDrainTargetCm(currentLevel + cmToDrain);
-            waterMgr.setRefillTargetCm(currentLevel);
-            waterMgr.setLitersPerCm(lPerCm); // For inline calibration
-
-            // Compute canister safe level from percentage
-            float effH =
-                (float)webMgr.getAquariumVolume() / lPerCm; // effective height
-            float canisterSafeCm =
-                effH * (100.0f - webMgr.getCanisterSafePct()) / 100.0f;
-            waterMgr.setCanisterSafeLevelCm(canisterSafeCm);
-            waterMgr.setAqEffectiveHeightCm(effH);
-
-            // Dynamic timeouts (if calibrated)
-            float drainLPM = waterMgr.getDrainFlowLPM();
-            float refillLPM = waterMgr.getRefillFlowLPM();
-            if (drainLPM > 0) {
-              unsigned long t =
-                  (unsigned long)((drainLiters / drainLPM) * 1.5f * 60000.0f);
-              waterMgr.setTimeoutDrainMs(t);
-              Serial.printf("[Main] Drain timeout: %lums (calibrated)\n", t);
-            }
-            if (refillLPM > 0) {
-              unsigned long t =
-                  (unsigned long)((drainLiters / refillLPM) * 1.5f * 60000.0f);
-              waterMgr.setTimeoutRefillMs(t);
-              Serial.printf("[Main] Refill timeout: %lums (calibrated)\n", t);
-            }
-
-            Serial.printf(
-                "[Main] TPA: %.1f L = %.1f cm, drain to %.1f, refill to %.1f\n",
-                drainLiters, cmToDrain, currentLevel + cmToDrain, currentLevel);
-            waterMgr.startTPA();
-            webMgr.setTpaLastRun(timeMgr.now().unixtime());
-            tpaDoneThisMinute = true;
           }
         }
       }

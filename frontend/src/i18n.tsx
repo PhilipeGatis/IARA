@@ -169,10 +169,10 @@ const translations = {
     'config.language': { pt: 'Idioma / Language / 言語', en: 'Language / Idioma / 言語', ja: '言語 / Language / Idioma' },
 
     // ---- Notifications ----
-    'notify.title': { pt: 'Notificações (Pushsafer)', en: 'Notifications (Pushsafer)', ja: '通知（Pushsafer）' },
-    'notify.key': { pt: 'Chave Privada', en: 'Private Key', ja: 'プライベートキー' },
-    'notify.keyHint': { pt: 'Obtenha em pushsafer.com → Dashboard → API', en: 'Get from pushsafer.com → Dashboard → API', ja: 'pushsafer.com → Dashboard → APIから取得' },
-    'notify.save': { pt: 'Salvar Chave', en: 'Save Key', ja: 'キー保存' },
+    'notify.title': { pt: 'Notificações (ntfy.sh)', en: 'Notifications (ntfy.sh)', ja: '通知（ntfy.sh）' },
+    'notify.key': { pt: 'Tópico ntfy.sh', en: 'ntfy.sh Topic', ja: 'ntfy.shトピック' },
+    'notify.keyHint': { pt: 'Baixe o app ntfy e inscreva-se neste tópico', en: 'Download ntfy app and subscribe to this topic', ja: 'ntfyアプリをダウンロードし、このトピックを購読してください' },
+    'notify.save': { pt: 'Salvar Tópico', en: 'Save Topic', ja: 'トピック保存' },
     'notify.test': { pt: '🔔 Enviar Teste', en: '🔔 Send Test', ja: '🔔 テスト送信' },
     'notify.testSent': { pt: 'Notificação de teste enviada!', en: 'Test notification sent!', ja: 'テスト通知を送信しました！' },
     'notify.enabled': { pt: 'Ativo', en: 'Active', ja: '有効' },
@@ -204,8 +204,8 @@ const translations = {
     'config.missing.reservoirSafetyML': { pt: 'TPA: Trava Segurança Diária', en: 'TPA: Daily Safety Lock', ja: 'TPA: 1日の安全ロック' },
 
     'notify.dailyLevel': { pt: 'Nível Diário', en: 'Daily Level', ja: '日次水位' },
-    'notify.keySaved': { pt: 'Chave salva com sucesso!', en: 'Key saved successfully!', ja: 'キーが保存されました！' },
-    'notify.noKey': { pt: 'Insira uma chave válida.', en: 'Enter a valid key.', ja: '有効なキーを入力してください。' },
+    'notify.keySaved': { pt: 'Tópico salvo com sucesso!', en: 'Topic saved successfully!', ja: 'トピックが保存されました！' },
+    'notify.noKey': { pt: 'Insira um tópico válido.', en: 'Enter a valid topic.', ja: '有効なトピックを入力してください。' },
 
     // ---- LogsTab ----
     'nav.logs': { pt: 'Logs', en: 'Logs', ja: 'ログ' },

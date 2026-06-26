@@ -30,8 +30,19 @@ NotifyManager::NotifyManager()
 
 void NotifyManager::begin() {
   _loadConfig();
-  Serial.printf("[Notify] Pushsafer %s. Daily report at %02d:%02d\n",
-                isEnabled() ? "ENABLED" : "DISABLED (no key)", _dailyReportHour,
+  
+#ifdef USE_WEBSERVER
+  // Auto-generate a topic based on MAC address if none is set
+  if (!isEnabled()) {
+    String mac = WiFi.macAddress();
+    mac.replace(":", "");
+    _topic = "iara_" + mac;
+    _saveConfig();
+  }
+#endif
+
+  Serial.printf("[Notify] ntfy.sh %s (Topic: %s). Daily report at %02d:%02d\n",
+                isEnabled() ? "ENABLED" : "DISABLED", _topic.c_str(), _dailyReportHour,
                 _dailyReportMinute);
 }
 
@@ -74,7 +85,7 @@ void NotifyManager::notifyTPAComplete() {
   if (!_canSend(NOTIFY_TPA_COMPLETE))
     return;
   const auto &s = NOTIFY_STRINGS[_lang];
-  _send(NOTIFY_TPA_COMPLETE, s.tpaCompleteTitle, s.tpaCompleteMsg, "42", "10");
+  _send(NOTIFY_TPA_COMPLETE, s.tpaCompleteTitle, s.tpaCompleteMsg, "default", "droplet,white_check_mark");
 }
 
 void NotifyManager::notifyTPAError(const char *reason) {
@@ -83,7 +94,7 @@ void NotifyManager::notifyTPAError(const char *reason) {
   const auto &s = NOTIFY_STRINGS[_lang];
   char msg[128];
   snprintf(msg, sizeof(msg), s.tpaErrorFmt, reason);
-  _send(NOTIFY_TPA_ERROR, s.tpaErrorTitle, msg, "2", "8");
+  _send(NOTIFY_TPA_ERROR, s.tpaErrorTitle, msg, "high", "warning,droplet");
 }
 
 void NotifyManager::notifyFertLowStock(uint8_t channel, float remainingML,
@@ -94,7 +105,7 @@ void NotifyManager::notifyFertLowStock(uint8_t channel, float remainingML,
   char msg[128];
   snprintf(msg, sizeof(msg), s.fertLowStockFmt, channel + 1, remainingML,
            thresholdML);
-  _send(NOTIFY_FERT_LOW_STOCK, s.fertLowStockTitle, msg, "33", "5");
+  _send(NOTIFY_FERT_LOW_STOCK, s.fertLowStockTitle, msg, "default", "test_tube,warning");
 }
 
 void NotifyManager::notifyEmergency(const char *reason) {
@@ -103,7 +114,7 @@ void NotifyManager::notifyEmergency(const char *reason) {
   const auto &s = NOTIFY_STRINGS[_lang];
   char msg[128];
   snprintf(msg, sizeof(msg), s.emergencyFmt, reason);
-  _send(NOTIFY_EMERGENCY, s.emergencyTitle, msg, "4", "11");
+  _send(NOTIFY_EMERGENCY, s.emergencyTitle, msg, "urgent", "rotating_light");
 }
 
 void NotifyManager::notifyFertComplete(uint8_t channel, float doseML) {
@@ -112,7 +123,7 @@ void NotifyManager::notifyFertComplete(uint8_t channel, float doseML) {
   const auto &s = NOTIFY_STRINGS[_lang];
   char msg[128];
   snprintf(msg, sizeof(msg), s.fertCompleteFmt, channel + 1, doseML);
-  _send(NOTIFY_FERT_COMPLETE, s.fertCompleteTitle, msg, "31", "0");
+  _send(NOTIFY_FERT_COMPLETE, s.fertCompleteTitle, msg, "low", "test_tube,white_check_mark");
 }
 
 void NotifyManager::notifyDailyLevel(float levelCm) {
@@ -121,16 +132,16 @@ void NotifyManager::notifyDailyLevel(float levelCm) {
   const auto &s = NOTIFY_STRINGS[_lang];
   char msg[128];
   snprintf(msg, sizeof(msg), s.dailyLevelFmt, levelCm);
-  _send(NOTIFY_DAILY_LEVEL, s.dailyLevelTitle, msg, "15", "0");
+  _send(NOTIFY_DAILY_LEVEL, s.dailyLevelTitle, msg, "low", "bar_chart,ocean");
 }
 
 void NotifyManager::sendTest() {
   if (!isEnabled()) {
-    Serial.println("[Notify] Cannot send test: no Pushsafer key configured.");
+    Serial.println("[Notify] Cannot send test: no ntfy.sh topic configured.");
     return;
   }
   const auto &s = NOTIFY_STRINGS[_lang];
-  bool ok = _send(NOTIFY_TYPE_COUNT, s.testTitle, s.testMsg, "1", "10");
+  bool ok = _send(NOTIFY_TYPE_COUNT, s.testTitle, s.testMsg, "default", "partying_face");
   Serial.printf("[Notify] Test notification %s.\n", ok ? "SENT" : "FAILED");
 }
 
@@ -173,8 +184,8 @@ bool NotifyManager::_canSend(NotifyType type) {
 // ============================================================================
 
 bool NotifyManager::_send(NotifyType type, const char *title,
-                          const char *message, const char *icon,
-                          const char *sound) {
+                          const char *message, const char *priority,
+                          const char *tags) {
 #ifdef UNIT_TEST
   // In test mode, just record the attempt
   _lastSendResult = true;
@@ -192,29 +203,41 @@ bool NotifyManager::_send(NotifyType type, const char *title,
   }
 
   WiFiClientSecure client;
-  client.setInsecure(); // Skip cert verification (Pushsafer handles SSL)
+  client.setInsecure(); // ntfy.sh uses Let's Encrypt, safe enough for this purpose
   client.setTimeout(10);
 
-  if (!client.connect("www.pushsafer.com", 443)) {
+  if (!client.connect("ntfy.sh", 443)) {
     Serial.println("[Notify] HTTPS connection failed.");
     return false;
   }
 
-  // Build POST body
-  String body = "k=" + _privateKey + "&d=a" // all devices
-                + "&t=" + String(title) + "&m=" + String(message) +
-                "&i=" + String(icon) + "&s=" + String(sound) + "&v=1" +
-                "&pr=0"; // priority normal
+  String msgStr = String(message);
 
   // Send HTTP POST
-  client.println("POST /api HTTP/1.1");
-  client.println("Host: www.pushsafer.com");
-  client.println("Content-Type: application/x-www-form-urlencoded");
+  client.print("POST /");
+  client.print(_topic);
+  client.println(" HTTP/1.1");
+  client.println("Host: ntfy.sh");
+  
+  // Encode title appropriately (for simplicity, we assume safe ascii, but real world might need RFC 2047)
+  // Actually, ntfy supports "Title" header
+  client.print("Title: ");
+  client.println(title);
+  
+  if (priority && strlen(priority) > 0) {
+    client.print("X-Priority: ");
+    client.println(priority);
+  }
+  if (tags && strlen(tags) > 0) {
+    client.print("X-Tags: ");
+    client.println(tags);
+  }
+
   client.print("Content-Length: ");
-  client.println(body.length());
+  client.println(msgStr.length());
   client.println("Connection: close");
   client.println();
-  client.print(body);
+  client.print(msgStr);
 
   // Read response status
   unsigned long start = millis();
@@ -226,7 +249,7 @@ bool NotifyManager::_send(NotifyType type, const char *title,
   if (client.available()) {
     String statusLine = client.readStringUntil('\n');
     success = statusLine.indexOf("200") >= 0;
-    Serial.printf("[Notify] Pushsafer response: %s\n", statusLine.c_str());
+    Serial.printf("[Notify] ntfy.sh response: %s\n", statusLine.c_str());
   }
 
   client.stop();
@@ -252,11 +275,11 @@ bool NotifyManager::_send(NotifyType type, const char *title,
 // CONFIGURATION
 // ============================================================================
 
-void NotifyManager::setPrivateKey(const String &key) {
-  _privateKey = key;
+void NotifyManager::setTopic(const String &topic) {
+  _topic = topic;
   _saveConfig();
-  Serial.printf("[Notify] Private key %s.\n",
-                key.length() > 0 ? "configured" : "cleared");
+  Serial.printf("[Notify] Topic %s.\n",
+                topic.length() > 0 ? topic.c_str() : "cleared");
 }
 
 void NotifyManager::setTypeEnabled(NotifyType type, bool on) {
@@ -286,7 +309,7 @@ void NotifyManager::setDailyReportHour(uint8_t h, uint8_t m) {
 
 void NotifyManager::_loadConfig() {
   _nPrefs.begin("notify", true); // readonly
-  _privateKey = _nPrefs.getString("key", "");
+  _topic = _nPrefs.getString("key", "");
 
   // Load per-type toggles (stored as a bitmask in a single byte)
   uint8_t mask = _nPrefs.getUChar("mask", 0xFF); // all enabled by default
@@ -301,7 +324,7 @@ void NotifyManager::_loadConfig() {
 
 void NotifyManager::_saveConfig() {
   _nPrefs.begin("notify", false);
-  _nPrefs.putString("key", _privateKey);
+  _nPrefs.putString("key", _topic);
 
   // Store toggles as bitmask
   uint8_t mask = 0;

@@ -203,7 +203,7 @@ graph LR
 
 ## 📲 プッシュ通知
 
-IARAは[Pushsafer](https://www.pushsafer.com/)を通じてリアルタイムのプッシュ通知をスマートフォンに送信します。各通知タイプはダッシュボードで個別に有効/無効にできます。
+IARAは[ntfy.sh](https://ntfy.sh/)を通じてリアルタイムのプッシュ通知をスマートフォンに送信します。各通知タイプはダッシュボードで個別に有効/無効にできます。
 
 ### 通知タイプ
 
@@ -226,8 +226,9 @@ IARAは[Pushsafer](https://www.pushsafer.com/)を通じてリアルタイムの�
 
 ### セットアップ
 
-1. [pushsafer.com](https://www.pushsafer.com/)で無料アカウントを作成
-2. Pushsaferダッシュボードから**Private Key**をコピー
+1. スマートフォンに**ntfy**アプリをダウンロードします（iOS/Android）
+2. 「+」をタップして「トピックを購読」します
+3. IARAが生成したトピック（水槽のディスプレイまたはダッシュボードに表示されます）を入力すれば完了です！
 3. IARAダッシュボード（`通知 → API Key`）またはAPIでキーを入力：
    ```bash
    curl -X POST http://<ESP32_IP>/api/notify/key -d '{"key":"YOUR_KEY"}'

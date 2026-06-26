@@ -203,7 +203,7 @@ O sistema foi projetado com abordagem **safety-first** para prevenir alagamentos
 
 ## � Notificações Push
 
-IARA envia notificações push em tempo real para o celular via [Pushsafer](https://www.pushsafer.com/). Cada tipo pode ser ativado ou desativado individualmente pelo dashboard.
+IARA envia notificações push em tempo real para o celular via [ntfy.sh](https://ntfy.sh/). Cada tipo pode ser ativado ou desativado individualmente pelo dashboard.
 
 ### Tipos de Notificação
 
@@ -226,8 +226,9 @@ IARA envia notificações push em tempo real para o celular via [Pushsafer](http
 
 ### Configuração
 
-1. Crie conta grátis em [pushsafer.com](https://www.pushsafer.com/)
-2. Copie sua **Private Key** do painel Pushsafer
+1. Baixe o app **ntfy** na sua loja de aplicativos (iOS/Android)
+2. Clique em "+" para "Subscribe to topic" (Inscrever-se em um tópico)
+3. Digite o tópico gerado pelo IARA (exibido na tela do aquário ou no Dashboard) e pronto!
 3. Insira a chave pelo dashboard IARA (`Notificações → API Key`) ou via API:
    ```bash
    curl -X POST http://<ESP32_IP>/api/notify/key -d '{"key":"SUA_CHAVE"}'
