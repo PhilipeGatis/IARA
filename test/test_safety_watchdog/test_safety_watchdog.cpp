@@ -54,19 +54,19 @@ void test_optical_high_means_normal() {
 // Float Switch
 // ----------------------------------------------------------------------------
 
-void test_float_low_means_reservoir_full() {
-  SafetyWatchdog sw;
-  sw.begin();
-
-  mock_pin_read_value[PIN_FLOAT] = LOW;
-  TEST_ASSERT_TRUE(sw.isReservoirFull());
-}
-
-void test_float_high_means_reservoir_empty() {
+void test_float_high_means_reservoir_full() {
   SafetyWatchdog sw;
   sw.begin();
 
   mock_pin_read_value[PIN_FLOAT] = HIGH;
+  TEST_ASSERT_TRUE(sw.isReservoirFull());
+}
+
+void test_float_low_means_reservoir_empty() {
+  SafetyWatchdog sw;
+  sw.begin();
+
+  mock_pin_read_value[PIN_FLOAT] = LOW;
   TEST_ASSERT_FALSE(sw.isReservoirFull());
 }
 
@@ -254,8 +254,8 @@ int main(int argc, char **argv) {
   RUN_TEST(test_optical_high_means_normal);
 
   // Float switch
-  RUN_TEST(test_float_low_means_reservoir_full);
-  RUN_TEST(test_float_high_means_reservoir_empty);
+  RUN_TEST(test_float_high_means_reservoir_full);
+  RUN_TEST(test_float_low_means_reservoir_empty);
 
   // Emergency
   RUN_TEST(test_emergency_shutdown_all_pins_low);

@@ -101,8 +101,10 @@ bool SafetyWatchdog::isOpticalHigh() {
 }
 
 bool SafetyWatchdog::isReservoirFull() {
-  // Active LOW with pullup: LOW = float triggered = reservoir full
-  return digitalRead(PIN_FLOAT) == LOW;
+  // Fail-safe logic (Normally Closed switch):
+  // LOW = Switch closed = Reservoir empty / filling
+  // HIGH = Switch open = Reservoir full OR wire broken (fail-safe)
+  return digitalRead(PIN_FLOAT) == HIGH;
 }
 
 // ============================================================================

@@ -3,10 +3,22 @@ import react from '@vitejs/plugin-react'
 import viteCompression from 'vite-plugin-compression'
 import pkg from './package.json'
 
+import { execSync } from 'child_process'
+
+function getFullVersion() {
+  try {
+    const gitHash = execSync('git rev-parse --short HEAD').toString().trim()
+    const isDirty = execSync('git status --porcelain').toString().trim().length > 0
+    return `${pkg.version}-${gitHash}${isDirty ? '-dirty' : ''}`
+  } catch (e) {
+    return pkg.version
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   define: {
-    __APP_VERSION__: JSON.stringify(pkg.version),
+    __APP_VERSION__: JSON.stringify(getFullVersion()),
   },
   plugins: [
     react(),
