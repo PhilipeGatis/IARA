@@ -56,6 +56,29 @@ public:
   static void mock_clearAll() {
     _store.clear();
     _strStore.clear();
+    _bytesStore.clear();
+  }
+
+  void remove(const char *key) {
+    _store.erase(_makeKey(key));
+    _strStore.erase(_makeKey(key));
+    _bytesStore.erase(_makeKey(key));
+  }
+
+  size_t putBytes(const char *key, const void *value, size_t len) {
+    std::string s((const char*)value, len);
+    _bytesStore[_makeKey(key)] = s;
+    return len;
+  }
+
+  size_t getBytes(const char *key, void *buf, size_t maxLen) {
+    auto it = _bytesStore.find(_makeKey(key));
+    if (it != _bytesStore.end()) {
+      size_t len = std::min(maxLen, it->second.length());
+      memcpy(buf, it->second.data(), len);
+      return len;
+    }
+    return 0;
   }
 
 private:
@@ -71,6 +94,7 @@ private:
 
   static std::map<std::string, MockValue> _store;
   static std::map<std::string, std::string> _strStore;
+  static std::map<std::string, std::string> _bytesStore;
 
   std::string _makeKey(const char *key) { return _namespace + "." + key; }
 };

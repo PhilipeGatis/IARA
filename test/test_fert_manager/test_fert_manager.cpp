@@ -22,6 +22,7 @@ static FertManager createFM(uint8_t schedHour = 9, uint8_t schedMin = 0) {
 
 // Reset all state before each test
 void setUp() {
+  Preferences::mock_clearAll();
   mock_reset_pins();
   mock_millis_value = 0;
   Preferences::mock_clearAll();
@@ -179,6 +180,7 @@ void test_set_and_get_dose() {
 
 void test_dose_channel_activates_correct_pin() {
   FertManager fm = createFM();
+  Preferences::mock_clearAll();
   mock_reset_pins();
 
   // Dose CH1 (PIN_FERT1 = GPIO 13)

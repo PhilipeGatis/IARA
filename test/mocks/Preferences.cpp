@@ -18,3 +18,4 @@ String Preferences::getString(const char *key, const char *defaultVal) {
   return (it != _strStore.end()) ? String(it->second.c_str())
                                  : String(defaultVal ? defaultVal : "");
 }
+std::map<std::string, std::string> Preferences::_bytesStore;

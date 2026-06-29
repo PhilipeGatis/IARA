@@ -23,6 +23,7 @@ typedef bool boolean;
 #define INPUT 0
 #define OUTPUT 1
 #define INPUT_PULLUP 2
+#define INPUT_PULLDOWN 3
 
 // ---- Math helpers ----
 #ifndef min

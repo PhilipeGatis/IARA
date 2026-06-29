@@ -29,7 +29,7 @@ void test_disabled_when_no_key() {
 void test_enabled_when_key_set() {
   NotifyManager nm;
   nm.begin();
-  nm.setPrivateKey("TEST_KEY_123");
+  nm.setTopic("TEST_KEY_123");
   TEST_ASSERT_TRUE(nm.isEnabled());
 }
 
@@ -38,7 +38,7 @@ void test_enabled_when_key_set() {
 void test_can_send_when_enabled() {
   NotifyManager nm;
   nm.begin();
-  nm.setPrivateKey("TEST_KEY_123");
+  nm.setTopic("TEST_KEY_123");
   // All types enabled by default
   TEST_ASSERT_TRUE(nm.isTypeEnabled(NOTIFY_TPA_COMPLETE));
   TEST_ASSERT_TRUE(nm.isTypeEnabled(NOTIFY_EMERGENCY));
@@ -49,7 +49,7 @@ void test_can_send_when_enabled() {
 void test_type_toggle_disables_notification() {
   NotifyManager nm;
   nm.begin();
-  nm.setPrivateKey("TEST_KEY_123");
+  nm.setTopic("TEST_KEY_123");
   nm.setTypeEnabled(NOTIFY_FERT_COMPLETE, false);
   TEST_ASSERT_FALSE(nm.isTypeEnabled(NOTIFY_FERT_COMPLETE));
   // Other types should still be enabled
@@ -106,9 +106,9 @@ void test_invalid_type_returns_false() {
 void test_key_cleared() {
   NotifyManager nm;
   nm.begin();
-  nm.setPrivateKey("SOME_KEY");
+  nm.setTopic("SOME_KEY");
   TEST_ASSERT_TRUE(nm.isEnabled());
-  nm.setPrivateKey("");
+  nm.setTopic("");
   TEST_ASSERT_FALSE(nm.isEnabled());
 }
 

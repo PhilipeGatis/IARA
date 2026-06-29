@@ -15,11 +15,12 @@ static SafetyWatchdog safety;
 static FertManager fert;
 
 void setUp() {
+  Preferences::mock_clearAll();
   mock_reset_pins();
   mock_millis_value = 0;
   mock_pulseIn_value = 583; // ~10cm default
   mock_pin_read_value[PIN_OPTICAL] = HIGH; // Normal (not triggered)
-  mock_pin_read_value[PIN_FLOAT] = HIGH;   // Reservoir empty
+  mock_pin_read_value[PIN_FLOAT] = LOW; // Reservoir empty
   Preferences::mock_clearAll();
 
   safety = SafetyWatchdog();
@@ -64,7 +65,7 @@ void goToFilling(WaterManager &wm) {
 
 // Helper: simulate float sensor triggering (debounced — needs N consecutive reads)
 void simulateFloatFull(WaterManager &wm) {
-  mock_pin_read_value[PIN_FLOAT] = LOW;
+  mock_pin_read_value[PIN_FLOAT] = HIGH;
   for (int i = 0; i < 5; i++) { wm.update(); }
 }
 
@@ -163,7 +164,7 @@ void test_drain_off_during_error() {
   goToDraining(wm);
   wm.update(); // Drain ON
   // Simulate timeout
-  mock_millis_value += TIMEOUT_DRAIN_MS + 1;
+  mock_millis_value += 1800000 + 1;
   wm.update(); // → ERROR (all actuators off)
   TEST_ASSERT_EQUAL(TPAState::ERROR, wm.getState());
   assertDrainOff("ERROR state");
@@ -290,7 +291,7 @@ void test_manual_reservoir_fill_completes_on_float() {
   wm.update(); // Opens solenoid
   TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_SOLENOID]);
 
-  mock_pin_read_value[PIN_FLOAT] = LOW; // Reservoir full
+  mock_pin_read_value[PIN_FLOAT] = HIGH; // Reservoir full
   simulateFloatFull(wm);
   TEST_ASSERT_EQUAL(TPAState::COMPLETE, wm.getState());
   TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_SOLENOID]);
@@ -499,7 +500,7 @@ void test_prime_disabled_skips_dosing() {
   wm.setPrimeEnabled(false);
   goToFilling(wm);
   wm.update(); // Opens solenoid
-  mock_pin_read_value[PIN_FLOAT] = LOW; // Reservoir full
+  mock_pin_read_value[PIN_FLOAT] = HIGH; // Reservoir full
   simulateFloatFull(wm);
   TEST_ASSERT_EQUAL(TPAState::DOSING_PRIME, wm.getState());
   wm.update(); // DOSING_PRIME handler: prime disabled → skip to REFILLING

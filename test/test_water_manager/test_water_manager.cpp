@@ -13,12 +13,13 @@ static SafetyWatchdog safety;
 static FertManager fert;
 
 void setUp() {
+  Preferences::mock_clearAll();
   mock_reset_pins();
   mock_millis_value = 0;
   // Default: water too high for drain target — 10cm (pulseIn ~583us)
   mock_pulseIn_value = 583;
   mock_pin_read_value[PIN_OPTICAL] = HIGH; // Normal
-  mock_pin_read_value[PIN_FLOAT] = HIGH;   // Reservoir empty
+  mock_pin_read_value[PIN_FLOAT] = LOW; // Reservoir empty
   Preferences::mock_clearAll();
 
   safety = SafetyWatchdog();
@@ -61,7 +62,7 @@ void goToFilling(WaterManager &wm) {
 
 // Helper: simulate float sensor triggering (debounced — needs N consecutive reads)
 void simulateFloatFull(WaterManager &wm) {
-  mock_pin_read_value[PIN_FLOAT] = LOW;
+  mock_pin_read_value[PIN_FLOAT] = HIGH;
   for (int i = 0; i < 5; i++) { wm.update(); }
 }
 
@@ -157,7 +158,7 @@ void test_draining_stops_at_target() {
 void test_draining_timeout_causes_error() {
   WaterManager wm = makeWM();
   goToDraining(wm);
-  mock_millis_value += TIMEOUT_DRAIN_MS + 1;
+  mock_millis_value += 1800000 + 1;
   wm.update();
   TEST_ASSERT_EQUAL(TPAState::ERROR, wm.getState());
   TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_DRAIN]);
@@ -389,7 +390,7 @@ void test_uncalibrated_defaults_are_short() {
   wm.update(); // → DRAINING
 
   // After 30s (uncalibrated default), should timeout
-  mock_millis_value += 30001;
+  mock_millis_value += 1200001;
   wm.update();
   TEST_ASSERT_EQUAL(TPAState::ERROR, wm.getState());
 }

@@ -26,7 +26,7 @@ void test_begin_sets_pin_modes() {
   TEST_ASSERT_EQUAL(OUTPUT, mock_pin_mode[PIN_TRIG]);
   TEST_ASSERT_EQUAL(INPUT, mock_pin_mode[PIN_ECHO]);
   TEST_ASSERT_EQUAL(INPUT_PULLUP, mock_pin_mode[PIN_OPTICAL]);
-  TEST_ASSERT_EQUAL(INPUT_PULLUP, mock_pin_mode[PIN_FLOAT]);
+  TEST_ASSERT_EQUAL(INPUT_PULLDOWN, mock_pin_mode[PIN_FLOAT]);
 }
 
 // ----------------------------------------------------------------------------
