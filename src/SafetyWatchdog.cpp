@@ -17,8 +17,8 @@ void SafetyWatchdog::begin() {
   // Optical level sensor (active LOW, pulled up)
   pinMode(PIN_OPTICAL, INPUT_PULLUP);
 
-  // Float switch (active LOW, pulled up)
-  pinMode(PIN_FLOAT, INPUT_PULLUP);
+  // Float switch (active HIGH, pulled down, connected to 3.3V)
+  pinMode(PIN_FLOAT, INPUT_PULLDOWN);
 
   // Initial sensor probe — detect if ultrasonic is connected
   readUltrasonic();
@@ -101,9 +101,7 @@ bool SafetyWatchdog::isOpticalHigh() {
 }
 
 bool SafetyWatchdog::isReservoirFull() {
-  // Fail-safe logic (Normally Closed switch):
-  // LOW = Switch closed = Reservoir empty / filling
-  // HIGH = Switch open = Reservoir full OR wire broken (fail-safe)
+  // Active HIGH (3.3V): HIGH = Switch closed = Reservoir full
   return digitalRead(PIN_FLOAT) == HIGH;
 }
 
