@@ -9,10 +9,8 @@ SafetyWatchdog::SafetyWatchdog()
       _emergencyDrainStart(0) {}
 
 void SafetyWatchdog::begin() {
-  // Ultrasonic
-  pinMode(PIN_TRIG, OUTPUT);
-  pinMode(PIN_ECHO, INPUT);
-  digitalWrite(PIN_TRIG, LOW);
+  // Ultrasonic A02 UART
+  Serial2.begin(9600, SERIAL_8N1, PIN_US_RX, PIN_US_TX);
 
   // Optical level sensor (active LOW, pulled up)
   pinMode(PIN_OPTICAL, INPUT_PULLUP);
@@ -32,64 +30,41 @@ void SafetyWatchdog::begin() {
 // ============================================================================
 
 float SafetyWatchdog::readUltrasonic() {
-  float samples[ULTRASONIC_SAMPLES];
-  uint8_t validCount = 0;
+  bool newData = false;
+  static unsigned long lastValidMs = millis();
 
-  for (uint8_t i = 0; i < ULTRASONIC_SAMPLES; i++) {
-    // Send trigger pulse
-    digitalWrite(PIN_TRIG, LOW);
-    delayMicroseconds(2);
-    digitalWrite(PIN_TRIG, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(PIN_TRIG, LOW);
-
-    // Measure echo pulse duration
-    unsigned long duration =
-        pulseIn(PIN_ECHO, HIGH, ULTRASONIC_PULSE_TIMEOUT_US);
-
-    if (duration > 0) {
-      float distance = (duration * 0.0343f) / 2.0f;
-      if (distance > 0 && distance < ULTRASONIC_MAX_DISTANCE_CM) {
-        samples[validCount++] = distance;
+  // Read all available UART frames (each frame is 4 bytes: 0xFF, High, Low, Checksum)
+  while (Serial2.available() >= 4) {
+    if (Serial2.peek() == 0xFF) {
+      uint8_t header = Serial2.read();
+      uint8_t dataH = Serial2.read();
+      uint8_t dataL = Serial2.read();
+      uint8_t sum = Serial2.read();
+      
+      if (((header + dataH + dataL) & 0xFF) == sum) {
+        float distance = ((dataH << 8) | dataL) / 10.0f; // mm to cm
+        if (distance > 0 && distance <= ULTRASONIC_MAX_DISTANCE_CM) {
+          _lastDistance = distance;
+          newData = true;
+          lastValidMs = millis();
+        }
       }
+    } else {
+      Serial2.read(); // Discard garbage byte and try again
     }
-    delay(30); // JSN-SR04T needs ~30ms between measurements
-    yield();   // Let FreeRTOS IDLE task run (prevents task WDT trigger)
   }
 
-  if (validCount == 0) {
-    _ultrasonicFailCount++;
-    if (_ultrasonicFailCount >= 10 && _sensorsConnected) {
+  // Handle connection status tracking (2 seconds timeout)
+  if (newData) {
+    if (!_sensorsConnected) {
+      _sensorsConnected = true;
+      Serial.println("[Safety] Ultrasonic A02 connected — safety checks enabled.");
+    }
+  } else if (millis() - lastValidMs > 2000) {
+    if (_sensorsConnected) {
       _sensorsConnected = false;
-      Serial.println(
-          "[Safety] Ultrasonic sensor disconnected — safety checks disabled.");
-    } else if (_ultrasonicFailCount < 10) {
-      Serial.println("[Safety] Ultrasonic: no valid readings!");
+      Serial.println("[Safety] Ultrasonic A02 disconnected (timeout) — safety checks disabled.");
     }
-    return _lastDistance; // Return last known good value
-  }
-
-  // Sensor is working
-  _ultrasonicFailCount = 0;
-  if (!_sensorsConnected) {
-    _sensorsConnected = true;
-    Serial.println(
-        "[Safety] Ultrasonic sensor connected — safety checks enabled.");
-  }
-
-  // If we have enough samples, use median; otherwise use average
-  if (validCount >= 3) {
-    // Pad remaining with valid values for median
-    float sorted[ULTRASONIC_SAMPLES];
-    for (uint8_t i = 0; i < validCount; i++)
-      sorted[i] = samples[i];
-    std::sort(sorted, sorted + validCount);
-    _lastDistance = sorted[validCount / 2];
-  } else {
-    float sum = 0;
-    for (uint8_t i = 0; i < validCount; i++)
-      sum += samples[i];
-    _lastDistance = sum / validCount;
   }
 
   return _lastDistance;
@@ -101,8 +76,8 @@ bool SafetyWatchdog::isOpticalHigh() {
 }
 
 bool SafetyWatchdog::isReservoirFull() {
-  // Active HIGH (3.3V): HIGH = Switch closed = Reservoir full
-  return digitalRead(PIN_FLOAT) == HIGH;
+  // Inverted logic: LOW = Switch open = Reservoir full (when wired to 3.3V with pulldown)
+  return digitalRead(PIN_FLOAT) == LOW;
 }
 
 // ============================================================================

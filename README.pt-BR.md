@@ -124,7 +124,7 @@ graph LR
     ESP32 -->|SPI D15,16,17,23| TFT[Display TFT ST7735]
     ESP32 -->|D12, D13, D14, D25-D27, D32, D33| MOSFET
     ESP32 -->|D2| SSR[Omron SSR]
-    ESP32 ---|D18 Trig, D34 Echo| Ultra[Ultrassônico JSN]
+    ESP32 ---|D18 TX, D34 RX| Ultra[Ultrassônico A02YYUW UART]
     ESP32 ---|D4| Water[Sensor Capacitivo]
     ESP32 ---|D5| Float[Boia]
     ESP32 ---|D19| Button[Botão]
@@ -153,7 +153,7 @@ graph LR
 | **D15** | TFT CS | Display ST7735 (CS) | Saída | SPI (CS) |
 | **D16** | TFT SCK | Display ST7735 (SCK) | Saída | SPI (SCK) |
 | **D17** | TFT A0 (Data/Command) | Display ST7735 (A0) | Saída | SPI (DC) |
-| **D18** | Trigger ultrassônico | JSN-SR04T | Saída | Digital |
+| **D18** | UART TX ultrassônico | A02YYUW | Saída | Digital (Liga no RX do Sensor) |
 | **D19** | Botão de contato | Botão Push/Tactile (Painel) | Entrada (PULLUP) | Digital |
 | **D21** | SDA | RTC DS3231 | Bidirecional | I2C |
 | **D22** | SCL | RTC DS3231 | Bidirecional | I2C |
@@ -163,7 +163,7 @@ graph LR
 | **D27** | Fertilizante CH4 | MOSFET canal 4 | Saída | Digital |
 | **D32** | Válvula solenóide | MOSFET canal 8 | Saída | Digital |
 | **D33** | Bomba de recalque | MOSFET canal 7 | Saída | Digital |
-| **D34** | Echo ultrassônico | JSN-SR04T | Entrada | Digital (3.3V via divisor) |
+| **D34** | UART RX ultrassônico | A02YYUW | Entrada | Digital (Liga no TX do Sensor) |
 | **VIN** | Alimentação 5V | LM2596 step-down | — | Energia |
 | **EN** | Reset compartilhado | Display ST7735 (RESET) | — | Reset |
 | **3.3V** | Backlight | Display ST7735 (LED) | — | Energia |
@@ -196,7 +196,7 @@ O sistema foi projetado com abordagem **safety-first** para prevenir alagamentos
 | **Boia de overflow** | Boia NC (normalmente fechada) no nível máximo de água, ligada em série com a alimentação da bomba de refill. Corta a bomba fisicamente se a água subir demais — independente do firmware. |
 | **Diodos flyback** | FR154 nas bombas, 1N5822 na solenoide — absorvem picos de tensão de cargas indutivas. |
 | **Capacitores de desacoplamento** | 1000µF perto do ESP32, 470µF perto do módulo MOSFET — absorvem transientes de brownout. |
-| **Divisor de tensão (ECHO)** | 5V → 3.3V no pino echo do JSN-SR04T — protege o GPIO do ESP32. |
+| **Ligação 3.3V Direta** | A02YYUW alimentado em 3.3V liga direto no ESP32 sem divisor de tensão. |
 | **Quebra-sifão (Drenagem)** | Instale uma válvula solenoide em paralelo com a bomba de drenagem (requer diodo flyback próprio) ou faça um furo de respiro na mangueira dentro do aquário para evitar que a água continue escoando por gravidade após a bomba desligar. |
 
 ---
