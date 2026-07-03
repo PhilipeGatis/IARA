@@ -99,6 +99,7 @@ private:
   // Telemetry timing
   unsigned long _lastTelemetryMs;
   unsigned long _lastSSEMs;
+  unsigned long _lastSSECleanupMs;
 
   // Reboot flag
   bool _rebootPending = false;

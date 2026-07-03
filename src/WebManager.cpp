@@ -33,7 +33,7 @@ WebManager::WebManager()
       _sensorFullDistanceCm(0), _drainFlowRate(0), _refillFlowRate(0),
       _primeEnabled(true),
       _reservoirVolume(0), _reservoirSafetyML(0), _lastTelemetryMs(0),
-      _lastSSEMs(0), _rebootPending(false), _rebootMs(0) {
+      _lastSSEMs(0), _lastSSECleanupMs(0), _rebootPending(false), _rebootMs(0) {
 }
 
 // ============================================================================
@@ -110,12 +110,32 @@ void WebManager::update() {
     ESP.restart();
   }
 
-  // Send SSE telemetry every 3 seconds to reduce network congestion
   unsigned long now = millis();
+
+  // Periodic heap and SSE diagnostics every 30s
+  if ((now - _lastSSECleanupMs) >= 30000) {
+    _lastSSECleanupMs = now;
+    uint32_t freeHeap = ESP.getFreeHeap();
+    size_t clients = _events.count();
+
+    if (freeHeap < 20000) {
+      Serial.printf("[HEAP] WARNING: Free heap low: %u bytes, SSE clients: %d\n",
+                    freeHeap, clients);
+    }
+  }
+
+  // Send SSE telemetry every 3 seconds to reduce network congestion
+  // The send() call itself cleans up disconnected clients internally.
+  // Skip if heap is critically low to prevent crash.
   if ((now - _lastSSEMs) >= 3000 && _events.count() > 0) {
-    _lastSSEMs = now;
-    String json = _buildStatusJSON();
-    _events.send(json.c_str(), "status", millis());
+    uint32_t freeHeap = ESP.getFreeHeap();
+    if (freeHeap > 15000) {  // Guard: need ~1.5KB for JSON + overhead
+      _lastSSEMs = now;
+      String json = _buildStatusJSON();
+      _events.send(json.c_str(), "status", millis());
+    } else {
+      Serial.println("[SSE] Skipped send — heap too low");
+    }
   }
 #endif
   _updateTelemetry();

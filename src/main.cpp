@@ -70,6 +70,7 @@ bool tpaErrorNotified = false;    // Prevent repeated TPA error notifications
 // ---- WiFi Retry State ----
 unsigned long lastWiFiRetryTime = 0;
 const unsigned long WIFI_RETRY_INTERVAL_MS = 30000; // 30 seconds
+bool wifiWasConnected = false; // Track WiFi state transitions for mDNS restoration
 
 // ---- Boot diagnostics (exposed via /api/status) ----
 const char *bootResetReason = "UNKNOWN";
@@ -251,6 +252,7 @@ void setup() {
     } else {
       Serial.println("[mDNS] Error setting up mDNS responder!");
     }
+    wifiWasConnected = true;
   } else {
     Serial.println(" FAILED!");
     Serial.print("[WiFi] Error Code: ");
@@ -289,6 +291,12 @@ void setup() {
     Serial.print("[WiFi] AP IP: ");
     Serial.println(WiFi.softAPIP());
     displayMgr.showBootStatus("WiFi: AP Mode");
+    
+    // Start mDNS Responder for AP mode
+    if (MDNS.begin("iara")) {
+      Serial.println("[mDNS] Responder started at http://iara.local (AP Mode)");
+      MDNS.addService("http", "tcp", 80);
+    }
     // Removed immediate WiFi.begin() because it disrupts the SoftAP network.
   }
 
@@ -369,7 +377,10 @@ void loop() {
   webMgr.update(); // handle SSE and HTTP clients
 
   // ---- 4. WIFI RETRY LOGIC (Every 30 seconds) ----
-  if (WiFi.status() != WL_CONNECTED) {
+  bool wifiConnected = (WiFi.status() == WL_CONNECTED);
+
+  if (!wifiConnected) {
+    wifiWasConnected = false;
     if (millis() - lastWiFiRetryTime >= WIFI_RETRY_INTERVAL_MS) {
       Serial.println("\n[WiFi] Connection lost/failed. Retrying connection...");
 
@@ -377,6 +388,19 @@ void loop() {
       WiFi.reconnect();
 
       lastWiFiRetryTime = millis();
+    }
+  } else if (!wifiWasConnected) {
+    // WiFi just reconnected — restore mDNS so http://iara.local works again
+    wifiWasConnected = true;
+    Serial.println("[WiFi] Reconnected! IP: " + WiFi.localIP().toString());
+
+    // mDNS does not survive WiFi disconnection; must be restarted
+    MDNS.end();
+    if (MDNS.begin("iara")) {
+      MDNS.addService("http", "tcp", 80);
+      Serial.println("[mDNS] Restored: http://iara.local");
+    } else {
+      Serial.println("[mDNS] ERROR: Failed to restart mDNS!");
     }
   }
 
@@ -493,7 +517,7 @@ void loop() {
   }
 
   // ---- 6. WEB DASHBOARD + TELEMETRY ----
-  webMgr.update();
+  // (webMgr.update() already called in step 3 above — no duplicate needed)
 
   // ---- 7. OLED DISPLAY ----
   displayMgr.update();

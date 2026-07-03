@@ -65,7 +65,9 @@ bool TimeManager::syncWithNTP() {
 
   unsigned long epoch = _timeClient.getEpochTime();
   if (epoch < 1000000) {
-    Serial.println("[Time] NTP returned invalid epoch.");
+    Serial.println("[Time] NTP returned invalid epoch. Will retry in 10s.");
+    // Prevent UDP spam: set last sync to trigger again in 10 seconds
+    _lastNtpSync = millis() - NTP_SYNC_INTERVAL_MS + 10000;
     return false;
   }
 
