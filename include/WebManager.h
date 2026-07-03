@@ -105,6 +105,11 @@ private:
   bool _rebootPending = false;
   unsigned long _rebootMs = 0;
 
+  // Calibration state
+  uint8_t _calibratingPin = 0;
+  int8_t _calibratingFertChannel = -1;
+  unsigned long _calibrationStartMs = 0;
+
   // NVS persistence
   void _loadParams();
   void _saveParams();
@@ -126,9 +131,6 @@ private:
 
   /// Build notify status JSON fragment (DRY #5)
   String _buildNotifyJSON() const;
-
-  /// Block for CALIBRATION_PULSE_MS with yield (DRY #6)
-  static void _blockForCalibrationPulse();
 
 #ifdef USE_WEBSERVER
   AsyncWebServer _server;

@@ -105,12 +105,27 @@ void WebManager::setTpaLastRun(uint32_t epoch) {
 
 void WebManager::update() {
 #ifdef USE_WEBSERVER
-  if (_rebootPending && (millis() - _rebootMs > 2000)) {
+  unsigned long now = millis();
+  if (_rebootPending && (now - _rebootMs > 2000)) {
     Serial.println("[Web] Rebooting now...");
     ESP.restart();
   }
 
-  unsigned long now = millis();
+  // Handle non-blocking calibration pulse
+  if (_calibratingPin > 0 && (now - _calibrationStartMs >= CALIBRATION_PULSE_MS)) {
+    pumpOff(_calibratingPin, PumpReason::CALIBRATION);
+    _calibratingPin = 0;
+    Serial.println("[Web] Calibration pulse finished.");
+  }
+
+  // Handle non-blocking fert calibration pulse
+  if (_calibratingFertChannel >= 0 && (now - _calibrationStartMs >= CALIBRATION_PULSE_MS)) {
+    if (_fert) {
+      _fert->manualPump(_calibratingFertChannel, false);
+    }
+    _calibratingFertChannel = -1;
+    Serial.println("[Web] Fert calibration pulse finished.");
+  }
 
   // Periodic heap and SSE diagnostics every 30s
   if ((now - _lastSSECleanupMs) >= 30000) {
@@ -496,9 +511,9 @@ void WebManager::_setupRoutes() {
 
         if (pin > 0) {
           pumpOn(pin, PumpReason::CALIBRATION);
-          _blockForCalibrationPulse();
-          pumpOff(pin, PumpReason::CALIBRATION);
-          Serial.printf("[Web] %s pump ran for 3s\n", pStr.c_str());
+          _calibratingPin = pin;
+          _calibrationStartMs = millis();
+          Serial.printf("[Web] %s pump calibration started (non-blocking)\n", pStr.c_str());
         }
         request->send(200, "application/json", "{\"ok\":true}");
       });
@@ -763,8 +778,8 @@ void WebManager::_setupRoutes() {
         if (ch >= 0 && ch <= 4 && _fert) {
           // Block and pulse
           _fert->manualPump(ch, true);
-          _blockForCalibrationPulse();
-          _fert->manualPump(ch, false);
+          _calibratingFertChannel = ch;
+          _calibrationStartMs = millis();
         }
         request->send(200, "application/json", "{\"ok\":true}");
       });
@@ -1089,15 +1104,7 @@ String WebManager::_buildNotifyJSON() const {
 }
 
 // ============================================================================
-// CALIBRATION PULSE HELPER (DRY #6)
 // ============================================================================
-
-void WebManager::_blockForCalibrationPulse() {
-  unsigned long start = millis();
-  while ((millis() - start) < CALIBRATION_PULSE_MS) {
-    delay(10);
-  }
-}
 
 // ============================================================================
 // NVS PERSISTENCE
