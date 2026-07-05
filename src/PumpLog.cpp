@@ -77,6 +77,9 @@ void pumpLogLoad() {
 }
 
 void pumpLogFlush() {
+  // DISABLING FLUSH TEMPORARILY: LittleFS writes are deadlocking the loop.
+  // The system will only keep logs in RAM until we fix the file system issue.
+  return;
   if (!_dirty) return;
 
   unsigned long now = millis();

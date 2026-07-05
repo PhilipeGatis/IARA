@@ -16,7 +16,7 @@ void SafetyWatchdog::begin() {
   pinMode(PIN_OPTICAL, INPUT_PULLUP);
 
   // Float switch (active HIGH, pulled down, connected to 3.3V)
-  pinMode(PIN_FLOAT, INPUT_PULLDOWN);
+  pinMode(PIN_FLOAT, INPUT_PULLUP);
 
   // Initial sensor probe — detect if ultrasonic is connected
   readUltrasonic();
@@ -76,7 +76,7 @@ bool SafetyWatchdog::isOpticalHigh() {
 }
 
 bool SafetyWatchdog::isReservoirFull() {
-  // Inverted logic: LOW = Switch open = Reservoir full (when wired to 3.3V with pulldown)
+  // Active LOW with pullup: LOW = float triggered = reservoir full
   return digitalRead(PIN_FLOAT) == LOW;
 }
 
@@ -85,8 +85,17 @@ bool SafetyWatchdog::isReservoirFull() {
 // ============================================================================
 
 void SafetyWatchdog::emergencyShutdown() {
-  allPumpsOff(PumpReason::EMERGENCY_SHUTDOWN);
+  Serial.println("[EMERGENCY] >>> SHUTDOWN: All outputs OFF <<<");
+  for (uint8_t i = 0; i < NUM_OUTPUT_PINS; i++) {
+    digitalWrite(OUTPUT_PINS[i], LOW);
+  }
   _emergency = true;
+  _emergencyDraining = false;
+}
+
+void SafetyWatchdog::clearEmergency() {
+  Serial.println("[EMERGENCY] Emergency state cleared manually.");
+  _emergency = false;
   _emergencyDraining = false;
 }
 
@@ -135,6 +144,11 @@ void SafetyWatchdog::update() {
     exitMaintenance();
   }
 
+  // -- Emergency drain timeout --
+  // CRITICAL: This MUST run even if sensors are disconnected, 
+  // otherwise an active emergency will never time out!
+  _updateEmergencyDrain();
+
   // Skip sensor-based safety during maintenance
   if (_maintenance)
     return;
@@ -144,9 +158,6 @@ void SafetyWatchdog::update() {
     _overflowFlag = false;
     return;
   }
-
-  // -- Emergency drain timeout --
-  _updateEmergencyDrain();
 
   // -- Optical sensor: immediate stop if water at max --
   if (isOpticalHigh()) {

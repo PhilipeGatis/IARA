@@ -35,7 +35,7 @@ constexpr uint8_t PIN_US_RX = 34; // Ultrasonic A02 UART RX (from TX on sensor)
 constexpr uint8_t PIN_OPTICAL =
     4; // Capacitive max-level sensor XKC-Y25-NPN (INPUT_PULLUP, active LOW)
 constexpr uint8_t PIN_FLOAT =
-    5; // Horizontal float switch reservoir (INPUT_PULLUP, active LOW)
+    19; // Horizontal float switch reservoir (Moved from 5 to 19 for stability)
 // --- TFT Display (ST7735, SPI) ---
 // Board pins: VCC, GND, CS, RESET, A0, SDA, SCK, LED
 constexpr uint8_t PIN_TFT_CS = 15;   // CS   — Chip Select
@@ -45,7 +45,7 @@ constexpr uint8_t PIN_TFT_SCK = 16;  // SCK  — SPI Clock
 constexpr int8_t PIN_TFT_RST = -1;   // RESET — Tied to ESP32 EN
 
 // --- Navigation Button ---
-constexpr uint8_t PIN_BTN = 19; // Panel button (INPUT_PULLUP, active LOW)
+constexpr uint8_t PIN_BTN = 255; // Disabled to free D19 for float switch
 
 // --- Display ---
 constexpr unsigned long DISPLAY_TIMEOUT_MS = 30UL * 1000; // 30s auto-off

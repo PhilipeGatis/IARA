@@ -1260,8 +1260,14 @@ void WebManager::processSerialCommands() {
     pumpOn(PIN_CANISTER, PumpReason::MANUAL_PUMP); // SSR: HIGH = OFF
     Serial.println("[CMD] Canister OFF.");
   } else if (cmd == "emergency_stop") {
-    if (_safety)
-      _safety->emergencyShutdown();
+    if (_safety) {
+      if (_safety->isEmergency()) {
+        _safety->clearEmergency();
+        if (_water) _water->stopManual(); // Reset state to IDLE
+      } else {
+        _safety->emergencyShutdown();
+      }
+    }
   } else if (cmd.startsWith("notify_topic ")) {
     String topic = cmd.substring(13);
     topic.trim();

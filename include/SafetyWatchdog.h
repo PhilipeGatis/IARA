@@ -43,6 +43,9 @@ public:
   /// Returns true if currently in emergency state
   bool isEmergency() const { return _emergency; }
 
+  /// Clear the emergency state
+  void clearEmergency();
+
   // ---- Maintenance mode ----
 
   void enterMaintenance();
