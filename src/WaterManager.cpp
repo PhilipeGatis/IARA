@@ -78,6 +78,11 @@ void WaterManager::startTPA(bool manual) {
 
 void WaterManager::abortTPA() {
   Serial.println("[TPA] !!! TPA ABORTED !!!");
+  if (_state == TPAState::DRAINING || _state == TPAState::MANUAL_PUMP_DRAIN) {
+    _captureDrainCalibration();
+  } else if (_state == TPAState::REFILLING || _state == TPAState::MANUAL_PUMP_REFILL) {
+    _captureRefillCalibration();
+  }
   _stopAllTpaActuators(PumpReason::ABORT);
   // Canister back on for safety (SSR: LOW = ON)
   pumpOff(PIN_CANISTER, PumpReason::ABORT);
@@ -112,6 +117,11 @@ void WaterManager::startManualPump(const String &pump, float goalLiters) {
 
 void WaterManager::stopManual() {
   Serial.println("[TPA] Manual operation stopped.");
+  if (_state == TPAState::MANUAL_PUMP_DRAIN) {
+    _captureDrainCalibration();
+  } else if (_state == TPAState::MANUAL_PUMP_REFILL) {
+    _captureRefillCalibration();
+  }
   _stopAllTpaActuators(PumpReason::MANUAL_PUMP);
   _state = TPAState::IDLE;
 }
@@ -433,6 +443,8 @@ void WaterManager::_handleManualPump(uint8_t pin, float flowLPM, bool checkOptic
   // CRITICAL SAFETY: Check optical BEFORE pump-on to prevent race condition
   if (checkOptical && _safety && _safety->isOpticalHigh()) {
     Serial.printf("[TPA] Optical sensor HIGH — manual %s STOPPED (max level).\n", pinName(pin));
+    if (pin == PIN_DRAIN) _captureDrainCalibration();
+    else if (pin == PIN_REFILL) _captureRefillCalibration();
     pumpOff(pin, PumpReason::SAFETY_STOP);
     _state = TPAState::COMPLETE;
     return;
@@ -440,12 +452,18 @@ void WaterManager::_handleManualPump(uint8_t pin, float flowLPM, bool checkOptic
 
   if (digitalRead(pin) == LOW) {
     pumpOn(pin, PumpReason::MANUAL_PUMP);
+    if (_safety && _litersPerCm > 0) {
+      _calStartLevel = _safety->readUltrasonic();
+      _calStartMs = millis();
+    }
   }
 
   if (_manualPumpGoalLiters > 0 && flowLPM > 0) {
     float pumpedLiters = (_stateElapsed() / 60000.0f) * flowLPM;
     if (pumpedLiters >= _manualPumpGoalLiters) {
       Serial.printf("[TPA] Manual %s goal reached: %.1f L\n", pinName(pin), pumpedLiters);
+      if (pin == PIN_DRAIN) _captureDrainCalibration();
+      else if (pin == PIN_REFILL) _captureRefillCalibration();
       pumpOff(pin, PumpReason::TPA_TARGET_REACHED);
       _state = TPAState::COMPLETE;
       return;
@@ -469,6 +487,17 @@ float WaterManager::_calcFlowRate(float startLevel, float endLevel, unsigned lon
     return deltaLiters / deltaMinutes;
   }
   return 0;
+}
+
+void WaterManager::_captureDrainCalibration() {
+  if (_calStartMs > 0 && _litersPerCm > 0 && _safety) {
+    float dist = _safety->readUltrasonic();
+    float flowRate = _calcFlowRate(_calStartLevel, dist, _calStartMs);
+    if (flowRate > 0) {
+      _drainFlowLPM = flowRate;
+      Serial.printf("[TPA] Drain calibrated: %.2f L/min\n", _drainFlowLPM);
+    }
+  }
 }
 
 void WaterManager::_captureRefillCalibration() {

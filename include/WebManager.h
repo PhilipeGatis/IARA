@@ -42,7 +42,7 @@ public:
 
   // ---- Aquarium config ----
   uint32_t getAquariumVolume() const {
-    int16_t effH = (int16_t)_aqHeight; // Volume should be calculated with full height
+    int16_t effH = (int16_t)_aqHeight - _aqMarginCm;
     if (effH <= 0)
       return 0;
     return (uint32_t)effH * _aqLength * _aqWidth / 1000;
@@ -50,6 +50,9 @@ public:
   float getLitersPerCm() const { return (float)_aqLength * _aqWidth / 1000.0f; }
   uint16_t getAqHeight() const { return _aqHeight; }
   uint16_t getSensorFullDistanceCm() const { return _sensorFullDistanceCm; }
+  float getOverflowThresholdCm() const {
+    return _sensorFullDistanceCm > _aqMarginCm ? _sensorFullDistanceCm - _aqMarginCm : 0.0f;
+  }
   float getReservoirSafetyML() const { return _reservoirSafetyML; }
   uint16_t getReservoirVolume() const { return _reservoirVolume; }
   bool isTpaConfigReady() const {
@@ -84,6 +87,7 @@ private:
 
   // Aquarium dimensions (cm)
   uint16_t _aqHeight;        // Altura (cm)
+  uint16_t _aqMarginCm;      // Margem do topo (cm)
   uint16_t _aqLength;        // Comprimento (cm)
   uint16_t _aqWidth;         // Largura (cm)
   uint16_t _sensorFullDistanceCm; // Distância do sensor até a água 100% cheia (cm)
@@ -107,6 +111,7 @@ private:
 
   // Calibration state
   int8_t _calibratingFertChannel = -1;
+  uint32_t _calibrationStartMs = 0;
 
   // NVS persistence
   void _loadParams();

@@ -40,6 +40,9 @@ public:
   /// Open drain, close everything else. Runs for TIMEOUT_EMERGENCY_MS.
   void emergencyDrain();
 
+  /// Set the dynamic overflow threshold (distance from sensor)
+  void setOverflowThresholdCm(float cm) { _overflowThresholdCm = cm > 0 ? cm : 0.1f; }
+
   /// Returns true if currently in emergency state
   bool isEmergency() const { return _emergency; }
 
@@ -59,6 +62,8 @@ public:
 
 private:
   float _lastDistance;
+  float _overflowThresholdCm;
+
   bool _emergency;
   bool _sensorsConnected;
   uint8_t _ultrasonicFailCount;

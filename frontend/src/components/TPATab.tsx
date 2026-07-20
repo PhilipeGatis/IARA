@@ -269,12 +269,21 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                         >
                             {t('tpa.saveConfig')}
                         </button>
-                        <button
-                            onClick={() => handlePump('solenoid', 1)}
-                            className="flex-1 rounded-full bg-blue-500/20 px-6 py-2.5 text-sm font-bold uppercase tracking-wider text-blue-400 border border-blue-500/30 shadow-md transition-all hover:bg-blue-500/30 active:scale-95"
-                        >
-                            {t('tpa.fillReservoir')}
-                        </button>
+                        {status?.tpaState === 'MANUAL_RESERVOIR_FILL' ? (
+                            <button
+                                onClick={() => handlePump('solenoid', 0)}
+                                className="flex-1 rounded-full bg-danger/20 px-6 py-2.5 text-sm font-bold uppercase tracking-wider text-danger border border-danger/30 shadow-md transition-all hover:bg-danger/30 active:scale-95"
+                            >
+                                {t('tpa.stopFill')}
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => handlePump('solenoid', 1)}
+                                className="flex-1 rounded-full bg-blue-500/20 px-6 py-2.5 text-sm font-bold uppercase tracking-wider text-blue-400 border border-blue-500/30 shadow-md transition-all hover:bg-blue-500/30 active:scale-95"
+                            >
+                                {t('tpa.fillReservoir')}
+                            </button>
+                        )}
                     </div>
                     <div className="flex gap-2 mt-2">
                         <button

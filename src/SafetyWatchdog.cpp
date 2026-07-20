@@ -3,7 +3,7 @@
 #include <algorithm> // std::sort
 
 SafetyWatchdog::SafetyWatchdog()
-    : _lastDistance(-1), _emergency(false), _sensorsConnected(false),
+    : _lastDistance(-1), _overflowThresholdCm(5.0f), _emergency(false), _sensorsConnected(false),
       _ultrasonicFailCount(0), _overflowConsecutiveCount(0), _overflowFlag(false), _maintenance(false),
       _maintenanceStart(0), _lastCheckMs(0), _emergencyDraining(false),
       _emergencyDrainStart(0), _medianIndex(0), _medianCount(0) {}
@@ -199,12 +199,11 @@ void SafetyWatchdog::_checkOverflow() {
   if (dist < 0)
     return; // No valid reading
 
-  // Lower distance = higher water level
-  if (dist < LEVEL_SAFETY_MIN_CM && !_emergencyDraining) {
+  // 1. OVERFLOW PROTECTION
+  if (dist < _overflowThresholdCm && !_emergencyDraining) {
     _overflowConsecutiveCount++;
-    Serial.printf(
-        "[Safety] OVERFLOW WARNING! Distance=%.1f cm < %.1f cm (Count: %d/10)\n", dist,
-        LEVEL_SAFETY_MIN_CM, _overflowConsecutiveCount);
+        Serial.printf("[Safety] Overflow warning: dist=%.1f cm < %.1f cm (Count: %d/3)\n", dist,
+                      _overflowThresholdCm, _overflowConsecutiveCount);
     
     if (_overflowConsecutiveCount >= 10) {
       Serial.println("[Safety] CONFIRMED OVERFLOW (10 consecutive readings). Drain temporarily disabled!");
@@ -221,9 +220,9 @@ void SafetyWatchdog::_updateEmergencyDrain() {
 
   unsigned long elapsed = millis() - _emergencyDrainStart;
 
-  // Check if water is now at safe level
+  // Hysteresis: only clear emergency drain if level falls 5cm below threshold
   float dist = _lastDistance;
-  if (dist > LEVEL_SAFETY_MIN_CM + 5.0f) {
+  if (dist > _overflowThresholdCm + 5.0f) {
     pumpOff(PIN_DRAIN, PumpReason::SAFETY_STOP);
     _emergencyDraining = false;
     _emergency = false;

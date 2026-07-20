@@ -201,9 +201,10 @@ String WebManager::_buildStatusJSON() {
   json += "\"tpaPercent\":" + String(_tpaPercent) + ",";
   json += "\"canisterSafePct\":" + String(_canisterSafePct) + ",";
   json += "\"primeMl\":" + String(_primeML, 1) + ",";
-  uint32_t aqVol = (uint32_t)_aqHeight * _aqLength * _aqWidth / 1000;
+  uint32_t aqVol = getAquariumVolume();
   float lPerCm = (float)_aqLength * _aqWidth / 1000.0;
   json += "\"aqHeight\":" + String(_aqHeight) + ",";
+  json += "\"aqMarginCm\":" + String(_aqMarginCm) + ",";
   json += "\"aqLength\":" + String(_aqLength) + ",";
   json += "\"aqWidth\":" + String(_aqWidth) + ",";
   json += "\"sensorFullDistanceCm\":" + String(_sensorFullDistanceCm) + ",";
@@ -300,7 +301,101 @@ void WebManager::_setupRoutes() {
     request->send(200, "application/json", _buildStatusJSON());
   });
 
-  _setupTPARoutes();
+
+
+  // ---- POST /api/tpa/start ----
+  _server.on("/api/tpa/start", HTTP_POST,
+             [this](AsyncWebServerRequest *request) {
+               if (triggerTPA()) {
+                 Serial.println("[Web] TPA started via dashboard");
+                 request->send(200, "application/json", "{\"ok\":true}");
+               } else {
+                 request->send(400, "application/json", "{\"error\":\"Cannot start TPA\"}");
+               }
+             });
+
+  // ---- POST /api/tpa/abort ----
+  _server.on("/api/tpa/abort", HTTP_POST,
+             [this](AsyncWebServerRequest *request) {
+               if (_water)
+                 _water->abortTPA();
+               Serial.println("[Web] TPA aborted via dashboard");
+               request->send(200, "application/json", "{\"ok\":true}");
+             });
+
+  // ---- POST /api/tpa/calibrate-reservoir ----
+  _server.on("/api/tpa/calibrate-reservoir", HTTP_POST,
+             [this](AsyncWebServerRequest *request) {
+               if (_water) {
+                 _water->startReservoirCalibration();
+                 Serial.println("[Web] Reservoir calibration started via dashboard");
+                 request->send(200, "application/json", "{\"ok\":true}");
+               } else {
+                 request->send(500, "application/json", "{\"error\":\"WaterManager not available\"}");
+               }
+             });
+
+  // ---- POST /api/tpa/config (reservoir safety margin) ----
+  _server.on(
+      "/api/tpa/config", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
+      [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
+             size_t index, size_t total) {
+        String body = String((char *)data).substring(0, len);
+        bool changed = false;
+
+        float s = _extractFloat(body, "reservoirSafetyML");
+        if (s >= 0) {
+          _reservoirSafetyML = s;
+          changed = true;
+        }
+
+        if (changed) {
+          _saveParams();
+          Serial.printf("[Web] Reservoir safety margin: %.0f mL\n",
+                        _reservoirSafetyML);
+        }
+        request->send(200, "application/json", "{\"ok\":true}");
+      });
+
+  // ---- POST /api/tpa/pump (Manual Drain/Refill/Solenoid Trigger) ----
+  _server.on(
+      "/api/tpa/pump", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
+      [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
+             size_t index, size_t total) {
+        String body = String((char *)data).substring(0, len);
+        int st = _extractInt(body, "state");
+        
+        // Only block STARTING a pump if TPA is running. We must always allow STOPPING (st == 0)
+        if (st == 1 && _water->getState() != TPAState::IDLE && _water->getState() != TPAState::COMPLETE && _water->getState() != TPAState::ERROR) {
+          request->send(400, "application/json", "{\"error\":\"TPA is running\"}");
+          return;
+        }
+        String pStr = _extractString(body, "pump");
+        float liters = _extractFloat(body, "liters");
+        if (liters < 0) liters = 0;
+
+        if (st == 1) {
+          if (pStr == "solenoid" && _water) {
+            _water->startManualReservoirFill();
+          } else if ((pStr == "drain" || pStr == "refill") && _water) {
+            _water->startManualPump(pStr, liters);
+          } else {
+             // Fallback for direct toggle if needed
+             if (pStr == "drain") pumpOn(PIN_DRAIN, PumpReason::MANUAL_PUMP);
+             else if (pStr == "refill") pumpOn(PIN_REFILL, PumpReason::MANUAL_PUMP);
+             else if (pStr == "solenoid") pumpOn(PIN_SOLENOID, PumpReason::MANUAL_SOLENOID);
+          }
+        } else {
+          if (_water && _water->isRunning()) {
+            _water->stopManual();
+          } else {
+             if (pStr == "drain") pumpOff(PIN_DRAIN, PumpReason::MANUAL_PUMP);
+             else if (pStr == "refill") pumpOff(PIN_REFILL, PumpReason::MANUAL_PUMP);
+             else if (pStr == "solenoid") pumpOff(PIN_SOLENOID, PumpReason::MANUAL_SOLENOID);
+          }
+        }
+        request->send(200, "application/json", "{\"ok\":true}");
+      });
 
   // ---- POST /api/config/aquarium (JSON body) ----
   _server.on(
@@ -314,6 +409,11 @@ void WebManager::_setupRoutes() {
         int h = _extractInt(body, "aqHeight");
         if (h > 0) {
           _aqHeight = h;
+          changed = true;
+        }
+        int m = _extractInt(body, "aqMarginCm");
+        if (m >= 0) {
+          _aqMarginCm = m;
           changed = true;
         }
         int l = _extractInt(body, "aqLength");
@@ -356,10 +456,13 @@ void WebManager::_setupRoutes() {
               _water->setPrimeML(_primeML);
           }
           _saveParams();
+          if (_safety) {
+            _safety->setOverflowThresholdCm(getOverflowThresholdCm());
+          }
           uint32_t vol = getAquariumVolume();
           Serial.printf(
-              "[Web] Aquarium dims: %dx%dx%d cm (sensor %d) = %lu L\n",
-              _aqHeight, _aqLength, _aqWidth, _sensorFullDistanceCm, vol);
+              "[Web] Aquarium dims: %dx%dx%d cm, margin=%d cm, sensorFull=%d cm, vol=%lu L\n",
+              _aqHeight, _aqLength, _aqWidth, _aqMarginCm, _sensorFullDistanceCm, vol);
         }
         request->send(200, "application/json", "{\"ok\":true}");
       });
@@ -966,6 +1069,7 @@ void WebManager::_loadParams() {
   _aqHeight = _prefs.getUShort("aqH", 40);
   _aqLength = _prefs.getUShort("aqL", 60);
   _aqWidth = _prefs.getUShort("aqW", 30);
+  _aqMarginCm = _prefs.getUShort("aqBord", 0);
   _sensorFullDistanceCm = _prefs.getUShort("aqMg", 10); // Reused key for backward compat
   _drainFlowRate = _prefs.getFloat("drFR", 0);
   _refillFlowRate = _prefs.getFloat("rfFR", 0);
@@ -980,11 +1084,15 @@ void WebManager::_loadParams() {
     _primeML = _reservoirVolume * _primeRatio;
   }
 
+  if (_safety) {
+    _safety->setOverflowThresholdCm(getOverflowThresholdCm());
+  }
+
   Serial.println("[Config] ====== NVS LOADED (namespace: aqua) ======");
   Serial.printf("[Config]   TPA: interval=%dd, auto=%s, hour=%02d:%02d, pct=%d%%\n",
     _tpaInterval, _tpaAutoEnabled ? "ON" : "OFF", _tpaHour, _tpaMinute, _tpaPercent);
-  Serial.printf("[Config]   Aquarium: %dx%dx%d cm, sensorFull=%d cm\n",
-    _aqHeight, _aqLength, _aqWidth, _sensorFullDistanceCm);
+  Serial.printf("[Config]   Aquarium: %dx%dx%d cm, margin=%d cm, sensorFull=%d cm\n",
+    _aqHeight, _aqLength, _aqWidth, _aqMarginCm, _sensorFullDistanceCm);
   Serial.printf("[Config]   Drain flow: %.2f mL/s, Refill flow: %.2f mL/s\n",
     _drainFlowRate, _refillFlowRate);
   Serial.printf("[Config]   Prime: %.1f mL, ratio=%.5f, enabled=%s\n",
@@ -1009,6 +1117,7 @@ void WebManager::_saveParams() {
   _prefs.putUShort("aqH", _aqHeight);
   _prefs.putUShort("aqL", _aqLength);
   _prefs.putUShort("aqW", _aqWidth);
+  _prefs.putUShort("aqBord", _aqMarginCm);
   _prefs.putUShort("aqMg", _sensorFullDistanceCm);
   _prefs.putFloat("drFR", _drainFlowRate);
   _prefs.putFloat("rfFR", _refillFlowRate);

@@ -84,7 +84,7 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                 <div className="mb-5">
                     {(() => {
                         const wl = status?.waterLevel ?? 0;
-                        const refCm = status?.aqHeight || 20;
+                        const refCm = (status?.aqHeight || 20) - (status?.aqMarginCm || 0);
                         const sensorFull = status?.sensorFullDistanceCm || 0;
                         
                         let pct = 0;

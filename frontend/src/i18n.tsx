@@ -85,6 +85,7 @@ const translations = {
     'tpa.testDrain': { pt: 'Testar Esgoto', en: 'Test Drain', ja: '排水テスト' },
     'tpa.testRefill': { pt: 'Testar Recalque', en: 'Test Refill', ja: '給水テスト' },
     'tpa.fillReservoir': { pt: 'Encher Reservatório', en: 'Fill Reservoir', ja: '貯水槽を満水にする' },
+    'tpa.stopFill': { pt: 'Parar Enchimento', en: 'Stop Fill', ja: '給水停止' },
     'tpa.goalLiters': { pt: 'Meta (L)', en: 'Goal (L)', ja: '目標 (L)' },
     'tpa.pumpControl': { pt: 'Controle Manual (Ligar/Desligar)', en: 'Manual Control (On/Off)', ja: '手動制御 (オン/オフ)' },
     'tpa.primeDose': { pt: 'Dose de Prime no Reservatório', en: 'Prime Dose in Reservoir', ja: '貯水槽のプライム投与量' },

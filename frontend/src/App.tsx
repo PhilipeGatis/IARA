@@ -30,6 +30,7 @@ export type AQStatus = {
   primeML: number;
   primeEnabled: boolean;
   aqHeight: number;
+  aqMarginCm: number;
   aqLength: number;
   aqWidth: number;
   sensorFullDistanceCm: number;

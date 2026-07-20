@@ -96,7 +96,6 @@ constexpr unsigned long ULTRASONIC_PULSE_TIMEOUT_US =
     30000; // 30 ms echo timeout
 
 // -- Water levels (distance from sensor in cm — lower distance = higher water)
-constexpr float LEVEL_SAFETY_MIN_CM = 5.0f;     // Overflow alert
 constexpr float LEVEL_DRAIN_TARGET_CM = 20.0f;  // Default TPA drain target
 constexpr float LEVEL_REFILL_TARGET_CM = 10.0f; // Default refill setpoint
 

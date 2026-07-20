@@ -167,6 +167,7 @@ private:
   void _stopAllTpaActuators(PumpReason reason);
 
   /// Capture inline calibration flow rate
+  void _captureDrainCalibration();
   void _captureRefillCalibration();
 
   /// Calculate flow rate from calibration data (DRY helper)
