@@ -36,14 +36,20 @@ void delay(unsigned long ms) { mock_millis_value += ms; }
 void delayMicroseconds(unsigned int us) { /* no-op */ }
 void yield() { /* no-op */ }
 
-// ---- pulseIn ----
-unsigned long mock_pulseIn_value = 0;
-unsigned long pulseIn(uint8_t pin, uint8_t state, unsigned long timeout) {
-  return mock_pulseIn_value;
-}
-
 // ---- Serial ----
 MockSerial Serial;
+MockSerial Serial2;
+
+// ---- A02YYUW UART Frame Helper ----
+void mock_inject_a02_distance(float distanceCm) {
+  uint16_t distMm = (uint16_t)(distanceCm * 10.0f);
+  uint8_t header = 0xFF;
+  uint8_t dataH = (distMm >> 8) & 0xFF;
+  uint8_t dataL = distMm & 0xFF;
+  uint8_t checksum = (header + dataH + dataL) & 0xFF;
+  uint8_t frame[] = { header, dataH, dataL, checksum };
+  Serial2.mock_inject(frame, 4);
+}
 
 // ---- WiFi ----
 MockWiFiClass WiFi;

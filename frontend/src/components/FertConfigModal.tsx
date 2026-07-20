@@ -218,7 +218,7 @@ export default function FertConfigModal({ index, s, onClose }: Props) {
                             <label className="text-[10px] font-bold text-muted uppercase tracking-wider">{t('fert.measureResult')}</label>
                             <div className="flex gap-2">
                                 <input
-                                    type="number" step="0.1" min="0" placeholder={t('tpa.mlMeasured')}
+                                    type="number" step="0.1" min="0" placeholder={t('fert.mlMeasured')}
                                     className="w-full min-w-0 flex-1 rounded-t-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm outline-none transition-colors focus:border-accent"
                                     value={calibMl} onChange={(e) => setCalibMl(e.target.value)}
                                 />

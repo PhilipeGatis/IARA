@@ -106,9 +106,7 @@ private:
   unsigned long _rebootMs = 0;
 
   // Calibration state
-  uint8_t _calibratingPin = 0;
   int8_t _calibratingFertChannel = -1;
-  unsigned long _calibrationStartMs = 0;
 
   // NVS persistence
   void _loadParams();

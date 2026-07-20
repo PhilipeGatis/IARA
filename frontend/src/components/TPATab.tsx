@@ -17,11 +17,8 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
     // Reservoir Safety
     const [safetyML, setSafetyML] = useState('');
     const [primeEnabled, setPrimeEnabled] = useState(true);
-    const [drainMl, setDrainMl] = useState('');
-    const [refillMl, setRefillMl] = useState('');
     const [drainGoal, setDrainGoal] = useState('');
     const [refillGoal, setRefillGoal] = useState('');
-    const [running3s, setRunning3s] = useState<string | null>(null);
 
     // Prime config modal
     const [showPrimeConfig, setShowPrimeConfig] = useState(false);
@@ -290,10 +287,10 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                     {status?.tpaState !== 'IDLE' && status?.tpaState !== 'COMPLETE' && (
                         <div className="mt-4 flex flex-col gap-2">
                             <button
-                                onClick={() => api('POST', '/api/emergency/stop')}
+                                onClick={() => api('POST', '/api/tpa/abort')}
                                 className="rounded-xl bg-danger px-4 py-3 text-sm font-bold uppercase tracking-wider text-white transition hover:bg-red-600 active:scale-95 shadow-md border border-red-500/50"
                             >
-                                {t('tpa.cancel')} Parada de Emergência
+                                {t('tpa.abort')}
                             </button>
                         </div>
                     )}
@@ -301,84 +298,23 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                 </div>
             </div>
 
-            {/* PUMP CALIBRATION CARD */}
+            {/* FLOW RATES CARD */}
             <div className="rounded-2xl bg-card p-5 shadow-md">
-                <h2 className="mb-4 text-base font-medium tracking-wide text-text/90 uppercase">{t('tpa.pumpCalib')}</h2>
-
-                {/* Drain (Diafragma) */}
-                <div className="flex flex-col gap-3 mb-5">
-                    <label className="text-xs font-bold text-muted uppercase tracking-wider">{t('tpa.drainPump')}</label>
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={async () => {
-                                setRunning3s('drain');
-                                await fetch('/api/tpa/run3s', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pump: 'drain' }) });
-                                setRunning3s(null);
-                            }}
-                            disabled={running3s !== null}
-                            className="flex-none rounded-md bg-accent/20 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-accent transition hover:bg-accent/30 active:scale-95 disabled:opacity-50"
-                        >
-                            {running3s === 'drain' ? t('tpa.running') : t('tpa.run3s')}
-                        </button>
-                        <input
-                            type="number" step="0.1" min="0" placeholder={t('tpa.mlMeasured')}
-                            className="flex-1 rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
-                            value={drainMl} onChange={e => setDrainMl(e.target.value)}
-                        />
-                        <button
-                            onClick={() => { api('POST', '/api/tpa/calibrate', { pump: 'drain', ml: parseFloat(drainMl) }); setDrainMl(''); }}
-                            disabled={!drainMl}
-                            className="flex-none rounded-md bg-accent2/20 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-accent2 transition hover:bg-accent2/30 active:scale-95 disabled:opacity-50"
-                        >
-                            {t('tpa.calibrate')}
-                        </button>
+                <h2 className="mb-4 text-base font-medium tracking-wide text-text/90 uppercase">{t('tpa.flowRates')}</h2>
+                <div className="flex flex-col gap-4">
+                    <div className="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/10">
+                        <span className="text-sm font-bold text-muted uppercase">{t('tpa.drainPump')}</span>
+                        <span className="font-mono text-accent font-bold">
+                            {status?.drainFlowRate ? `${status.drainFlowRate.toFixed(2)} mL/s` : '--'}
+                        </span>
                     </div>
-                    <span className="text-[10px] text-muted italic">{t('tpa.flowRate')} <strong className="text-accent">{status?.drainFlowRate ? `${status.drainFlowRate.toFixed(2)} mL/s` : t('tpa.notCalibrated')}</strong></span>
-                    <button
-                        onMouseDown={() => handlePump('drain', 1)} onMouseUp={() => handlePump('drain', 0)} onMouseLeave={() => handlePump('drain', 0)}
-                        onTouchStart={() => handlePump('drain', 1)} onTouchEnd={() => handlePump('drain', 0)} onTouchCancel={() => handlePump('drain', 0)}
-                        className="mt-1 w-full rounded-md border border-muted bg-transparent px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-muted transition hover:bg-white/5 active:bg-white/10 select-none"
-                    >
-                        {t('tpa.purgeDrain')}
-                    </button>
-                </div>
-
-                {/* Refill (Recalque) */}
-                <div className="flex flex-col gap-3">
-                    <label className="text-xs font-bold text-muted uppercase tracking-wider">{t('tpa.refillPump')}</label>
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={async () => {
-                                setRunning3s('refill');
-                                await fetch('/api/tpa/run3s', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pump: 'refill' }) });
-                                setRunning3s(null);
-                            }}
-                            disabled={running3s !== null}
-                            className="flex-none rounded-md bg-accent/20 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-accent transition hover:bg-accent/30 active:scale-95 disabled:opacity-50"
-                        >
-                            {running3s === 'refill' ? t('tpa.running') : t('tpa.run3s')}
-                        </button>
-                        <input
-                            type="number" step="0.1" min="0" placeholder={t('tpa.mlMeasured')}
-                            className="flex-1 rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
-                            value={refillMl} onChange={e => setRefillMl(e.target.value)}
-                        />
-                        <button
-                            onClick={() => { api('POST', '/api/tpa/calibrate', { pump: 'refill', ml: parseFloat(refillMl) }); setRefillMl(''); }}
-                            disabled={!refillMl}
-                            className="flex-none rounded-md bg-accent2/20 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-accent2 transition hover:bg-accent2/30 active:scale-95 disabled:opacity-50"
-                        >
-                            {t('tpa.calibrate')}
-                        </button>
+                    <div className="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/10">
+                        <span className="text-sm font-bold text-muted uppercase">{t('tpa.refillPump')}</span>
+                        <span className="font-mono text-accent2 font-bold">
+                            {status?.refillFlowRate ? `${status.refillFlowRate.toFixed(2)} mL/s` : '--'}
+                        </span>
                     </div>
-                    <span className="text-[10px] text-muted italic">{t('tpa.flowRate')} <strong className="text-accent">{status?.refillFlowRate ? `${status.refillFlowRate.toFixed(2)} mL/s` : t('tpa.notCalibrated')}</strong></span>
-                    <button
-                        onMouseDown={() => handlePump('refill', 1)} onMouseUp={() => handlePump('refill', 0)} onMouseLeave={() => handlePump('refill', 0)}
-                        onTouchStart={() => handlePump('refill', 1)} onTouchEnd={() => handlePump('refill', 0)} onTouchCancel={() => handlePump('refill', 0)}
-                        className="mt-1 w-full rounded-md border border-muted bg-transparent px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-muted transition hover:bg-white/5 active:bg-white/10 select-none"
-                    >
-                        {t('tpa.purgeRefill')}
-                    </button>
+                    <span className="text-[10px] text-muted italic text-center mt-2">{t('tpa.autoCalibrated')}</span>
                 </div>
             </div>
 

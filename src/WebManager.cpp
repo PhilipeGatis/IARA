@@ -111,13 +111,6 @@ void WebManager::update() {
     ESP.restart();
   }
 
-  // Handle non-blocking calibration pulse
-  if (_calibratingPin > 0 && (now - _calibrationStartMs >= CALIBRATION_PULSE_MS)) {
-    pumpOff(_calibratingPin, PumpReason::CALIBRATION);
-    _calibratingPin = 0;
-    Serial.println("[Web] Calibration pulse finished.");
-  }
-
   // Handle non-blocking fert calibration pulse
   if (_calibratingFertChannel >= 0 && (now - _calibrationStartMs >= CALIBRATION_PULSE_MS)) {
     if (_fert) {
@@ -307,99 +300,7 @@ void WebManager::_setupRoutes() {
     request->send(200, "application/json", _buildStatusJSON());
   });
 
-  // ---- POST /api/tpa/start ----
-  _server.on("/api/tpa/start", HTTP_POST,
-             [this](AsyncWebServerRequest *request) {
-               if (triggerTPA()) {
-                 Serial.println("[Web] TPA started via dashboard");
-                 request->send(200, "application/json", "{\"ok\":true}");
-               } else {
-                 request->send(400, "application/json", "{\"error\":\"Cannot start TPA\"}");
-               }
-             });
-
-  // ---- POST /api/tpa/abort ----
-  _server.on("/api/tpa/abort", HTTP_POST,
-             [this](AsyncWebServerRequest *request) {
-               if (_water)
-                 _water->abortTPA();
-               Serial.println("[Web] TPA aborted via dashboard");
-               request->send(200, "application/json", "{\"ok\":true}");
-             });
-
-  // ---- POST /api/tpa/calibrate-reservoir ----
-  _server.on("/api/tpa/calibrate-reservoir", HTTP_POST,
-             [this](AsyncWebServerRequest *request) {
-               if (_water) {
-                 _water->startReservoirCalibration();
-                 Serial.println("[Web] Reservoir calibration started via dashboard");
-                 request->send(200, "application/json", "{\"ok\":true}");
-               } else {
-                 request->send(500, "application/json", "{\"error\":\"WaterManager not available\"}");
-               }
-             });
-
-  // ---- POST /api/tpa/config (reservoir safety margin) ----
-  _server.on(
-      "/api/tpa/config", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
-      [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
-             size_t index, size_t total) {
-        String body = String((char *)data).substring(0, len);
-        bool changed = false;
-
-        float s = _extractFloat(body, "reservoirSafetyML");
-        if (s >= 0) {
-          _reservoirSafetyML = s;
-          changed = true;
-        }
-
-        if (changed) {
-          _saveParams();
-          Serial.printf("[Web] Reservoir safety margin: %.0f mL\n",
-                        _reservoirSafetyML);
-        }
-        request->send(200, "application/json", "{\"ok\":true}");
-      });
-
-  // ---- POST /api/tpa/pump (Manual Drain/Refill/Solenoid Trigger) ----
-  _server.on(
-      "/api/tpa/pump", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
-      [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
-             size_t index, size_t total) {
-        String body = String((char *)data).substring(0, len);
-        int st = _extractInt(body, "state");
-        
-        // Only block STARTING a pump if TPA is running. We must always allow STOPPING (st == 0)
-        if (st == 1 && _water->getState() != TPAState::IDLE && _water->getState() != TPAState::COMPLETE && _water->getState() != TPAState::ERROR) {
-          request->send(400, "application/json", "{\"error\":\"TPA is running\"}");
-          return;
-        }
-        String pStr = _extractString(body, "pump");
-        float liters = _extractFloat(body, "liters");
-        if (liters < 0) liters = 0;
-
-        if (st == 1) {
-          if (pStr == "solenoid" && _water) {
-            _water->startManualReservoirFill();
-          } else if ((pStr == "drain" || pStr == "refill") && _water) {
-            _water->startManualPump(pStr, liters);
-          } else {
-             // Fallback for direct toggle if needed
-             if (pStr == "drain") pumpOn(PIN_DRAIN, PumpReason::MANUAL_PUMP);
-             else if (pStr == "refill") pumpOn(PIN_REFILL, PumpReason::MANUAL_PUMP);
-             else if (pStr == "solenoid") pumpOn(PIN_SOLENOID, PumpReason::MANUAL_SOLENOID);
-          }
-        } else {
-          if (_water && _water->isRunning()) {
-            _water->stopManual();
-          } else {
-             if (pStr == "drain") pumpOff(PIN_DRAIN, PumpReason::MANUAL_PUMP);
-             else if (pStr == "refill") pumpOff(PIN_REFILL, PumpReason::MANUAL_PUMP);
-             else if (pStr == "solenoid") pumpOff(PIN_SOLENOID, PumpReason::MANUAL_SOLENOID);
-          }
-        }
-        request->send(200, "application/json", "{\"ok\":true}");
-      });
+  _setupTPARoutes();
 
   // ---- POST /api/config/aquarium (JSON body) ----
   _server.on(
@@ -495,65 +396,6 @@ void WebManager::_setupRoutes() {
       request->send(500, "application/json", "{\"error\":\"Failed to get NVS stats\"}");
     }
   });
-
-  // ---- POST /api/tpa/run3s (JSON body: {"pump": "drain" | "refill"}) ----
-  _server.on(
-      "/api/tpa/run3s", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
-      [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
-             size_t index, size_t total) {
-        String body = String((char *)data).substring(0, len);
-        String pStr = _extractString(body, "pump");
-        uint8_t pin = 0;
-        if (pStr == "drain")
-          pin = PIN_DRAIN;
-        else if (pStr == "refill")
-          pin = PIN_REFILL;
-
-        if (pin > 0) {
-          pumpOn(pin, PumpReason::CALIBRATION);
-          _calibratingPin = pin;
-          _calibrationStartMs = millis();
-          Serial.printf("[Web] %s pump calibration started (non-blocking)\n", pStr.c_str());
-        }
-        request->send(200, "application/json", "{\"ok\":true}");
-      });
-
-  _server.on(
-      "/api/tpa/calibrate", HTTP_POST, [this](AsyncWebServerRequest *request) {
-        if (request->_tempObject) {
-          String body = *(String *)request->_tempObject;
-          String pStr = _extractString(body, "pump");
-          float ml = _extractFloat(body, "ml");
-          if (ml > 0.1f) {
-            float rate = ml / (CALIBRATION_PULSE_MS / 1000.0f);
-            if (pStr == "drain") {
-              _drainFlowRate = rate;
-              if (_water) _water->setDrainFlowLPM(rate * ML_PER_SEC_TO_LPM);
-              Serial.printf("[Web] Drain flow rate calibrated: %.2f mL/s\n", rate);
-            } else if (pStr == "refill") {
-              _refillFlowRate = rate;
-              if (_water) _water->setRefillFlowLPM(rate * ML_PER_SEC_TO_LPM);
-              Serial.printf("[Web] Refill flow rate calibrated: %.2f mL/s\n", rate);
-            }
-            _saveParams();
-            if (_water) _water->saveCalibration();
-          }
-          request->send(200, "application/json", "{\"ok\":true}");
-          delete (String *)request->_tempObject;
-          request->_tempObject = NULL;
-        } else {
-          request->send(400, "application/json", "{\"error\":\"No body\"}");
-        }
-      },
-      NULL,
-      [](AsyncWebServerRequest *request, uint8_t *data, size_t len,
-             size_t index, size_t total) {
-        if (!index) {
-          request->_tempObject = new String();
-        }
-        String *body = (String *)request->_tempObject;
-        body->concat((char *)data, len);
-      });
 
   // ---- POST /api/maintenance/toggle ----
   _server.on("/api/maintenance/toggle", HTTP_POST,

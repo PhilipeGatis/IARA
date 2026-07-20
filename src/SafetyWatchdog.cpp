@@ -6,7 +6,7 @@ SafetyWatchdog::SafetyWatchdog()
     : _lastDistance(-1), _emergency(false), _sensorsConnected(false),
       _ultrasonicFailCount(0), _overflowConsecutiveCount(0), _overflowFlag(false), _maintenance(false),
       _maintenanceStart(0), _lastCheckMs(0), _emergencyDraining(false),
-      _emergencyDrainStart(0) {}
+      _emergencyDrainStart(0), _medianIndex(0), _medianCount(0) {}
 
 void SafetyWatchdog::begin() {
   // Ultrasonic A02 UART
@@ -17,6 +17,12 @@ void SafetyWatchdog::begin() {
 
   // Float switch (active HIGH, pulled down, connected to 3.3V)
   pinMode(PIN_FLOAT, INPUT_PULLUP);
+
+  // Give the A02YYUW sensor time to power up and start transmitting.
+  // Without this delay, Serial2 reads garbage on boot and the sensor
+  // appears disconnected until physically re-plugged.
+  delay(500);
+  while (Serial2.available()) Serial2.read(); // Flush any startup noise
 
   // Initial sensor probe — detect if ultrasonic is connected
   readUltrasonic();
@@ -44,7 +50,17 @@ float SafetyWatchdog::readUltrasonic() {
       if (((header + dataH + dataL) & 0xFF) == sum) {
         float distance = ((dataH << 8) | dataL) / 10.0f; // mm to cm
         if (distance > 0 && distance <= ULTRASONIC_MAX_DISTANCE_CM) {
-          _lastDistance = distance;
+          // Store in median buffer (circular)
+          _medianBuffer[_medianIndex] = distance;
+          _medianIndex = (_medianIndex + 1) % MEDIAN_BUFFER_SIZE;
+          if (_medianCount < MEDIAN_BUFFER_SIZE) _medianCount++;
+
+          // Calculate median of available samples
+          float sorted[MEDIAN_BUFFER_SIZE];
+          memcpy(sorted, _medianBuffer, _medianCount * sizeof(float));
+          std::sort(sorted, sorted + _medianCount);
+          _lastDistance = sorted[_medianCount / 2];
+
           newData = true;
           lastValidMs = millis();
         }
@@ -148,6 +164,11 @@ void SafetyWatchdog::update() {
   // CRITICAL: This MUST run even if sensors are disconnected, 
   // otherwise an active emergency will never time out!
   _updateEmergencyDrain();
+
+  // Always read the ultrasonic sensor so it can reconnect after boot.
+  // Without this, if the sensor misses the initial probe in begin(),
+  // _sensorsConnected stays false forever (deadlock).
+  readUltrasonic();
 
   // Skip sensor-based safety during maintenance
   if (_maintenance)

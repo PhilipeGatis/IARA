@@ -100,10 +100,15 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
 
                         const color = !valid ? 'text-muted' : pct < 25 ? 'text-danger' : pct < 50 ? 'text-warn' : 'text-accent2';
                         const barColor = !valid ? 'bg-muted' : pct < 25 ? 'bg-danger' : pct < 50 ? 'bg-warn' : 'bg-accent2';
+                        
+                        const litersDisplay = (status?.aquariumVolume && valid) 
+                            ? `(~${(status.aquariumVolume * (pct / 100)).toFixed(1)} L)` 
+                            : '';
+
                         return (
                             <>
                                 <div className="mb-2 flex justify-between text-sm font-medium">
-                                    <span className="text-muted tracking-wide">{t('home.waterLevel')} {valid && <span className="text-[10px]">({wl}cm)</span>}</span>
+                                    <span className="text-muted tracking-wide">{t('home.waterLevel')} {valid && litersDisplay && <span className="text-[10px] ml-1">{litersDisplay}</span>}</span>
                                     <span className={`font-mono text-lg ${color}`}>
                                         {status && valid ? `${pct}%` : '--'}
                                     </span>

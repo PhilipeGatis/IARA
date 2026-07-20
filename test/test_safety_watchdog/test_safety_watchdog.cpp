@@ -1,6 +1,7 @@
 // ============================================================================
 // SafetyWatchdog Unit Tests
-// Tests: sensor reads, emergency actions, maintenance mode, GPIO state
+// Tests: sensor reads, emergency actions, maintenance mode, GPIO state,
+//        median filter, UART A02YYUW protocol
 // ============================================================================
 
 #include "Arduino.h"
@@ -10,7 +11,7 @@
 void setUp() {
   mock_reset_pins();
   mock_millis_value = 0;
-  mock_pulseIn_value = 0;
+  Serial2.mock_clear();
 }
 
 void tearDown() {}
@@ -23,10 +24,8 @@ void test_begin_sets_pin_modes() {
   SafetyWatchdog sw;
   sw.begin();
 
-  TEST_ASSERT_EQUAL(OUTPUT, mock_pin_mode[PIN_TRIG]);
-  TEST_ASSERT_EQUAL(INPUT, mock_pin_mode[PIN_ECHO]);
   TEST_ASSERT_EQUAL(INPUT_PULLUP, mock_pin_mode[PIN_OPTICAL]);
-  TEST_ASSERT_EQUAL(INPUT_PULLDOWN, mock_pin_mode[PIN_FLOAT]);
+  TEST_ASSERT_EQUAL(INPUT_PULLUP, mock_pin_mode[PIN_FLOAT]);
 }
 
 // ----------------------------------------------------------------------------
@@ -54,19 +53,20 @@ void test_optical_high_means_normal() {
 // Float Switch
 // ----------------------------------------------------------------------------
 
-void test_float_high_means_reservoir_full() {
+void test_float_low_means_reservoir_full() {
+  SafetyWatchdog sw;
+  sw.begin();
+
+  // Active LOW with pullup: LOW = float triggered = reservoir full
+  mock_pin_read_value[PIN_FLOAT] = LOW;
+  TEST_ASSERT_TRUE(sw.isReservoirFull());
+}
+
+void test_float_high_means_reservoir_empty() {
   SafetyWatchdog sw;
   sw.begin();
 
   mock_pin_read_value[PIN_FLOAT] = HIGH;
-  TEST_ASSERT_TRUE(sw.isReservoirFull());
-}
-
-void test_float_low_means_reservoir_empty() {
-  SafetyWatchdog sw;
-  sw.begin();
-
-  mock_pin_read_value[PIN_FLOAT] = LOW;
   TEST_ASSERT_FALSE(sw.isReservoirFull());
 }
 
@@ -169,35 +169,77 @@ void test_maintenance_persists_within_duration() {
 }
 
 // ----------------------------------------------------------------------------
-// Ultrasonic (with mock pulseIn)
+// Ultrasonic (A02YYUW UART)
 // ----------------------------------------------------------------------------
 
 void test_ultrasonic_valid_reading() {
   SafetyWatchdog sw;
   sw.begin();
-
-  // Simulate 15cm distance: duration = (15 * 2) / 0.0343 ≈ 875 us
-  mock_pulseIn_value = 875;
+  mock_inject_a02_distance(15.0f); // 15cm
 
   float dist = sw.readUltrasonic();
-  // Should be approximately 15 cm
-  TEST_ASSERT_FLOAT_WITHIN(2.0f, 15.0f, dist);
+  TEST_ASSERT_FLOAT_WITHIN(1.0f, 15.0f, dist);
 }
 
-void test_ultrasonic_no_reading_returns_last() {
+void test_ultrasonic_no_data_returns_last() {
   SafetyWatchdog sw;
   sw.begin();
+  mock_inject_a02_distance(15.0f);
+  sw.readUltrasonic(); // Consume the frame
 
-  // First: valid reading
-  mock_pulseIn_value = 875; // ~15cm
-  sw.readUltrasonic();
-
-  // Then: no echo
-  mock_pulseIn_value = 0;
+  Serial2.mock_clear(); // No new data
   float dist = sw.readUltrasonic();
 
   // Should return last valid
-  TEST_ASSERT_FLOAT_WITHIN(2.0f, 15.0f, dist);
+  TEST_ASSERT_FLOAT_WITHIN(1.0f, 15.0f, dist);
+}
+
+void test_ultrasonic_rejects_bad_checksum() {
+  SafetyWatchdog sw;
+  sw.begin();
+
+  // Inject a frame with invalid checksum
+  uint8_t badFrame[] = { 0xFF, 0x00, 0x64, 0x00 }; // checksum should be 0x63
+  Serial2.mock_inject(badFrame, 4);
+
+  float dist = sw.readUltrasonic();
+  // Should remain at -1 (no valid reading)
+  TEST_ASSERT_EQUAL_FLOAT(-1.0f, dist);
+}
+
+// ----------------------------------------------------------------------------
+// Median Filter
+// ----------------------------------------------------------------------------
+
+void test_median_filter_rejects_spike() {
+  SafetyWatchdog sw;
+  sw.begin();
+
+  // Inject 5 readings: 4 normal (~15cm) + 1 spike (2cm)
+  float readings[] = { 15.0f, 15.1f, 2.0f, 14.9f, 15.2f };
+  for (int i = 0; i < 5; i++) {
+    mock_inject_a02_distance(readings[i]);
+    sw.readUltrasonic();
+  }
+
+  // Median of [2.0, 14.9, 15.0, 15.1, 15.2] sorted = 15.0
+  float dist = sw.getLastDistance();
+  TEST_ASSERT_FLOAT_WITHIN(0.5f, 15.0f, dist);
+}
+
+void test_median_filter_with_partial_buffer() {
+  SafetyWatchdog sw;
+  sw.begin();
+
+  // Only 2 readings
+  mock_inject_a02_distance(10.0f);
+  sw.readUltrasonic();
+  mock_inject_a02_distance(12.0f);
+  sw.readUltrasonic();
+
+  // With 2 samples, median = sorted[1] = 12.0
+  float dist = sw.getLastDistance();
+  TEST_ASSERT_FLOAT_WITHIN(1.0f, 12.0f, dist);
 }
 
 // ----------------------------------------------------------------------------
@@ -206,16 +248,15 @@ void test_ultrasonic_no_reading_returns_last() {
 
 void test_optical_flag_set_on_update() {
   SafetyWatchdog sw;
-  mock_pulseIn_value = 1750; // Ensure sensor appears connected on begin()
   sw.begin();
-
-  // Set ultrasonic to a safe distance (so overflow check doesn't trigger)
-  mock_pulseIn_value = 1750; // ~30cm — safe
+  mock_inject_a02_distance(30.0f); // Ensure sensor connected
+  sw.readUltrasonic();
 
   // Optical sensor triggered
   mock_pin_read_value[PIN_OPTICAL] = LOW;
 
   mock_millis_value = SAFETY_CHECK_INTERVAL_MS + 1;
+  mock_inject_a02_distance(30.0f); // Keep sensor data flowing
   sw.update();
 
   TEST_ASSERT_TRUE(sw.overflowDetected());
@@ -227,13 +268,14 @@ void test_optical_flag_set_on_update() {
 
 void test_no_overflow_when_optical_clear() {
   SafetyWatchdog sw;
-  mock_pulseIn_value = 1750; // Ensure sensor appears connected on begin()
   sw.begin();
+  mock_inject_a02_distance(30.0f);
+  sw.readUltrasonic();
 
-  mock_pulseIn_value = 1750;
   mock_pin_read_value[PIN_OPTICAL] = HIGH; // Normal
 
   mock_millis_value = SAFETY_CHECK_INTERVAL_MS + 1;
+  mock_inject_a02_distance(30.0f);
   sw.update();
 
   TEST_ASSERT_FALSE(sw.overflowDetected());
@@ -254,8 +296,8 @@ int main(int argc, char **argv) {
   RUN_TEST(test_optical_high_means_normal);
 
   // Float switch
-  RUN_TEST(test_float_high_means_reservoir_full);
-  RUN_TEST(test_float_low_means_reservoir_empty);
+  RUN_TEST(test_float_low_means_reservoir_full);
+  RUN_TEST(test_float_high_means_reservoir_empty);
 
   // Emergency
   RUN_TEST(test_emergency_shutdown_all_pins_low);
@@ -266,9 +308,14 @@ int main(int argc, char **argv) {
   RUN_TEST(test_maintenance_auto_expires);
   RUN_TEST(test_maintenance_persists_within_duration);
 
-  // Ultrasonic
+  // Ultrasonic (A02YYUW UART)
   RUN_TEST(test_ultrasonic_valid_reading);
-  RUN_TEST(test_ultrasonic_no_reading_returns_last);
+  RUN_TEST(test_ultrasonic_no_data_returns_last);
+  RUN_TEST(test_ultrasonic_rejects_bad_checksum);
+
+  // Median filter
+  RUN_TEST(test_median_filter_rejects_spike);
+  RUN_TEST(test_median_filter_with_partial_buffer);
 
   // Overflow flags
   RUN_TEST(test_optical_flag_set_on_update);

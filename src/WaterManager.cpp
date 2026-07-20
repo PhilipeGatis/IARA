@@ -128,6 +128,17 @@ float WaterManager::getPumpGoalLiters() const {
 }
 
 float WaterManager::getPumpProgressLiters() const {
+  // Use real sensor data for accurate progress when available
+  if (_safety && _litersPerCm > 0 && _calStartLevel > 0) {
+    float currentLevel = _safety->getLastDistance();
+    if (currentLevel > 0) {
+      float deltaCm = (_state == TPAState::DRAINING || _state == TPAState::MANUAL_PUMP_DRAIN)
+        ? (currentLevel - _calStartLevel)    // draining: distance increases
+        : (_calStartLevel - currentLevel);   // refilling: distance decreases
+      if (deltaCm > 0) return deltaCm * _litersPerCm;
+    }
+  }
+  // Fallback: time-based estimation
   if (_state == TPAState::MANUAL_PUMP_DRAIN || _state == TPAState::DRAINING) {
     return (_stateElapsed() / 60000.0f) * _drainFlowLPM;
   } else if (_state == TPAState::MANUAL_PUMP_REFILL || _state == TPAState::REFILLING) {
@@ -241,17 +252,18 @@ void WaterManager::_handleDraining() {
   // Read ultrasonic
   if (_safety) {
     float dist = _safety->readUltrasonic();
+
+    // Live flow rate recalibration during operation
+    if (dist > 0 && _calStartMs > 0 && _litersPerCm > 0) {
+      float liveRate = _calcFlowRate(_calStartLevel, dist, _calStartMs);
+      if (liveRate > 0.01f) _drainFlowLPM = liveRate;
+    }
+
     if (dist >= _drainTargetCm) {
       // Target reached (higher distance = lower water)
       Serial.printf("[TPA] Drain target reached: %.1f cm\n", dist);
       pumpOff(PIN_DRAIN, PumpReason::TPA_TARGET_REACHED);
-
-      // Inline calibration: calculate drain flow rate
-      float flowRate = _calcFlowRate(_calStartLevel, dist, _calStartMs);
-      if (flowRate > 0) {
-        _drainFlowLPM = flowRate;
-        Serial.printf("[TPA] Drain calibrated: %.2f L/min\n", _drainFlowLPM);
-      }
+      Serial.printf("[TPA] Drain calibrated: %.2f L/min\n", _drainFlowLPM);
 
       _enterState(TPAState::FILLING_RESERVOIR);
       return;
@@ -334,6 +346,16 @@ void WaterManager::_handleDosingPrime() {
 }
 
 void WaterManager::_handleRefilling() {
+  // CRITICAL SAFETY: Check optical BEFORE pump-on to prevent race condition
+  // with SafetyWatchdog (which also turns off PIN_REFILL on optical trigger)
+  if (_safety && _safety->isOpticalHigh()) {
+    Serial.println("[TPA] Optical sensor HIGH — refill STOPPED (max level).");
+    pumpOff(PIN_REFILL, PumpReason::SAFETY_STOP);
+    _captureRefillCalibration();
+    _enterState(TPAState::CANISTER_ON);
+    return;
+  }
+
   // Step 5: Refill tank until optical sensor or ultrasonic setpoint
   if (digitalRead(PIN_REFILL) == LOW) {
     pumpOn(PIN_REFILL, PumpReason::TPA_REFILLING);
@@ -345,22 +367,20 @@ void WaterManager::_handleRefilling() {
     }
   }
 
-  // CRITICAL SAFETY: Optical sensor = immediate stop
-  if (_safety && _safety->isOpticalHigh()) {
-    Serial.println("[TPA] Optical sensor HIGH — refill STOPPED (max level).");
-    pumpOff(PIN_REFILL, PumpReason::SAFETY_STOP);
-    _captureRefillCalibration();
-    _enterState(TPAState::CANISTER_ON);
-    return;
-  }
-
-  // Ultrasonic setpoint check
+  // Ultrasonic setpoint check + live recalibration
   if (_safety) {
     float dist = _safety->readUltrasonic();
+
+    // Live flow rate recalibration during operation
+    if (dist > 0 && _calStartMs > 0 && _litersPerCm > 0) {
+      float liveRate = _calcFlowRate(_calStartLevel, dist, _calStartMs);
+      if (liveRate > 0.01f) _refillFlowLPM = liveRate;
+    }
+
     if (dist > 0 && dist <= _refillTargetCm) {
       Serial.printf("[TPA] Refill setpoint reached: %.1f cm\n", dist);
       pumpOff(PIN_REFILL, PumpReason::TPA_TARGET_REACHED);
-      _captureRefillCalibration();
+      Serial.printf("[TPA] Refill calibrated: %.2f L/min\n", _refillFlowLPM);
       _enterState(TPAState::CANISTER_ON);
       return;
     }
@@ -410,16 +430,16 @@ void WaterManager::_handleManualReservoirFill() {
 
 // DRY #3: Unified manual pump handler for both drain and refill
 void WaterManager::_handleManualPump(uint8_t pin, float flowLPM, bool checkOptical) {
-  if (digitalRead(pin) == LOW) {
-    pumpOn(pin, PumpReason::MANUAL_PUMP);
-  }
-
-  // CRITICAL SAFETY: Optical sensor = immediate stop (refill only)
+  // CRITICAL SAFETY: Check optical BEFORE pump-on to prevent race condition
   if (checkOptical && _safety && _safety->isOpticalHigh()) {
     Serial.printf("[TPA] Optical sensor HIGH — manual %s STOPPED (max level).\n", pinName(pin));
     pumpOff(pin, PumpReason::SAFETY_STOP);
     _state = TPAState::COMPLETE;
     return;
+  }
+
+  if (digitalRead(pin) == LOW) {
+    pumpOn(pin, PumpReason::MANUAL_PUMP);
   }
 
   if (_manualPumpGoalLiters > 0 && flowLPM > 0) {

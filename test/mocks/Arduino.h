@@ -25,6 +25,9 @@ typedef bool boolean;
 #define INPUT_PULLUP 2
 #define INPUT_PULLDOWN 3
 
+// ---- UART constants ----
+#define SERIAL_8N1 0x800001c
+
 // ---- Math helpers ----
 #ifndef min
 template <typename T> T min(T a, T b) { return (a < b) ? a : b; }
@@ -127,14 +130,30 @@ void ledcAttachPin(uint8_t pin, uint8_t channel);
 void ledcWrite(uint8_t channel, uint32_t duty);
 void ledcDetachPin(uint8_t pin);
 
-// ---- pulseIn ----
-extern unsigned long mock_pulseIn_value;
-unsigned long pulseIn(uint8_t pin, uint8_t state, unsigned long timeout);
-
-// ---- Serial Mock ----
+// ---- Serial Mock (with injectable UART buffer for A02YYUW) ----
 class MockSerial {
 public:
   void begin(unsigned long baud) {}
+  void begin(unsigned long baud, int config, int rxPin, int txPin) {} // Serial2
+
+  // Injectable UART buffer for simulating sensor frames
+  uint8_t _rxBuffer[128];
+  uint8_t _rxLen = 0;
+  uint8_t _rxPos = 0;
+
+  int available() { return (int)(_rxLen - _rxPos); }
+  int peek() { return (_rxPos < _rxLen) ? (int)_rxBuffer[_rxPos] : -1; }
+  int read() { return (_rxPos < _rxLen) ? (int)_rxBuffer[_rxPos++] : -1; }
+
+  // Inject raw UART data for testing
+  void mock_inject(const uint8_t *data, uint8_t len) {
+    memcpy(_rxBuffer, data, len);
+    _rxLen = len;
+    _rxPos = 0;
+  }
+  void mock_clear() { _rxLen = 0; _rxPos = 0; }
+
+  // Print stubs (no-op in tests)
   void print(const char *s) {}
   void print(int v, int base = 10) {}
   void print(unsigned int v, int base = 10) {}
@@ -144,11 +163,16 @@ public:
   void println(int v, int base = 10) {}
   void println(unsigned int v, int base = 10) {}
   void printf(const char *fmt, ...) {}
-  bool available() { return false; }
   String readStringUntil(char c) { return String(""); }
 };
 
 extern MockSerial Serial;
+extern MockSerial Serial2;
+
+// ---- A02YYUW UART Frame Helper ----
+// Injects a single valid A02YYUW UART frame for the given distance in cm.
+// Frame format: [0xFF, dataH, dataL, checksum]
+void mock_inject_a02_distance(float distanceCm);
 
 // ---- WiFi Mock ----
 #define WL_CONNECTED 3

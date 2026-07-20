@@ -76,6 +76,12 @@ private:
   bool _emergencyDraining;
   unsigned long _emergencyDrainStart;
 
+  // Median filter buffer (circular)
+  static constexpr uint8_t MEDIAN_BUFFER_SIZE = 5;
+  float _medianBuffer[MEDIAN_BUFFER_SIZE] = {-1, -1, -1, -1, -1};
+  uint8_t _medianIndex = 0;
+  uint8_t _medianCount = 0;
+
   /// Median filter helper
   float _medianOfFive(float *arr);
 

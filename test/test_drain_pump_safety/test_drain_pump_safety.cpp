@@ -18,13 +18,17 @@ void setUp() {
   Preferences::mock_clearAll();
   mock_reset_pins();
   mock_millis_value = 0;
-  mock_pulseIn_value = 583; // ~10cm default
+  Serial2.mock_clear();
   mock_pin_read_value[PIN_OPTICAL] = HIGH; // Normal (not triggered)
-  mock_pin_read_value[PIN_FLOAT] = LOW; // Reservoir empty
+  mock_pin_read_value[PIN_FLOAT] = HIGH; // Reservoir empty (HIGH = not triggered)
   Preferences::mock_clearAll();
 
   safety = SafetyWatchdog();
   safety.begin();
+  
+  mock_inject_a02_distance(10.0f); // ~10cm default
+  safety.update(); // Process initial distance frame
+  
   fert = FertManager();
   fert.begin();
 }
@@ -39,6 +43,14 @@ WaterManager makeWM() {
   return wm;
 }
 
+// Helper: force a distance value by filling the median buffer
+void setDistance(float dist) {
+  for (int i = 0; i < 5; i++) {
+    mock_inject_a02_distance(dist);
+    safety.readUltrasonic();
+  }
+}
+
 // Helper: assert PIN_DRAIN is LOW (OFF)
 void assertDrainOff(const char *ctx) {
   char msg[80];
@@ -48,7 +60,7 @@ void assertDrainOff(const char *ctx) {
 
 // Helper: advance to DRAINING (water stays high)
 void goToDraining(WaterManager &wm) {
-  mock_pulseIn_value = 400; // ~6.9cm — far from 20cm target
+  setDistance(7.0f); // ~7cm — far from 20cm target
   wm.startTPA();
   wm.update(); // CANISTER_OFF: sets _waitUntilMs
   mock_millis_value += 3001;
@@ -58,14 +70,15 @@ void goToDraining(WaterManager &wm) {
 // Helper: advance to FILLING_RESERVOIR
 void goToFilling(WaterManager &wm) {
   goToDraining(wm);
+  setDistance(7.0f);
   wm.update(); // Drain pump on
-  mock_pulseIn_value = 1400; // ~24cm → past 20cm target
+  setDistance(24.0f); // ~24cm → past 20cm target
   wm.update(); // → FILLING_RESERVOIR
 }
 
 // Helper: simulate float sensor triggering (debounced — needs N consecutive reads)
 void simulateFloatFull(WaterManager &wm) {
-  mock_pin_read_value[PIN_FLOAT] = HIGH;
+  mock_pin_read_value[PIN_FLOAT] = LOW; // LOW = triggered (active LOW with pullup)
   for (int i = 0; i < 5; i++) { wm.update(); }
 }
 
@@ -100,7 +113,7 @@ void test_drain_off_during_idle() {
 
 void test_drain_off_during_canister_off() {
   WaterManager wm = makeWM();
-  mock_pulseIn_value = 400;
+  setDistance(7.0f);
   wm.startTPA();
   wm.update(); // CANISTER_OFF: first tick
   assertDrainOff("CANISTER_OFF state");
@@ -128,7 +141,7 @@ void test_drain_off_during_dosing_prime() {
 void test_drain_off_during_refilling() {
   WaterManager wm = makeWM();
   goToRefilling(wm);
-  mock_pulseIn_value = 1400; // 24cm — refill still needed
+  setDistance(24.0f); // 24cm — refill still needed
   wm.update(); // Refill pump on
   assertDrainOff("REFILLING (refill pump should be on, NOT drain)");
   TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_REFILL]); // Refill ON, not drain
@@ -138,6 +151,7 @@ void test_drain_off_during_canister_on() {
   WaterManager wm = makeWM();
   goToRefilling(wm);
   mock_pin_read_value[PIN_OPTICAL] = LOW; // Max level → stop refill
+  setDistance(24.0f);
   wm.update(); // → CANISTER_ON
   TEST_ASSERT_EQUAL(TPAState::CANISTER_ON, wm.getState());
   assertDrainOff("CANISTER_ON state");
@@ -147,6 +161,7 @@ void test_drain_off_during_complete() {
   WaterManager wm = makeWM();
   goToRefilling(wm);
   mock_pin_read_value[PIN_OPTICAL] = LOW;
+  setDistance(24.0f);
   wm.update(); // → CANISTER_ON
   wm.update(); // → COMPLETE
   TEST_ASSERT_EQUAL(TPAState::COMPLETE, wm.getState());
@@ -162,9 +177,11 @@ void test_drain_off_during_complete() {
 void test_drain_off_during_error() {
   WaterManager wm = makeWM();
   goToDraining(wm);
+  setDistance(7.0f);
   wm.update(); // Drain ON
   // Simulate timeout
   mock_millis_value += 1800000 + 1;
+  setDistance(7.0f);
   wm.update(); // → ERROR (all actuators off)
   TEST_ASSERT_EQUAL(TPAState::ERROR, wm.getState());
   assertDrainOff("ERROR state");
@@ -203,6 +220,7 @@ void test_drain_on_only_during_draining() {
   WaterManager wm = makeWM();
   goToDraining(wm);
   // First DRAINING tick: pump should turn ON
+  setDistance(7.0f);
   wm.update();
   TEST_ASSERT_EQUAL(TPAState::DRAINING, wm.getState());
   TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_DRAIN]);
@@ -291,7 +309,7 @@ void test_manual_reservoir_fill_completes_on_float() {
   wm.update(); // Opens solenoid
   TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_SOLENOID]);
 
-  mock_pin_read_value[PIN_FLOAT] = HIGH; // Reservoir full
+  mock_pin_read_value[PIN_FLOAT] = LOW; // Reservoir full (LOW = triggered)
   simulateFloatFull(wm);
   TEST_ASSERT_EQUAL(TPAState::COMPLETE, wm.getState());
   TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_SOLENOID]);
@@ -322,6 +340,7 @@ void test_pump_elapsed_ms_zero_when_idle() {
 void test_pump_elapsed_ms_during_draining() {
   WaterManager wm = makeWM();
   goToDraining(wm);
+  setDistance(7.0f);
   wm.update(); // DRAINING active
   mock_millis_value += 5000;
   TEST_ASSERT_TRUE(wm.getPumpElapsedMs() > 0);
@@ -364,40 +383,36 @@ void test_emergency_drain_activates_drain_pump() {
 }
 
 void test_emergency_drain_stops_when_water_safe() {
-  SafetyWatchdog sw;
-  mock_pulseIn_value = 875; // ~15cm (valid sensor)
-  sw.begin();
+  setDistance(15.0f); // ~15cm (valid sensor)
 
   // Start emergency drain
-  sw.emergencyDrain();
+  safety.emergencyDrain();
   TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_DRAIN]);
 
   // Water level drops to safe (distance > LEVEL_SAFETY_MIN_CM + 5)
-  // _lastDistance is updated by update(), so we simulate that
-  mock_pulseIn_value = 2000; // ~34cm — very safe
+  setDistance(34.0f); // ~34cm — very safe
   mock_millis_value += SAFETY_CHECK_INTERVAL_MS + 1;
-  sw.update(); // Updates _lastDistance and checks emergency drain
+  safety.update(); // Updates _lastDistance and checks emergency drain
 
   TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_DRAIN]);
-  TEST_ASSERT_FALSE(sw.isEmergency());
+  TEST_ASSERT_FALSE(safety.isEmergency());
 }
 
 void test_emergency_drain_timeout_causes_full_shutdown() {
-  SafetyWatchdog sw;
-  mock_pulseIn_value = 175; // ~3cm — water still dangerously high
-  sw.begin();
+  setDistance(3.0f); // ~3cm — water still dangerously high
 
-  sw.emergencyDrain();
+  safety.emergencyDrain();
   TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_DRAIN]);
 
   // Advance past emergency timeout (3 min)
   mock_millis_value += TIMEOUT_EMERGENCY_MS + 1;
   mock_millis_value += SAFETY_CHECK_INTERVAL_MS; // Ensure update runs
-  sw.update();
+  setDistance(3.0f);
+  safety.update();
 
   // Should have triggered full shutdown
   TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_DRAIN]);
-  TEST_ASSERT_TRUE(sw.isEmergency());
+  TEST_ASSERT_TRUE(safety.isEmergency());
 }
 
 void test_emergency_shutdown_clears_drain() {
@@ -430,6 +445,7 @@ void test_drain_stays_off_after_complete_with_many_updates() {
   WaterManager wm = makeWM();
   goToRefilling(wm);
   mock_pin_read_value[PIN_OPTICAL] = LOW;
+  setDistance(24.0f);
   wm.update(); // → CANISTER_ON
   wm.update(); // → COMPLETE
 
@@ -444,6 +460,7 @@ void test_drain_stays_off_after_complete_with_many_updates() {
 void test_drain_off_after_abort() {
   WaterManager wm = makeWM();
   goToDraining(wm);
+  setDistance(7.0f);
   wm.update(); // Drain ON
   TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_DRAIN]);
 
@@ -460,33 +477,31 @@ void test_drain_off_after_abort() {
 
 void test_drain_off_safety_update_normal_conditions() {
   // SafetyWatchdog update cycle with normal conditions should never touch drain
-  SafetyWatchdog sw;
-  mock_pulseIn_value = 1750; // ~30cm — sensor connected and safe
-  sw.begin();
+  setDistance(30.0f); // ~30cm — sensor connected and safe
 
   mock_pin_read_value[PIN_OPTICAL] = HIGH; // Normal
 
   for (int i = 0; i < 30; i++) {
     mock_millis_value += SAFETY_CHECK_INTERVAL_MS + 1;
-    sw.update();
+    setDistance(30.0f);
+    safety.update();
     assertDrainOff("SafetyWatchdog normal update");
   }
-  TEST_ASSERT_FALSE(sw.isEmergency());
+  TEST_ASSERT_FALSE(safety.isEmergency());
 }
 
 void test_drain_off_overflow_detection_disabled() {
   // Overflow detection is currently commented out (line 204 of SafetyWatchdog.cpp)
   // Even with low ultrasonic readings, drain should NOT activate
-  SafetyWatchdog sw;
-  mock_pulseIn_value = 175; // ~3cm — below LEVEL_SAFETY_MIN_CM
-  sw.begin();
+  setDistance(3.0f); // ~3cm — below LEVEL_SAFETY_MIN_CM
 
   mock_pin_read_value[PIN_OPTICAL] = HIGH; // Normal
 
   // Run 15 update cycles to trigger overflow counter (needs 10 consecutive)
   for (int i = 0; i < 15; i++) {
     mock_millis_value += SAFETY_CHECK_INTERVAL_MS + 1;
-    sw.update();
+    setDistance(3.0f);
+    safety.update();
     assertDrainOff("overflow detection should be disabled");
   }
 }
@@ -500,7 +515,7 @@ void test_prime_disabled_skips_dosing() {
   wm.setPrimeEnabled(false);
   goToFilling(wm);
   wm.update(); // Opens solenoid
-  mock_pin_read_value[PIN_FLOAT] = HIGH; // Reservoir full
+  mock_pin_read_value[PIN_FLOAT] = LOW; // Reservoir full (LOW = triggered)
   simulateFloatFull(wm);
   TEST_ASSERT_EQUAL(TPAState::DOSING_PRIME, wm.getState());
   wm.update(); // DOSING_PRIME handler: prime disabled → skip to REFILLING
