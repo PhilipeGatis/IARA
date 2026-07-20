@@ -309,9 +309,9 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-2">
                         <div className="flex flex-col gap-1">
-                            <label className="text-xs font-bold text-muted uppercase tracking-wider">MARGEM BORDA (MM)</label>
+                            <label className="text-[10px] font-bold text-muted uppercase tracking-wider">MARGEM BORDA (MM)</label>
                             <input
                                 type="number" min="0" step="1" placeholder="Ex: 15"
                                 className="w-full rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
@@ -321,13 +321,16 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                         </div>
 
                         <div className="flex flex-col gap-1">
-                        <label className="text-xs font-bold text-muted uppercase tracking-wider">{t('config.sensorFull')}</label>
-                        <div className="flex gap-2">
+                            <label className="text-[10px] font-bold text-muted uppercase tracking-wider">{t('config.sensorFull')}</label>
                             <input
                                 type="number" min="0" step="1" placeholder="Ex: 5"
-                                className="flex-1 rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
+                                className="w-full rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
                                 value={sensorFull} onChange={(e) => setSensorFull(e.target.value)}
                             />
+                            <span className="text-[10px] text-muted italic mt-1">{t('config.sensorFullHint')}</span>
+                        </div>
+
+                        <div className="flex flex-col justify-start pt-5">
                             <button
                                 onClick={async () => {
                                     try {
@@ -338,13 +341,11 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                                         alert(t('config.commError'));
                                     }
                                 }}
-                                className="flex-none rounded-md bg-accent2/20 px-4 py-2 text-xs font-bold uppercase tracking-wider text-accent2 shadow-md transition-all hover:bg-accent2/30 active:scale-95"
+                                className="w-full h-[38px] rounded-md bg-accent2/20 px-4 py-2 text-xs font-bold uppercase tracking-wider text-accent2 shadow-md transition-all hover:bg-accent2/30 active:scale-95"
                             >
                                 {t('config.calibrateSensor')}
                             </button>
                         </div>
-                        <span className="text-[10px] text-muted italic mt-1">{t('config.sensorFullHint')}</span>
-                    </div>
                     </div>
                     <div className="flex gap-4">
                         <div className="flex-1 rounded-lg bg-accent/10 px-4 py-2">
