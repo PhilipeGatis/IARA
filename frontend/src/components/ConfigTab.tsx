@@ -345,10 +345,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                         </div>
                         <span className="text-[10px] text-muted italic mt-1">{t('config.sensorFullHint')}</span>
                     </div>
-
-                        </div>
                     </div>
-
                     <div className="flex gap-4">
                         <div className="flex-1 rounded-lg bg-accent/10 px-4 py-2">
                             <span className="text-[10px] text-muted">{t('config.calcVolume')}</span>
