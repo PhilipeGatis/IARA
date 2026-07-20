@@ -42,16 +42,16 @@ public:
 
   // ---- Aquarium config ----
   uint32_t getAquariumVolume() const {
-    int16_t effH = (int16_t)_aqHeight - _aqMarginCm;
-    if (effH <= 0)
-      return 0;
-    return (uint32_t)effH * _aqLength * _aqWidth / 1000;
+    float effH = (float)_aqHeight - (_aqMarginMm / 10.0f);
+    int32_t vol = (int32_t)(effH * _aqLength * _aqWidth) / 1000;
+    return vol > 0 ? (uint32_t)vol : 0;
   }
   float getLitersPerCm() const { return (float)_aqLength * _aqWidth / 1000.0f; }
   uint16_t getAqHeight() const { return _aqHeight; }
   uint16_t getSensorFullDistanceCm() const { return _sensorFullDistanceCm; }
   float getOverflowThresholdCm() const {
-    return _sensorFullDistanceCm > _aqMarginCm ? _sensorFullDistanceCm - _aqMarginCm : 0.0f;
+    float marginCm = _aqMarginMm / 10.0f;
+    return _sensorFullDistanceCm > marginCm ? _sensorFullDistanceCm - marginCm : 0.0f;
   }
   float getReservoirSafetyML() const { return _reservoirSafetyML; }
   uint16_t getReservoirVolume() const { return _reservoirVolume; }
@@ -87,7 +87,7 @@ private:
 
   // Aquarium dimensions (cm)
   uint16_t _aqHeight;        // Altura (cm)
-  uint16_t _aqMarginCm;      // Margem do topo (cm)
+  uint16_t _aqMarginMm;      // Margem do topo (mm)
   uint16_t _aqLength;        // Comprimento (cm)
   uint16_t _aqWidth;         // Largura (cm)
   uint16_t _sensorFullDistanceCm; // Distância do sensor até a água 100% cheia (cm)

@@ -204,7 +204,7 @@ String WebManager::_buildStatusJSON() {
   uint32_t aqVol = getAquariumVolume();
   float lPerCm = (float)_aqLength * _aqWidth / 1000.0;
   json += "\"aqHeight\":" + String(_aqHeight) + ",";
-  json += "\"aqMarginCm\":" + String(_aqMarginCm) + ",";
+  json += "\"aqMarginMm\":" + String(_aqMarginMm) + ",";
   json += "\"aqLength\":" + String(_aqLength) + ",";
   json += "\"aqWidth\":" + String(_aqWidth) + ",";
   json += "\"sensorFullDistanceCm\":" + String(_sensorFullDistanceCm) + ",";
@@ -411,9 +411,9 @@ void WebManager::_setupRoutes() {
           _aqHeight = h;
           changed = true;
         }
-        int m = _extractInt(body, "aqMarginCm");
+        int m = _extractInt(body, "aqMarginMm");
         if (m >= 0) {
-          _aqMarginCm = m;
+          _aqMarginMm = m;
           changed = true;
         }
         int l = _extractInt(body, "aqLength");
@@ -461,8 +461,8 @@ void WebManager::_setupRoutes() {
           }
           uint32_t vol = getAquariumVolume();
           Serial.printf(
-              "[Web] Aquarium dims: %dx%dx%d cm, margin=%d cm, sensorFull=%d cm, vol=%lu L\n",
-              _aqHeight, _aqLength, _aqWidth, _aqMarginCm, _sensorFullDistanceCm, vol);
+              "[Web] Aquarium dims: %dx%dx%d cm, margin=%d mm, sensorFull=%d cm, vol=%lu L\n",
+              _aqHeight, _aqLength, _aqWidth, _aqMarginMm, _sensorFullDistanceCm, vol);
         }
         request->send(200, "application/json", "{\"ok\":true}");
       });
@@ -1069,7 +1069,7 @@ void WebManager::_loadParams() {
   _aqHeight = _prefs.getUShort("aqH", 40);
   _aqLength = _prefs.getUShort("aqL", 60);
   _aqWidth = _prefs.getUShort("aqW", 30);
-  _aqMarginCm = _prefs.getUShort("aqBord", 0);
+  _aqMarginMm = _prefs.getUShort("aqBord", 0);
   _sensorFullDistanceCm = _prefs.getUShort("aqMg", 10); // Reused key for backward compat
   _drainFlowRate = _prefs.getFloat("drFR", 0);
   _refillFlowRate = _prefs.getFloat("rfFR", 0);
@@ -1091,8 +1091,8 @@ void WebManager::_loadParams() {
   Serial.println("[Config] ====== NVS LOADED (namespace: aqua) ======");
   Serial.printf("[Config]   TPA: interval=%dd, auto=%s, hour=%02d:%02d, pct=%d%%\n",
     _tpaInterval, _tpaAutoEnabled ? "ON" : "OFF", _tpaHour, _tpaMinute, _tpaPercent);
-  Serial.printf("[Config]   Aquarium: %dx%dx%d cm, margin=%d cm, sensorFull=%d cm\n",
-    _aqHeight, _aqLength, _aqWidth, _aqMarginCm, _sensorFullDistanceCm);
+  Serial.printf("[Config]   Aquarium: %dx%dx%d cm, margin=%d mm, sensorFull=%d cm\n",
+    _aqHeight, _aqLength, _aqWidth, _aqMarginMm, _sensorFullDistanceCm);
   Serial.printf("[Config]   Drain flow: %.2f mL/s, Refill flow: %.2f mL/s\n",
     _drainFlowRate, _refillFlowRate);
   Serial.printf("[Config]   Prime: %.1f mL, ratio=%.5f, enabled=%s\n",
@@ -1117,7 +1117,7 @@ void WebManager::_saveParams() {
   _prefs.putUShort("aqH", _aqHeight);
   _prefs.putUShort("aqL", _aqLength);
   _prefs.putUShort("aqW", _aqWidth);
-  _prefs.putUShort("aqBord", _aqMarginCm);
+  _prefs.putUShort("aqBord", _aqMarginMm);
   _prefs.putUShort("aqMg", _sensorFullDistanceCm);
   _prefs.putFloat("drFR", _drainFlowRate);
   _prefs.putFloat("rfFR", _refillFlowRate);

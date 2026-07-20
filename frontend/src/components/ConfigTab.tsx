@@ -62,7 +62,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
         if (status && !initialized.current) {
             initialized.current = true;
             if (status.aqHeight) setHeight(status.aqHeight.toString());
-            if ((status as any).aqMarginCm !== undefined) setMargin((status as any).aqMarginCm.toString());
+            if ((status as any).aqMarginMm !== undefined) setMargin((status as any).aqMarginMm.toString());
             if (status.aqLength) setLength(status.aqLength.toString());
             if (status.aqWidth) setWidth(status.aqWidth.toString());
             if (status.sensorFullDistanceCm !== undefined) setSensorFull(status.sensorFullDistanceCm.toString());
@@ -88,7 +88,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
     const handleSaveConfig = () => {
         api('POST', '/api/config/aquarium', {
             aqHeight: parseInt(height) || 0,
-            aqMarginCm: parseInt(margin) || 0,
+            aqMarginMm: parseInt(margin) || 0,
             aqLength: parseInt(length) || 0,
             aqWidth: parseInt(width) || 0,
             sensorFullDistanceCm: parseInt(sensorFull) || 0,
@@ -132,7 +132,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
 
     const calcVolume = () => {
         const h = parseInt(height) || 0;
-        const m = parseInt(margin) || 0;
+        const m = (parseInt(margin) || 0) / 10.0;
         const l = parseInt(length) || 0;
         const w = parseInt(width) || 0;
         const effH = Math.max(0, h - m);
@@ -281,21 +281,13 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                 <div className="flex flex-col gap-4">
                     <div className="flex flex-col gap-2">
                         <label className="text-xs font-bold text-muted uppercase tracking-wider">{t('config.dimensions')}</label>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div className="grid grid-cols-3 gap-2">
                             <div className="flex flex-col gap-1">
                                 <label className="text-[10px] text-muted">{t('config.heightLabel')}</label>
                                 <input
                                     type="number" min="0" step="1" placeholder={t('config.height')}
                                     className="w-full rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
                                     value={height} onChange={(e) => setHeight(e.target.value)}
-                                />
-                            </div>
-                            <div className="flex flex-col gap-1">
-                                <label className="text-[10px] text-muted">MARGEM BORDA (CM)</label>
-                                <input
-                                    type="number" min="0" step="1" placeholder="Ex: 5"
-                                    className="w-full rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
-                                    value={margin} onChange={(e) => setMargin(e.target.value)}
                                 />
                             </div>
                             <div className="flex flex-col gap-1">
@@ -317,7 +309,18 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                         </div>
                     </div>
 
-                    <div className="flex flex-col gap-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="flex flex-col gap-1">
+                            <label className="text-xs font-bold text-muted uppercase tracking-wider">MARGEM BORDA (MM)</label>
+                            <input
+                                type="number" min="0" step="1" placeholder="Ex: 15"
+                                className="w-full rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
+                                value={margin} onChange={(e) => setMargin(e.target.value)}
+                            />
+                            <span className="text-[10px] text-muted italic mt-1">Distância da borda do vidro até onde começa o limite de transbordo da água.</span>
+                        </div>
+
+                        <div className="flex flex-col gap-1">
                         <label className="text-xs font-bold text-muted uppercase tracking-wider">{t('config.sensorFull')}</label>
                         <div className="flex gap-2">
                             <input
@@ -341,6 +344,9 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                             </button>
                         </div>
                         <span className="text-[10px] text-muted italic mt-1">{t('config.sensorFullHint')}</span>
+                    </div>
+
+                        </div>
                     </div>
 
                     <div className="flex gap-4">
