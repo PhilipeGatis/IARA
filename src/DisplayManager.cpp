@@ -800,7 +800,7 @@ void DisplayManager::_drawSchedulePage() {
 // WATER LEVEL PERCENTAGE (DRY #2)
 // =============================================================================
 float DisplayManager::_calcWaterPct(float distCm) const {
-  float sf = (float)_web->getSensorFullDistanceCm();
+  float sf = (float)_web->getSensorFullDistanceMm() / 10.0f;
   float refCm = (_web->getAqHeight() > 0) ? (float)_web->getAqHeight() : 20.0f;
   float pct = 100.0f - (((distCm - sf) / refCm) * 100.0f);
   if (pct > 100.0f) pct = 100.0f;

@@ -192,7 +192,7 @@ const translations = {
     'config.missing.aqLength': { pt: 'Aquário: Comprimento', en: 'Aquarium: Length', ja: '水槽: 長さ' },
     'config.missing.aqWidth': { pt: 'Aquário: Largura', en: 'Aquarium: Width', ja: '水槽: 幅' },
     'config.missing.aqHeight': { pt: 'Aquário: Altura', en: 'Aquarium: Height', ja: '水槽: 高さ' },
-    'config.missing.sensorFullDistanceCm': { pt: 'Aquário: Dist. Cheio (cm)', en: 'Aquarium: Full Dist. (cm)', ja: '水槽: 満水距離 (cm)' },
+    'config.missing.sensorFullDistanceMm': { pt: 'Aquário: Dist. Cheio (mm)', en: 'Aquarium: Full Dist. (mm)', ja: '水槽: 満水距離 (mm)' },
     'config.missing.reservoirVolume': { pt: 'Aquário: Vol. Reservatório TPA', en: 'Aquarium: TPA Res. Volume', ja: '水槽: TPAリザーバー容量' },
     'config.missing.drainFlowRate': { pt: 'TPA: Vazão Drenagem (Calibrar)', en: 'TPA: Drain Flow (Calibrate)', ja: 'TPA: 排水流量（校正）' },
     'config.missing.refillFlowRate': { pt: 'TPA: Vazão Recalque (Calibrar)', en: 'TPA: Refill Flow (Calibrate)', ja: 'TPA: 補充流量（校正）' },

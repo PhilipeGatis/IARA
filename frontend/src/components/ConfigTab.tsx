@@ -65,7 +65,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
             if ((status as any).aqMarginMm !== undefined) setMargin((status as any).aqMarginMm.toString());
             if (status.aqLength) setLength(status.aqLength.toString());
             if (status.aqWidth) setWidth(status.aqWidth.toString());
-            if (status.sensorFullDistanceCm !== undefined) setSensorFull(status.sensorFullDistanceCm.toString());
+            if (status.sensorFullDistanceMm !== undefined) setSensorFull(status.sensorFullDistanceMm.toString());
             if (status.primeRatio) setPrimeRatio(status.primeRatio.toString());
             if (status.reservoirVolume) setReservoirVol(status.reservoirVolume.toString());
             if ((status as any).canisterSafePct) setCanisterSafePct((status as any).canisterSafePct.toString());
@@ -91,7 +91,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
             aqMarginMm: parseInt(margin) || 0,
             aqLength: parseInt(length) || 0,
             aqWidth: parseInt(width) || 0,
-            sensorFullDistanceCm: parseInt(sensorFull) || 0,
+            sensorFullDistanceMm: parseInt(sensorFull) || 0,
             primeRatio: parseFloat(primeRatio) || 0,
             reservoirVolume: parseInt(reservoirVol) || 0,
             canisterSafePct: parseInt(canisterSafePct) || 0,
@@ -323,7 +323,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                         <div className="flex flex-col gap-1">
                             <label className="text-[10px] font-bold text-muted uppercase tracking-wider">{t('config.sensorFull')}</label>
                             <input
-                                type="number" min="0" step="1" placeholder="Ex: 5"
+                                type="number" min="0" step="1" placeholder="Ex: 50"
                                 className="w-full rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
                                 value={sensorFull} onChange={(e) => setSensorFull(e.target.value)}
                             />

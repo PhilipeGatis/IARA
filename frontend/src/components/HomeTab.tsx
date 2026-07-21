@@ -85,7 +85,7 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                     {(() => {
                         const wl = status?.waterLevel ?? 0;
                         const refCm = (status?.aqHeight || 20) - ((status?.aqMarginMm || 0) / 10);
-                        const sensorFull = status?.sensorFullDistanceCm || 0;
+                        const sensorFull = (status?.sensorFullDistanceMm || 0) / 10;
                         
                         let pct = 0;
                         let valid = true;
@@ -226,7 +226,7 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                             {(!status.aqLength || status.aqLength <= 0) && <li>{t('config.missing.aqLength')}</li>}
                             {(!status.aqWidth || status.aqWidth <= 0) && <li>{t('config.missing.aqWidth')}</li>}
                             {(!status.aqHeight || status.aqHeight <= 0) && <li>{t('config.missing.aqHeight')}</li>}
-                            {(!status.sensorFullDistanceCm || status.sensorFullDistanceCm <= 0) && <li>{t('config.missing.sensorFullDistanceCm')}</li>}
+                            {(!status.sensorFullDistanceMm || status.sensorFullDistanceMm <= 0) && <li>{t('config.missing.sensorFullDistanceMm')}</li>}
                             {(!status.reservoirVolume || status.reservoirVolume <= 0) && <li>{t('config.missing.reservoirVolume')}</li>}
                             {(!status.drainFlowRate || status.drainFlowRate <= 0) && <li>{t('config.missing.drainFlowRate')}</li>}
                             {(!status.refillFlowRate || status.refillFlowRate <= 0) && <li>{t('config.missing.refillFlowRate')}</li>}

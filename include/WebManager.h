@@ -48,16 +48,17 @@ public:
   }
   float getLitersPerCm() const { return (float)_aqLength * _aqWidth / 1000.0f; }
   uint16_t getAqHeight() const { return _aqHeight; }
-  uint16_t getSensorFullDistanceCm() const { return _sensorFullDistanceCm; }
+  uint16_t getSensorFullDistanceMm() const { return _sensorFullDistanceMm; }
   float getOverflowThresholdCm() const {
     float marginCm = _aqMarginMm / 10.0f;
-    return _sensorFullDistanceCm > marginCm ? _sensorFullDistanceCm - marginCm : 0.0f;
+    float sfCm = _sensorFullDistanceMm / 10.0f;
+    return sfCm > marginCm ? sfCm - marginCm : 0.0f;
   }
   float getReservoirSafetyML() const { return _reservoirSafetyML; }
   uint16_t getReservoirVolume() const { return _reservoirVolume; }
   bool isTpaConfigReady() const {
     return _aqHeight > 0 && _aqLength > 0 && _aqWidth > 0 &&
-           _sensorFullDistanceCm > 0 && _drainFlowRate > 0 && _refillFlowRate > 0 &&
+           _sensorFullDistanceMm > 0 && _drainFlowRate > 0 && _refillFlowRate > 0 &&
            _reservoirVolume > 0 && _reservoirSafetyML > 0;
   }
   bool getPrimeEnabled() const { return _primeEnabled; }
@@ -90,7 +91,7 @@ private:
   uint16_t _aqMarginMm;      // Margem do topo (mm)
   uint16_t _aqLength;        // Comprimento (cm)
   uint16_t _aqWidth;         // Largura (cm)
-  uint16_t _sensorFullDistanceCm; // Distância do sensor até a água 100% cheia (cm)
+  uint16_t _sensorFullDistanceMm; // Distância do sensor até a água 100% cheia (mm)
   float _drainFlowRate;      // mL/s
   float _refillFlowRate;     // mL/s
   float _primeRatio;         // mL per liter (manufacturer ratio)

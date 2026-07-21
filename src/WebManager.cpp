@@ -30,7 +30,7 @@ WebManager::WebManager()
       _tpaInterval(7), _tpaAutoEnabled(false), _tpaHour(10), _tpaMinute(0), _tpaLastRun(0),
       _tpaPercent(20), _canisterSafePct(0), _language(0),
       _primeML(DEFAULT_PRIME_ML), _aqHeight(0), _aqLength(0), _aqWidth(0),
-      _sensorFullDistanceCm(0), _drainFlowRate(0), _refillFlowRate(0),
+      _sensorFullDistanceMm(0), _drainFlowRate(0), _refillFlowRate(0),
       _primeEnabled(true),
       _reservoirVolume(0), _reservoirSafetyML(0), _lastTelemetryMs(0),
       _lastSSEMs(0), _lastSSECleanupMs(0), _rebootPending(false), _rebootMs(0) {
@@ -207,7 +207,7 @@ String WebManager::_buildStatusJSON() {
   json += "\"aqMarginMm\":" + String(_aqMarginMm) + ",";
   json += "\"aqLength\":" + String(_aqLength) + ",";
   json += "\"aqWidth\":" + String(_aqWidth) + ",";
-  json += "\"sensorFullDistanceCm\":" + String(_sensorFullDistanceCm) + ",";
+  json += "\"sensorFullDistanceMm\":" + String(_sensorFullDistanceMm) + ",";
   json += "\"aquariumVolume\":" + String(aqVol) + ",";
   json += "\"litersPerCm\":" + String(lPerCm, 2) + ",";
   json += "\"drainFlowRate\":" + String(_drainFlowRate, 2) + ",";
@@ -442,9 +442,9 @@ void WebManager::_setupRoutes() {
           _reservoirVolume = rv;
           changed = true;
         }
-        int mg = _extractInt(body, "sensorFullDistanceCm");
+        int mg = _extractInt(body, "sensorFullDistanceMm");
         if (mg >= 0) {
-          _sensorFullDistanceCm = mg;
+          _sensorFullDistanceMm = mg;
           changed = true;
         }
 
@@ -461,8 +461,8 @@ void WebManager::_setupRoutes() {
           }
           uint32_t vol = getAquariumVolume();
           Serial.printf(
-              "[Web] Aquarium dims: %dx%dx%d cm, margin=%d mm, sensorFull=%d cm, vol=%lu L\n",
-              _aqHeight, _aqLength, _aqWidth, _aqMarginMm, _sensorFullDistanceCm, vol);
+              "[Web] Aquarium dims: %dx%dx%d cm, margin=%d mm, sensorFull=%d mm, vol=%lu L\n",
+              _aqHeight, _aqLength, _aqWidth, _aqMarginMm, _sensorFullDistanceMm, vol);
         }
         request->send(200, "application/json", "{\"ok\":true}");
       });
@@ -473,9 +473,9 @@ void WebManager::_setupRoutes() {
                if (_safety) {
                  float dist = _safety->readUltrasonic();
                  if (dist > 0) {
-                   _sensorFullDistanceCm = (uint16_t)round(dist);
-                   _saveParams();
-                   Serial.printf("[Web] Sensor 100%% calibrated to %d cm\n", _sensorFullDistanceCm);
+                   _sensorFullDistanceMm = (uint16_t)round(dist * 10.0f); // mm
+                   _prefs.putUShort("aqMg", _sensorFullDistanceMm);
+                   Serial.printf("[Web] Sensor 100%% calibrated to %d mm\n", _sensorFullDistanceMm);
                    request->send(200, "application/json", "{\"ok\":true}");
                    return;
                  }
@@ -1070,7 +1070,7 @@ void WebManager::_loadParams() {
   _aqLength = _prefs.getUShort("aqL", 60);
   _aqWidth = _prefs.getUShort("aqW", 30);
   _aqMarginMm = _prefs.getUShort("aqBord", 0);
-  _sensorFullDistanceCm = _prefs.getUShort("aqMg", 10); // Reused key for backward compat
+  _sensorFullDistanceMm = _prefs.getUShort("aqMg", 100); // Reused key for backward compat, converted default 10cm to 100mm
   _drainFlowRate = _prefs.getFloat("drFR", 0);
   _refillFlowRate = _prefs.getFloat("rfFR", 0);
   _primeRatio = _prefs.getFloat("pRat", 0);
@@ -1091,8 +1091,8 @@ void WebManager::_loadParams() {
   Serial.println("[Config] ====== NVS LOADED (namespace: aqua) ======");
   Serial.printf("[Config]   TPA: interval=%dd, auto=%s, hour=%02d:%02d, pct=%d%%\n",
     _tpaInterval, _tpaAutoEnabled ? "ON" : "OFF", _tpaHour, _tpaMinute, _tpaPercent);
-  Serial.printf("[Config]   Aquarium: %dx%dx%d cm, margin=%d mm, sensorFull=%d cm\n",
-    _aqHeight, _aqLength, _aqWidth, _aqMarginMm, _sensorFullDistanceCm);
+  Serial.printf("[Config]   Aquarium: %dx%dx%d cm, margin=%d mm, sensorFull=%d mm\n",
+    _aqHeight, _aqLength, _aqWidth, _aqMarginMm, _sensorFullDistanceMm);
   Serial.printf("[Config]   Drain flow: %.2f mL/s, Refill flow: %.2f mL/s\n",
     _drainFlowRate, _refillFlowRate);
   Serial.printf("[Config]   Prime: %.1f mL, ratio=%.5f, enabled=%s\n",
@@ -1118,7 +1118,7 @@ void WebManager::_saveParams() {
   _prefs.putUShort("aqL", _aqLength);
   _prefs.putUShort("aqW", _aqWidth);
   _prefs.putUShort("aqBord", _aqMarginMm);
-  _prefs.putUShort("aqMg", _sensorFullDistanceCm);
+  _prefs.putUShort("aqMg", _sensorFullDistanceMm);
   _prefs.putFloat("drFR", _drainFlowRate);
   _prefs.putFloat("rfFR", _refillFlowRate);
   _prefs.putFloat("pRat", _primeRatio);

@@ -33,7 +33,7 @@ export type AQStatus = {
   aqMarginMm: number;
   aqLength: number;
   aqWidth: number;
-  sensorFullDistanceCm: number;
+  sensorFullDistanceMm: number;
   aquariumVolume: number;
   litersPerCm: number;
   drainFlowRate: number;
