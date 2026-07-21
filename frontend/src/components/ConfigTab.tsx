@@ -335,7 +335,10 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                                 onClick={async () => {
                                     try {
                                         const res = await fetch('/api/config/calibrate-sensor-full', { method: 'POST' });
-                                        if (res.ok) alert(t('notify.keySaved')); // generic ok message
+                                        if (res.ok) {
+                                            alert(t('notify.keySaved'));
+                                            window.location.reload();
+                                        }
                                         else alert(t('config.commError'));
                                     } catch {
                                         alert(t('config.commError'));
