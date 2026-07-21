@@ -297,17 +297,20 @@ void WaterManager::_handleDraining() {
 }
 
 void WaterManager::_handleFillingReservoir() {
-  // Step 3: Open solenoid until float switch indicates reservoir full
-  if (digitalRead(PIN_SOLENOID) == LOW) {
-    pumpOn(PIN_SOLENOID, PumpReason::TPA_SOLENOID);
-    Serial.println("[TPA] Solenoid OPEN. Filling reservoir...");
-  }
-
   if (_isReservoirFullDebounced()) {
     Serial.println("[TPA] Reservoir FULL (float switch triggered).");
-    pumpOff(PIN_SOLENOID, PumpReason::TPA_TARGET_REACHED);
+    if (digitalRead(PIN_SOLENOID) == HIGH) {
+      pumpOff(PIN_SOLENOID, PumpReason::TPA_TARGET_REACHED);
+    }
     _enterState(TPAState::DOSING_PRIME);
     return;
+  }
+
+  // Step 3: Open solenoid until float switch indicates reservoir full
+  // Only turn on if instantaneous reading is NOT full, to prevent a brief ON blip during debounce
+  if (digitalRead(PIN_SOLENOID) == LOW && (!_safety || !_safety->isReservoirFull())) {
+    pumpOn(PIN_SOLENOID, PumpReason::TPA_SOLENOID);
+    Serial.println("[TPA] Solenoid OPEN. Filling reservoir...");
   }
 
   // Safety timeout: use calibrated time × 1.5, or 2h hard limit
@@ -414,16 +417,19 @@ void WaterManager::_handleCanisterOn() {
 }
 
 void WaterManager::_handleManualReservoirFill() {
-  if (digitalRead(PIN_SOLENOID) == LOW) {
-    pumpOn(PIN_SOLENOID, PumpReason::MANUAL_SOLENOID);
-    Serial.println("[TPA] Solenoid OPEN. Manual filling reservoir...");
-  }
-
   if (_isReservoirFullDebounced()) {
     Serial.println("[TPA] Reservoir FULL. Manual fill complete.");
-    pumpOff(PIN_SOLENOID, PumpReason::TPA_TARGET_REACHED);
+    if (digitalRead(PIN_SOLENOID) == HIGH) {
+      pumpOff(PIN_SOLENOID, PumpReason::TPA_TARGET_REACHED);
+    }
     _state = TPAState::COMPLETE;
     return;
+  }
+
+  // Only turn on if instantaneous reading is NOT full, to prevent a brief ON blip during debounce
+  if (digitalRead(PIN_SOLENOID) == LOW && (!_safety || !_safety->isReservoirFull())) {
+    pumpOn(PIN_SOLENOID, PumpReason::MANUAL_SOLENOID);
+    Serial.println("[TPA] Solenoid OPEN. Manual filling reservoir...");
   }
 
   // Safety timeout: calibrated × 1.5, or 30 min fallback
@@ -634,17 +640,13 @@ void WaterManager::startReservoirCalibration() {
 }
 
 void WaterManager::_handleCalibratingReservoir() {
-  // Open solenoid
-  if (digitalRead(PIN_SOLENOID) == LOW) {
-    pumpOn(PIN_SOLENOID, PumpReason::TPA_SOLENOID);
-    Serial.println("[TPA] Calibration: Solenoid OPEN. Timing fill...");
-  }
-
   // Wait for float sensor (debounced)
   if (_isReservoirFullDebounced()) {
     float fillTimeSec = _stateElapsed() / 1000.0f;
     _solenoidFillTimeSec = fillTimeSec;
-    pumpOff(PIN_SOLENOID, PumpReason::TPA_TARGET_REACHED);
+    if (digitalRead(PIN_SOLENOID) == HIGH) {
+      pumpOff(PIN_SOLENOID, PumpReason::TPA_TARGET_REACHED);
+    }
 
     // Save to NVS
     Preferences calPref;
@@ -656,6 +658,12 @@ void WaterManager::_handleCalibratingReservoir() {
     Serial.printf("[TPA] Fill time: %.1f seconds\n", fillTimeSec);
     _state = TPAState::COMPLETE;
     return;
+  }
+
+  // Open solenoid (prevent blip if already full)
+  if (digitalRead(PIN_SOLENOID) == LOW && (!_safety || !_safety->isReservoirFull())) {
+    pumpOn(PIN_SOLENOID, PumpReason::TPA_SOLENOID);
+    Serial.println("[TPA] Calibration: Solenoid OPEN. Timing fill...");
   }
 
   // Hard timeout: 1 hour (safety)

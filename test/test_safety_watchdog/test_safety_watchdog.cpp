@@ -261,9 +261,8 @@ void test_optical_flag_set_on_update() {
 
   TEST_ASSERT_TRUE(sw.overflowDetected());
 
-  // Refill and solenoid should be forced LOW
+  // Refill should be forced LOW
   TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_REFILL]);
-  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_SOLENOID]);
 }
 
 void test_no_overflow_when_optical_clear() {

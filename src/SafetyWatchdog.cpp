@@ -182,9 +182,8 @@ void SafetyWatchdog::update() {
 
   // -- Optical sensor: immediate stop if water at max --
   if (isOpticalHigh()) {
-    // Always stop refill/solenoid when optical is triggered
+    // Always stop refill when optical is triggered
     pumpOff(PIN_REFILL, PumpReason::SAFETY_STOP);
-    pumpOff(PIN_SOLENOID, PumpReason::SAFETY_STOP);
     _overflowFlag = true;
   } else {
     _overflowFlag = false;
