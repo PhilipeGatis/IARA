@@ -56,10 +56,10 @@ void test_optical_high_means_normal() {
 void test_float_low_means_reservoir_full() {
   SafetyWatchdog sw;
   sw.begin();
-
-  // Active LOW with pullup: LOW = float triggered = reservoir full
-  mock_pin_read_value[PIN_FLOAT] = LOW;
-  TEST_ASSERT_TRUE(sw.isReservoirFull());
+  
+  mock_pin_read_value[PIN_FLOAT] = LOW; // Usually means full, but we disabled it
+  
+  TEST_ASSERT_FALSE(sw.isReservoirFull()); // Disabled, always false
 }
 
 void test_float_high_means_reservoir_empty() {

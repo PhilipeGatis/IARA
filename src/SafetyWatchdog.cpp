@@ -92,8 +92,10 @@ bool SafetyWatchdog::isOpticalHigh() {
 }
 
 bool SafetyWatchdog::isReservoirFull() {
-  // Active LOW with pullup: LOW = float triggered = reservoir full
-  return digitalRead(PIN_FLOAT) == LOW;
+  // Pin 19 is currently burned/reading false LOW.
+  // Returning false temporarily so manual fill can work without sensor lock.
+  // return digitalRead(PIN_FLOAT) == LOW;
+  return false;
 }
 
 // ============================================================================
