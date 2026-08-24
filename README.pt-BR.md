@@ -84,7 +84,7 @@ stateDiagram-v2
 
     DRAINING --> ERROR: timeout
     FILLING_RESERVOIR --> ERROR: timeout
-    REFILLING --> ERROR: timeout / sensor óptico
+    REFILLING --> ERROR: timeout
     ERROR --> [*]: verifica nível → canister ON/OFF
 ```
 
@@ -94,12 +94,12 @@ stateDiagram-v2
 | 2 | **DRAINING** | Bomba de drenagem liga. Sensor ultrassônico monitora o nível da água. A bomba roda até atingir o nível alvo (ex: queda de 10 cm). A vazão é medida para auto-calibração. |
 | 3 | **FILLING_RESERVOIR** | Válvula solenoide abre para encher o reservatório com água da torneira. Boia float switch monitora o nível. Válvula fecha quando o reservatório está cheio. |
 | 4 | **DOSING_PRIME** | Bomba peristáltica dosa desclorificante (Prime) no reservatório. Espera 2 segundos para mistura. Estoque é deduzido e salvo no NVS. |
-| 5 | **REFILLING** | Bomba de recalque liga, enviando água tratada do reservatório para o aquário. Para quando o ultrassônico atinge o nível original OU o sensor óptico detecta nível máximo (corte de segurança). Vazão é medida para calibração. |
+| 5 | **REFILLING** | Bomba de recalque liga, enviando água tratada do reservatório para o aquário. Para quando o ultrassônico atinge o nível original. Um reed switch em série com o sinal do canal MOSFET corta a bomba por hardware caso o nível máximo seja atingido. Vazão é medida para calibração. |
 | 6 | **CANISTER_ON** | Filtro canister é religado. **Ciclo de TPA completo.** Vazões calibradas são salvas no NVS para a próxima TPA. |
 
 **Segurança em cada etapa:**
 - Cada estado tem **timeout dinâmico** calculado a partir das vazões calibradas (`volume / vazão × 1.5`). A primeira TPA usa defaults seguros: **30s drenagem, 15s recalque**.
-- O **sensor óptico** atua como corte de segurança em nível de hardware durante o refill — parada imediata independente da leitura ultrassônica.
+- Um **reed switch** em série com o fio de sinal entre o GPIO33 e a entrada IN7 do módulo MOSFET corta a bomba de recalque no nível máximo, **independente do firmware** — funciona com o ESP32 travado ou com o ultrassônico mudo. Ver [`HARDWARE.md`](HARDWARE.md).
 - **Abort de emergência** em qualquer ponto desliga todos os atuadores e restaura o filtro canister.
 - **Em caso de erro**, o sistema verifica o nível da água via ultrassônico antes de religar o canister. Se o nível estiver muito baixo (ex: erro durante drenagem), o canister **permanece OFF** para evitar funcionar a seco e danificar a bomba.
 
@@ -125,9 +125,7 @@ graph LR
     ESP32 -->|D12, D13, D14, D25-D27, D32, D33| MOSFET
     ESP32 -->|D2| SSR[Omron SSR]
     ESP32 ---|D18 TX, D34 RX| Ultra[Ultrassônico A02YYUW UART]
-    ESP32 ---|D4| Water[Sensor Capacitivo]
-    ESP32 ---|D5| Float[Boia]
-    ESP32 ---|D19| Button[Botão]
+    ESP32 ---|D19| Float[Boia]
   end
 
   MOSFET -->|OUT 1 a 5| Peristalticas[5x Bombas Peristálticas]
@@ -145,8 +143,6 @@ graph LR
 | GPIO | Função | Componente | Direção | Protocolo |
 |------|--------|------------|---------|-----------|
 | **D2** | Canister ON/OFF | Relé SSR Omron | Saída | Digital |
-| **D4** | Sensor de nível máx. | XKC-Y25-NPN (capacitivo) | Entrada (PULLUP) | Digital |
-| **D5** | Boia do reservatório | Float Switch horizontal | Entrada (PULLUP) | Digital |
 | **D12** | Fertilizante CH2 | MOSFET canal 2 | Saída | Digital |
 | **D13** | Fertilizante CH1 | MOSFET canal 1 | Saída | Digital |
 | **D14** | Fertilizante CH3 | MOSFET canal 3 | Saída | Digital |
@@ -154,7 +150,7 @@ graph LR
 | **D16** | TFT SCK | Display ST7735 (SCK) | Saída | SPI (SCK) |
 | **D17** | TFT A0 (Data/Command) | Display ST7735 (A0) | Saída | SPI (DC) |
 | **D18** | UART TX ultrassônico | A02YYUW | Saída | Digital (Liga no RX do Sensor) |
-| **D19** | Botão de contato | Botão Push/Tactile (Painel) | Entrada (PULLUP) | Digital |
+| **D19** | Boia do reservatório | Float Switch horizontal | Entrada (PULLUP) | Digital |
 | **D21** | SDA | RTC DS3231 | Bidirecional | I2C |
 | **D22** | SCL | RTC DS3231 | Bidirecional | I2C |
 | **D23** | TFT SDA (Data) | Display ST7735 (SDA) | Saída | SPI (MOSI) |
@@ -178,8 +174,8 @@ O sistema foi projetado com abordagem **safety-first** para prevenir alagamentos
 
 | Proteção | Descrição |
 |---|---|
-| **Watchdog de Hardware (WDT)** | Task WDT do ESP32 com timeout de 10 segundos. Se o loop principal travar, o ESP32 reinicia automaticamente. |
-| **SafetyWatchdog** | Roda com prioridade máxima a cada iteração do loop. Detecta overflow (sensor óptico), condições de emergência e desliga todos os atuadores. Também implementa um filtro de 10 leituras consecutivas para acionamento do dreno de emergência pelo ultrassom, evitando falsos positivos. |
+| **Trava de nível máximo (hardware)** | Reed switch em série com o sinal do canal de recalque. Corta a bomba sem passar pelo firmware. É a única proteção que sobrevive a um ESP32 travado. |
+| **SafetyWatchdog** | Roda com prioridade máxima a cada iteração do loop. Monitora o ultrassônico, detecta condições de emergência e desliga todos os atuadores. Conta 10 leituras consecutivas de overflow antes de sinalizar, evitando falsos positivos. |
 | **Loops não-bloqueantes** | Todos os estados de espera (canister, mistura do prime) usam `millis()` em vez de `delay()`, permitindo que o watchdog continue rodando. |
 | **Timeouts por estado** | Cada estado da TPA (`DRAINING`, `FILLING`, `REFILLING`) tem timeout configurável. Ao exceder, entra em ERROR e desliga todos os atuadores. |
 | **Deduplicação NVS** | Evita dose dupla de fertilizantes no mesmo dia, mesmo após reinicializações inesperadas. |

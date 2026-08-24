@@ -55,9 +55,9 @@ Lista completa de componentes do sistema IARA.
 
 | # | Componente | Especificação | Qtd |
 |---|---|---|---|
-| 20 | JSN-SR04T | Ultrassônico à prova d'água, 5V | 1 |
-| 21 | Sensor capacitivo de nível | XKC-Y25-NPN, sem contato, 3.3–5V (GPIO 4) | 1 |
-| 22 | Boia float switch | Nível do reservatório (GPIO 35) | 1 |
+| 20 | A02YYUW | Ultrassônico à prova d'água, UART, **3.3V** | 1 |
+| 21 | Reed switch + ímã | Trava de nível máx., NA, em série GPIO33→IN7 | 1 |
+| 22 | Boia float switch | Nível do reservatório (GPIO 19) | 1 |
 | 23 | DS3231 | Módulo RTC I2C (SDA 21 / SCL 22) | 1 |
 | 24 | Display TFT 1.8" | ST7735, SPI, 128×160 | 1 |
 | 24b| Botão Push/Tactile | Navegação do display (GPIO 0) | 1 |
@@ -70,9 +70,8 @@ Lista completa de componentes do sistema IARA.
 |---|---|---|---|
 | 25 | Diodo FR154 | Fast Recovery, flyback bombas | 7 |
 | 26 | Diodo 1N5822 | Schottky, flyback solenoide | 1 |
-| 27 | Resistor 1kΩ | ¼W, divisor tensão ECHO (R1) | 1 |
-| 28 | Resistor 2kΩ | ¼W, divisor tensão ECHO (R2) | 1 |
-| 29 | Capacitor 10µF / 22µF | 50V, desacoplamento sensores | 2–4 |
+| 27 | Resistor 10kΩ | ¼W, pull-up do GPIO34 (TX do A02YYUW) | 1 |
+| 28 | Capacitor 10µF / 22µF | 50V, desacoplamento sensores | 2–4 |
 
 ---
 
@@ -80,12 +79,12 @@ Lista completa de componentes do sistema IARA.
 
 | # | Componente | Especificação | Qtd |
 |---|---|---|---|
-| 30 | Conector GX12 (Aviação) | Painel fêmea/macho, para sensores | 2–4 |
-| 31 | Cabo blindado multi-vias | 4 a 5 vias, soldável no GX12, 1.2m | 2–4 |
-| 32 | Borne KRE / Wago | Conexões de potência | ~20 |
-| 33 | Espaguete termo-retrátil | Isolamento NTC e soldas | 1m |
-| 34 | Fio 22 AWG | Sinal / sensores | ~5m |
-| 35 | Fio 18 AWG | Potência / bombas | ~10m |
+| 29 | Conector GX12 (Aviação) | Painel fêmea/macho, para sensores | 2–4 |
+| 30 | Cabo blindado multi-vias | 4 a 5 vias, soldável no GX12, 1.2m | 2–4 |
+| 31 | Borne KRE / Wago | Conexões de potência | ~20 |
+| 32 | Espaguete termo-retrátil | Isolamento NTC e soldas | 1m |
+| 33 | Fio 22 AWG | Sinal / sensores | ~5m |
+| 34 | Fio 18 AWG | Potência / bombas | ~10m |
 
 ---
 
@@ -95,7 +94,7 @@ Lista completa de componentes do sistema IARA.
 |---|---|
 | Capacitores eletrolíticos | 6–10 |
 | Diodos (flyback) | 8 |
-| Resistores | 2 |
+| Resistores | 1 |
 | Motores / bombas | 7 |
 | Sensores | 4 |
 | Módulos (ESP32, LM2596, MOSFET, Relé, RTC, TFT) | 6 |

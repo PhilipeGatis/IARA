@@ -84,7 +84,7 @@ stateDiagram-v2
 
     DRAINING --> ERROR: timeout
     FILLING_RESERVOIR --> ERROR: timeout
-    REFILLING --> ERROR: timeout / optical sensor
+    REFILLING --> ERROR: timeout
     ERROR --> [*]: check level → canister ON/OFF
 ```
 
@@ -94,12 +94,12 @@ stateDiagram-v2
 | 2 | **DRAINING** | Drain pump turns on. Ultrasonic sensor monitors the water level. Pump runs until the target level is reached (e.g. 10 cm drop). Flow rate is measured inline for auto-calibration. |
 | 3 | **FILLING_RESERVOIR** | Solenoid valve opens to fill the reservoir with tap water. Float switch monitors reservoir level. Valve closes when reservoir is full. |
 | 4 | **DOSING_PRIME** | Peristaltic pump doses dechlorinator (Prime) into the reservoir. Waits 2 seconds for mixing. Stock level is deducted and saved to NVS. |
-| 5 | **REFILLING** | Refill pump turns on, pumping treated water from reservoir into the aquarium. Stops when ultrasonic sensor reaches the original level OR optical sensor detects max level (safety cutoff). Flow rate is measured for calibration. |
+| 5 | **REFILLING** | Refill pump turns on, pumping treated water from reservoir into the aquarium. Stops when the ultrasonic sensor reaches the original level. A reed switch in series with the MOSFET channel signal cuts the pump in hardware should max level be reached. Flow rate is measured for calibration. |
 | 6 | **CANISTER_ON** | Canister filter is turned back on. **TPA cycle complete.** Calibrated flow rates are saved to NVS for next TPA. |
 
 **Safety at every step:**
 - Each state has a **dynamic timeout** calculated from calibrated flow rates (`volume / flow × 1.5`). First TPA uses safe defaults: **30s drain, 15s refill**.
-- The **optical sensor** acts as a hardware-level safety cutoff during refill — immediate stop regardless of ultrasonic reading.
+- A **reed switch** in series with the signal wire between GPIO33 and MOSFET module input IN7 cuts the refill pump at max level, **independently of the firmware** — it works with the ESP32 hung or the ultrasonic silent. See [`HARDWARE.md`](HARDWARE.md).
 - **Emergency abort** at any point turns off all actuators and restores the canister filter.
 - **On error**, the system checks the water level via ultrasonic before turning the canister back on. If the level is too low (e.g. error during drain), the canister **stays OFF** to avoid running dry and damaging the pump.
 
@@ -125,9 +125,7 @@ graph LR
     ESP32 -->|D12, D13, D14, D25-D27, D32, D33| MOSFET
     ESP32 -->|D2| SSR[Omron SSR]
     ESP32 ---|D18 TX, D34 RX| Ultra[Ultrasonic A02YYUW UART]
-    ESP32 ---|D4| Water[Capacitive Sensor]
-    ESP32 ---|D5| Float[Float Switch]
-    ESP32 ---|D19| Button[Button]
+    ESP32 ---|D19| Float[Float Switch]
   end
 
   MOSFET -->|OUT 1–5| Peristaltic[5x Peristaltic Pumps]
@@ -145,8 +143,6 @@ graph LR
 | GPIO | Function | Component | Direction | Protocol |
 |------|----------|-----------|-----------|----------|
 | **D2** | Canister ON/OFF | Omron SSR Relay | Output | Digital |
-| **D4** | Max level sensor | XKC-Y25-NPN (capacitive) | Input (PULLUP) | Digital |
-| **D5** | Reservoir float | Horizontal Float Switch | Input (PULLUP) | Digital |
 | **D12** | Fertilizer CH2 | MOSFET channel 2 | Output | Digital |
 | **D13** | Fertilizer CH1 | MOSFET channel 1 | Output | Digital |
 | **D14** | Fertilizer CH3 | MOSFET channel 3 | Output | Digital |
@@ -154,7 +150,7 @@ graph LR
 | **D16** | TFT SCK | ST7735 Display (SCK) | Output | SPI (SCK) |
 | **D17** | TFT A0 (Data/Command) | ST7735 Display (A0) | Output | SPI (DC) |
 | **D18** | Ultrasonic UART TX | A02YYUW | Output | Digital (Connect to Sensor RX) |
-| **D19** | Contact button | Push/Tactile Button (Panel) | Input (PULLUP) | Digital |
+| **D19** | Reservoir float | Horizontal Float Switch | Input (PULLUP) | Digital |
 | **D21** | SDA | DS3231 RTC | Bidirectional | I2C |
 | **D22** | SCL | DS3231 RTC | Bidirectional | I2C |
 | **D23** | TFT SDA (Data) | ST7735 Display (SDA) | Output | SPI (MOSI) |
@@ -178,8 +174,8 @@ The system is designed with a **safety-first** approach to prevent flooding, equ
 
 | Protection | Description |
 |---|---|
-| **Hardware Watchdog (WDT)** | ESP32 Task WDT with 10-second timeout. If the main loop freezes for any reason, the ESP32 automatically reboots. |
-| **SafetyWatchdog** | Runs at highest priority every loop iteration. Detects overflow (optical sensor), emergency conditions, and triggers full shutdown of all actuators. Also implements a 10-reading debounce for ultrasonic emergency drains to prevent false positive actuations. |
+| **Max-level interlock (hardware)** | Reed switch in series with the refill channel's signal. Cuts the pump without involving the firmware. It is the only protection that survives a hung ESP32. |
+| **SafetyWatchdog** | Runs at highest priority every loop iteration. Monitors the ultrasonic, detects emergency conditions, and shuts down all actuators. Counts 10 consecutive overflow readings before flagging, to prevent false positives. |
 | **Non-blocking loops** | All wait states (canister settle, prime mixing) use `millis()` instead of `delay()`, so the safety watchdog keeps running during waits. |
 | **State machine timeouts** | Each TPA state (`DRAINING`, `FILLING`, `REFILLING`) has a configurable timeout. Exceeding it triggers an error state and shuts down all actuators. |
 | **NVS deduplication** | Prevents double-dosing fertilizers on the same day, even after unexpected reboots. |

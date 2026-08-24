@@ -55,9 +55,9 @@ Complete component list for the IARA system.
 
 | # | Component | Specification | Qty |
 |---|---|---|---|
-| 20 | JSN-SR04T | Waterproof ultrasonic, 5V | 1 |
-| 21 | Capacitive Level Sensor | XKC-Y25-NPN, non-contact, 3.3–5V (GPIO 4) | 1 |
-| 22 | Float Switch | Reservoir level (GPIO 35) | 1 |
+| 20 | A02YYUW | Waterproof ultrasonic, UART, **3.3V** | 1 |
+| 21 | Reed switch + magnet | Max-level interlock, NO, in series GPIO33→IN7 | 1 |
+| 22 | Float Switch | Reservoir level (GPIO 19) | 1 |
 | 23 | DS3231 | RTC module I2C (SDA 21 / SCL 22) | 1 |
 | 24 | 1.8" TFT Display | ST7735, SPI, 128×160 | 1 |
 | 24b| Push/Tactile Button | Display navigation (GPIO 0) | 1 |
@@ -70,9 +70,8 @@ Complete component list for the IARA system.
 |---|---|---|---|
 | 25 | FR154 Diode | Fast Recovery, pump flyback | 7 |
 | 26 | 1N5822 Diode | Schottky, solenoid flyback | 1 |
-| 27 | 1kΩ Resistor | ¼W, ECHO voltage divider (R1) | 1 |
-| 28 | 2kΩ Resistor | ¼W, ECHO voltage divider (R2) | 1 |
-| 29 | 10µF / 22µF Capacitor | 50V, sensor decoupling | 2–4 |
+| 27 | 10kΩ Resistor | ¼W, GPIO34 pull-up (A02YYUW TX) | 1 |
+| 28 | 10µF / 22µF Capacitor | 50V, sensor decoupling | 2–4 |
 
 ---
 
@@ -80,12 +79,12 @@ Complete component list for the IARA system.
 
 | # | Component | Specification | Qty |
 |---|---|---|---|
-| 30 | GX12 Aviation Connector | Panel mount, for remote sensors | 2–4 |
-| 31 | Shielded Multi-core Cable | 4-5 cores, solderable to GX12, 1.2m | 2–4 |
-| 32 | KRE / Wago Terminal | Power connections | ~20 |
-| 33 | Heat-Shrink Tubing | NTC and solder insulation | 1m |
-| 34 | 22 AWG Wire | Signal / sensors | ~5m |
-| 35 | 18 AWG Wire | Power / pumps | ~10m |
+| 29 | GX12 Aviation Connector | Panel mount, for remote sensors | 2–4 |
+| 30 | Shielded Multi-core Cable | 4-5 cores, solderable to GX12, 1.2m | 2–4 |
+| 31 | KRE / Wago Terminal | Power connections | ~20 |
+| 32 | Heat-Shrink Tubing | NTC and solder insulation | 1m |
+| 33 | 22 AWG Wire | Signal / sensors | ~5m |
+| 34 | 18 AWG Wire | Power / pumps | ~10m |
 
 ---
 
@@ -95,7 +94,7 @@ Complete component list for the IARA system.
 |---|---|
 | Electrolytic Capacitors | 6–10 |
 | Diodes (flyback) | 8 |
-| Resistors | 2 |
+| Resistors | 1 |
 | Motors / Pumps | 7 |
 | Sensors | 4 |
 | Modules (ESP32, LM2596, MOSFET, Relay, RTC, TFT) | 6 |

@@ -90,7 +90,14 @@ Responsible for converting power to logic levels and maintaining ESP32 stability
 ```
 
 > [!IMPORTANT]
-> **Star GND**: All negative references must return directly to the PSU V− terminal to avoid ground loops.
+> **POWER GND — star at the PSU**: **Power** negative references (MOSFET module, LM2596, pumps, solenoid) must return directly to the PSU V− terminal, to avoid ground loops.
+
+> [!CAUTION]
+> **SIGNAL GND — the opposite rule**: The return (GND) of the **sensors** — float switch and ultrasonic — must go to the **ESP32 GND pin**, and **never** straight to the PSU terminal.
+>
+> The ESP32 measures every input relative to *its own* GND pin. A sensor referenced to the PSU terminal hands the GPIO the potential difference between those two points. During pump startup that difference exceeds **1 V negative** — far beyond the ESP32's −0.3 V absolute minimum — and the damage accumulates until the pin fails open.
+>
+> This is exactly how GPIO5 and GPIO19 burned out. See [`PROTECAO_ELETRICA.md`](PROTECAO_ELETRICA.md).
 
 ---
 
@@ -124,62 +131,87 @@ Responsible for mitigating inductive noise (Flyback) and stabilizing sensor read
 > [!CAUTION]
 > **Flyback Diodes**: Must be installed at the **cable end** (next to the motor) to prevent the 1.2m cable from radiating noise like an antenna.
 
-### Wiring Diagram — Ultrasonic Sensor (JSN-SR04T)
+### Wiring Diagram — Ultrasonic Sensor (A02YYUW, UART)
 
-The sensor operates at 5V, but the ESP32 supports a maximum of **3.3V** on GPIOs. The **ECHO** pin requires a resistive voltage divider to reduce 5V → 3.3V before entering GPIO34.
+Waterproof ultrasonic sensor that reports distance over **UART**. No TRIG/ECHO, and no voltage divider needed. It transmits on its own without being commanded: one frame every ~100 ms.
 
-| Component | Function |
-|---|---|
-| **1kΩ Resistor** (R1) | In series between ECHO and GPIO34 |
-| **2kΩ Resistor** (R2) | Pull-down between GPIO34 and GND |
+| Wire | Function | Connection | Note |
+|---|---|---|---|
+| **VCC** (red) | Supply | ESP32 3.3V | ⚠️ Never 5V — see warning below |
+| **GND** (black) | Return | **ESP32 GND pin** | ⚠️ Never the PSU terminal |
+| **TX** | Sensor data output | GPIO34 (RX2) | Needs a 10kΩ pull-up |
+| **RX** | Control input | 3.3V | Unused by the firmware — see note |
 
-**Formula:** `Vout = 5V × R2 / (R1 + R2) = 5 × 2k / 3k = 3.33V` ✅
+> The colors of the two data wires vary between batches; only red and black are consistent. To identify the output, power the sensor and measure: **TX** idles at ~3.3V and shows activity; RX stays inert.
 
 ```
-                           ┌──────────────────┐
-  ESP32 GPIO18 (TRIG) ─────┤ TRIG    JSN-SR04T│
-                           │                  │
-  ESP32 5V ────────────────┤ VCC              │
-                           │                  │
-  GND ─────────────────────┤ GND              │
-                           │                  │
-                           │ ECHO ────┐       │
-                           └──────────┼───────┘
-                                      │
-                                 [ R1 = 1kΩ ]
-                                      │
-                    ESP32 GPIO34 ──────┤
-                                      │
-                                 [ R2 = 2kΩ ]
-                                      │
-                                    (GND)
+   ESP32 3.3V ──────┬──────────────────►  VCC  (red)
+                    │
+                [ 10 kΩ ]                        A02YYUW
+                    │                           (waterproof)
+   ESP32 GPIO34 ────┴──────────────────►  TX   (data output)
+    (RX2)
+
+   ESP32 3.3V ─────────────────────────►  RX   (control, unused)
+
+   ESP32 GND ──────────────────────────►  GND  (black)
+    (board pin, never the PSU terminal)
 ```
 
 > [!WARNING]
-> **Never connect ECHO directly to the ESP32** without the voltage divider. The 5V ECHO signal can permanently damage the ESP32 GPIO.
+> **Power it at 3.3V, never 5V.** The A02YYUW accepts 3.3–5V, but its output logic level follows VCC. At 5V the TX line would drive 5V into GPIO34 and permanently damage it. Running at 3.3V is precisely what makes the direct connection possible without a divider.
 
-### Wiring Diagram — Capacitive Level Sensor (XKC-Y25-NPN)
+> [!IMPORTANT]
+> **10kΩ pull-up between GPIO34 and 3.3V.** GPIO34 is input-only and has **no internal pull-up**. Without the external resistor, a loose cable or unpowered sensor leaves the line floating and the firmware reads noise as data. With the pull-up the line idles high — the UART idle state — and missing data becomes a clean failure, caught by the 2 s timeout in `SafetyWatchdog::readUltrasonic()`.
 
-Non-contact sensor that detects liquid presence through glass/tube walls. NPN open-collector output, directly compatible with ESP32's 3.3V.
-
-| Sensor Pin | Connection |
-|---|---|
-| **VCC** (red) | ESP32 3.3V |
-| **GND** (black) | GND |
-| **OUT** (yellow) | GPIO 4 (`INPUT_PULLUP`) |
-
-```
-  ESP32 3.3V ─────────── VCC (red)
-                                            ┌────────────────┐
-  ESP32 GPIO4 ─────────── OUT (yellow) ────┤ XKC-Y25-NPN    │
-   (INPUT_PULLUP)                          │ (glued on the  │
-                                            │  outside of    │
-  GND ─────────────────── GND (black)  ────┤  glass/tube)   │
-                                            └────────────────┘
-```
+> [!NOTE]
+> **The control wire (sensor RX) is unused.** Nothing in the firmware writes to `Serial2`; the sensor transmits on its own. That wire should go to **3.3V** to keep continuous-transmission mode — what must be avoided is leaving it floating.
+>
+> Today it is wired to `PIN_US_TX = GPIO18` (`include/Config.h`), which as a UART TX pin idles high and has the same effect. Wiring it straight to 3.3V frees GPIO18 for other use.
 
 > [!TIP]
-> **No external resistor needed.** The ESP32's internal pull-up (~45kΩ) is sufficient for the NPN open-collector. The sensor is glued to the **outside** of the aquarium glass at the desired maximum level.
+> **Protocol:** 9600 baud, 8N1. 4-byte frame — `0xFF`, `DataH`, `DataL`, `Checksum`, where distance is in **millimeters** (`(DataH << 8) | DataL`) and the checksum is `(0xFF + DataH + DataL) & 0xFF`. The firmware discards frames with an invalid checksum and applies a 5-sample median filter.
+
+> [!CAUTION]
+> **Local decoupling.** At 3.3V the sensor runs at the bottom of its range, which makes it sensitive to the voltage sag when pumps start — the symptom is corrupted readings during exactly the drain and refill steps. Fit **100 µF + 100 nF at the sensor connector**, not on the board. See [`PROTECAO_ELETRICA.md`](PROTECAO_ELETRICA.md).
+
+### Wiring Diagram — Max-Level Interlock (Reed Switch)
+
+The max-level cutoff **does not go through the firmware**. It is a reed switch in series with the signal wire between **GPIO33** and input **IN7** of the MOSFET module (refill pump channel). If the water reaches max level the contact opens, the control signal is broken and the pump stops — even with the ESP32 hung, rebooting, or the ultrasonic silent.
+
+Assembly: **NO** (normally open) reed with a magnet held nearby by an EVA float, out of the water. At normal level the magnet is present and the contact closed. As the water rises, the float carries the magnet away and the contact opens.
+
+| Situation | Magnet | Reed | Signal | Pump |
+|---|---|---|---|---|
+| Normal level | present | closed | passes | may run |
+| Max level | away | open | broken | **stopped** |
+| Broken wire | — | — | broken | **stopped** |
+
+```
+  ESP32 GPIO33 ───[ REED ]───┬─── IN7 (MOSFET module, channel 7)
+                             │
+                         [ 1 kΩ ]
+                             │
+                         [ 100 nF ]
+                             │
+                        module GND
+```
+
+> [!CAUTION]
+> **The 1 kΩ resistor is mandatory and belongs on the module side**, past the point where the reed breaks the line. The MOSFET input works by stored charge: with the wire open and no such resistor, the gate floats, holds its charge and can keep the MOSFET partially conducting — the pump does not switch off.
+>
+> Before building, measure the resistance between IN7 and the module GND. If it already reads between 10 kΩ and 100 kΩ, the module has its own pull-down and the external resistor is unnecessary.
+
+> [!WARNING]
+> **Do not wire the reed in series with the pump's power.** Reed contacts are rated for 0.5–1 A, and the refill pump draws several amps at startup. The contact would arc and eventually weld closed — a silent failure that voids the interlock. In this position, on the signal wire, it carries less than 4 mA.
+
+> [!TIP]
+> **Test the release distance before sealing the assembly.** A reed has hysteresis: it closes at one distance and only opens at a larger one. With the multimeter on continuity, pull the magnet away until the contact opens and note the distance — the float's travel must be 2 to 3 times that value. Also confirm it does not close again at any intermediate position along the travel.
+
+> [!IMPORTANT]
+> **The firmware cannot see this cutoff.** When the reed acts, the state machine stays in `REFILLING` until the timeout expires and ends in `ERROR`. In normal operation the ultrasonic reaches the setpoint first, so this does not happen — the reed is a safety net, not a routine stop.
+>
+> **GPIO4**, previously the XKC-Y25 capacitive sensor (never installed, dropped from the project), is free. Wiring a second reed to it would give the firmware that visibility back, but requires a code change.
 
 ### Wiring Diagram — TFT ST7735 Display (SPI)
 
@@ -215,22 +247,26 @@ ESP32 3.3V  ────►  LED (fixed backlight)
 
 ---
 
-### Wiring Diagram — Navigation Button
+### Wiring Diagram — Reservoir Float Switch
 
-Physical button that controls the display: short press cycles pages; long press opens the menu (start TPA or toggle maintenance mode).
+Horizontal float switch that signals "reservoir full". It closes the solenoid during the TPA `FILLING_RESERVOIR` state. The firmware requires 5 consecutive "full" reads (~250 ms debounce) before accepting the signal.
 
 | Pin | Connection | GPIO | Configuration |
 |---|---|---|---|
 | **Terminal 1** | GPIO19 | GPIO19 | `INPUT_PULLUP` — active LOW |
-| **Terminal 2** | GND | — | |
+| **Terminal 2** | **ESP32 GND pin** | — | ⚠️ Never the PSU terminal |
 
 ```
-ESP32 GPIO19 ─────── [ BUTTON ] ──── GND
-         INPUT_PULLUP, active LOW (pressed = LOW)
+ESP32 GPIO19 ─────── [ FLOAT ] ─────── ESP32 GND (board pin)
+         INPUT_PULLUP, active LOW (full = LOW)
+         Both wires leave together, in the same cable, the whole way
 ```
 
-> [!TIP]
-> The button can be mounted on the panel using a standard push-button or tactile switch. The firmware detects **short press** (page change) and **long press > 1s** (opens menu).
+> [!NOTE]
+> The float switch originally used GPIO5, but that pin is an ESP32 strapping pin and suffered interference (~2.5 V at rest). It was moved to GPIO19, which previously drove the panel navigation button.
+
+> [!IMPORTANT]
+> **The panel navigation button is disabled** (`PIN_BTN = 255` in `include/Config.h`), precisely because GPIO19 now belongs to the float switch. The display cycles pages on its own; the menu (start TPA / maintenance mode) is reachable only from the web dashboard. To bring the button back, pick another free GPIO and update `PIN_BTN`.
 
 ---
 

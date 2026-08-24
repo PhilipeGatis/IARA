@@ -90,7 +90,14 @@ Responsável por converter a potência para os níveis lógicos e manter a estab
 ```
 
 > [!IMPORTANT]
-> **GND Estrela**: Todas as referências negativas devem retornar diretamente ao borne V− da fonte colmeia para evitar loops de terra.
+> **GND de POTÊNCIA — estrela na fonte**: As referências negativas de **potência** (módulo MOSFET, LM2596, bombas, solenoide) devem retornar diretamente ao borne V− da fonte colmeia, para evitar loops de terra.
+
+> [!CAUTION]
+> **GND de SINAL — regra oposta**: O retorno (GND) dos **sensores** — boia e ultrassônico — deve ir para o **pino GND do ESP32**, e **nunca** direto ao borne da fonte.
+>
+> O ESP32 mede cada entrada em relação ao pino GND *dele*. Um sensor referenciado ao borne da fonte entrega ao GPIO a diferença de potencial entre os dois pontos. Na partida das bombas essa diferença passa de **1 V negativo** — muito além do mínimo absoluto de −0,3 V do ESP32 — e o dano se acumula até o pino abrir.
+>
+> Foi exatamente assim que os GPIO5 e GPIO19 queimaram. Ver [`PROTECAO_ELETRICA.md`](PROTECAO_ELETRICA.md).
 
 ---
 
@@ -124,62 +131,87 @@ Responsável por mitigar o ruído indutivo (Flyback) e estabilizar a leitura dos
 > [!CAUTION]
 > **Diodos Flyback**: Devem ser instalados obrigatoriamente **na ponta do fio** (junto ao motor) para evitar que o cabo de 1,2m irradie ruído como uma antena.
 
-### Esquema de Ligação — Sensor Ultrassônico (JSN-SR04T)
+### Esquema de Ligação — Sensor Ultrassônico (A02YYUW, UART)
 
-O sensor opera em 5V, mas o ESP32 suporta no máximo **3.3V** nos GPIOs. O pino **ECHO** precisa de um divisor de tensão resistivo para reduzir o sinal de 5V → 3.3V antes de entrar no GPIO34.
+Sensor ultrassônico à prova d'água que envia a distância por **UART**. Não usa TRIG/ECHO e não precisa de divisor de tensão. Transmite sozinho, sem receber comando: um frame a cada ~100 ms.
 
-| Componente | Função |
-|---|---|
-| **Resistor 1kΩ** (R1) | Em série entre ECHO e GPIO34 |
-| **Resistor 2kΩ** (R2) | Pull-down entre GPIO34 e GND |
+| Fio | Função | Conexão | Observação |
+|---|---|---|---|
+| **VCC** (vermelho) | Alimentação | 3.3V do ESP32 | ⚠️ Nunca 5V — ver aviso abaixo |
+| **GND** (preto) | Retorno | **Pino GND do ESP32** | ⚠️ Nunca o borne da fonte |
+| **TX** | Saída de dados do sensor | GPIO34 (RX2) | Precisa de pull-up de 10kΩ |
+| **RX** | Entrada de controle | 3.3V | Não usado pelo firmware — ver nota |
 
-**Fórmula:** `Vout = 5V × R2 / (R1 + R2) = 5 × 2k / 3k = 3.33V` ✅
+> A cor dos dois fios de dados varia entre lotes; só vermelho e preto são consistentes. Para identificar a saída, alimente o sensor e meça: o **TX** repousa em ~3.3V e apresenta atividade; o RX fica inerte.
 
 ```
-                           ┌──────────────────┐
-  ESP32 GPIO18 (TRIG) ─────┤ TRIG    JSN-SR04T│
-                           │                  │
-  ESP32 5V ────────────────┤ VCC              │
-                           │                  │
-  GND ─────────────────────┤ GND              │
-                           │                  │
-                           │ ECHO ────┐       │
-                           └──────────┼───────┘
-                                      │
-                                 [ R1 = 1kΩ ]
-                                      │
-                    ESP32 GPIO34 ──────┤
-                                      │
-                                 [ R2 = 2kΩ ]
-                                      │
-                                    (GND)
+   ESP32 3.3V ──────┬──────────────────►  VCC  (vermelho)
+                    │
+                [ 10 kΩ ]                        A02YYUW
+                    │                        (à prova d'água)
+   ESP32 GPIO34 ────┴──────────────────►  TX   (saída de dados)
+    (RX2)
+
+   ESP32 3.3V ─────────────────────────►  RX   (controle, não usado)
+
+   ESP32 GND ──────────────────────────►  GND  (preto)
+    (pino da placa, nunca o borne da fonte)
 ```
 
 > [!WARNING]
-> **Nunca conecte o ECHO diretamente ao ESP32** sem o divisor de tensão. Os 5V do ECHO podem danificar permanentemente o GPIO do ESP32.
+> **Alimente com 3.3V, nunca com 5V.** O A02YYUW aceita 3.3–5V, mas o nível lógico da saída acompanha o VCC. Em 5V a linha de TX entregaria 5V ao GPIO34 e o danificaria permanentemente. É justamente por operar em 3.3V que a ligação dispensa divisor de tensão.
 
-### Esquema de Ligação — Sensor Capacitivo de Nível (XKC-Y25-NPN)
+> [!IMPORTANT]
+> **Pull-up de 10kΩ entre GPIO34 e 3.3V.** O GPIO34 é input-only e **não possui pull-up interno**. Sem o resistor externo, cabo solto ou sensor sem alimentação deixam a linha flutuando, e o firmware lê ruído como se fosse dado. Com o pull-up a linha repousa em nível alto — que é o repouso do UART — e a ausência de dados vira uma falha limpa, detectada pelo timeout de 2 s em `SafetyWatchdog::readUltrasonic()`.
 
-Sensor sem contato que detecta a presença de líquido através da parede do vidro/tubo. Saída NPN open-collector, compatível diretamente com 3.3V do ESP32.
-
-| Pino Sensor | Conexão |
-|---|---|
-| **VCC** (vermelho) | 3.3V do ESP32 |
-| **GND** (preto) | GND |
-| **OUT** (amarelo) | GPIO 4 (`INPUT_PULLUP`) |
-
-```
-  ESP32 3.3V ─────────── VCC (vermelho)
-                                            ┌────────────────┐
-  ESP32 GPIO4 ─────────── OUT (amarelo) ────┤ XKC-Y25-NPN    │
-   (INPUT_PULLUP)                           │ (colado no     │
-                                            │  vidro/tubo)   │
-  GND ─────────────────── GND (preto)  ────┤                │
-                                            └────────────────┘
-```
+> [!NOTE]
+> **O fio de controle (RX do sensor) não é usado.** Nada no firmware escreve no `Serial2`; o sensor transmite por conta própria. Esse fio deve ir ao **3.3V** para manter o modo de transmissão contínua — o que não se deve fazer é deixá-lo flutuando.
+>
+> Hoje ele está ligado ao `PIN_US_TX = GPIO18` (`include/Config.h`), que como pino de TX do UART repousa em nível alto e produz o mesmo efeito. Ligá-lo direto ao 3.3V libera o GPIO18 para outro uso.
 
 > [!TIP]
-> **Sem resistor externo necessário.** O pull-up interno do ESP32 (~45kΩ) é suficiente para o open-collector NPN. O sensor fica colado na **parte externa** do vidro do aquário no nível máximo desejado.
+> **Protocolo:** 9600 baud, 8N1. Frame de 4 bytes — `0xFF`, `DataH`, `DataL`, `Checksum`, onde a distância vem em **milímetros** (`(DataH << 8) | DataL`) e o checksum é `(0xFF + DataH + DataL) & 0xFF`. O firmware descarta frames com checksum inválido e aplica filtro de mediana de 5 amostras.
+
+> [!CAUTION]
+> **Desacoplamento local.** Alimentado em 3.3V o sensor opera no piso da faixa dele, o que o deixa sensível à queda de tensão quando as bombas partem — o sintoma é leitura corrompida justamente durante o dreno e o recalque. Instale **100 µF + 100 nF no conector do sensor**, não na placa. Ver [`PROTECAO_ELETRICA.md`](PROTECAO_ELETRICA.md).
+
+### Esquema de Ligação — Trava de Nível Máximo (Reed Switch)
+
+O corte de nível máximo **não passa pelo firmware**. É um reed switch em série com o fio de sinal entre o **GPIO33** e a entrada **IN7** do módulo MOSFET (canal da bomba de recalque). Se a água atingir o nível máximo, o contato abre, o comando se rompe e a bomba para — mesmo com o ESP32 travado, reiniciando ou com o ultrassônico mudo.
+
+Montagem: reed **NA** (normalmente aberto) com um ímã mantido próximo por uma boia de EVA, fora da água. No nível normal o ímã está presente e o contato fechado. Quando a água sobe, a boia afasta o ímã e o contato abre.
+
+| Situação | Ímã | Reed | Sinal | Bomba |
+|---|---|---|---|---|
+| Nível normal | presente | fechado | passa | pode funcionar |
+| Nível máximo | afastado | aberto | cortado | **parada** |
+| Fio rompido | — | — | cortado | **parada** |
+
+```
+  ESP32 GPIO33 ───[ REED ]───┬─── IN7 (módulo MOSFET, canal 7)
+                             │
+                         [ 1 kΩ ]
+                             │
+                         [ 100 nF ]
+                             │
+                       GND do módulo
+```
+
+> [!CAUTION]
+> **O resistor de 1 kΩ é obrigatório e fica do lado do módulo**, depois do ponto onde o reed corta. A entrada do MOSFET funciona por carga acumulada: com o fio aberto e sem esse resistor, o gate fica flutuando, retém carga e pode manter o MOSFET parcialmente conduzindo — a bomba não desliga.
+>
+> Antes de montar, meça a resistência entre IN7 e o GND do módulo. Se já houver algo entre 10 kΩ e 100 kΩ, o módulo tem pull-down próprio e o resistor externo é dispensável.
+
+> [!WARNING]
+> **Não ligue o reed em série com a alimentação da bomba.** Contato de reed é especificado para 0,5–1 A, e a bomba de recalque puxa vários ampères na partida. O contato arcaria e acabaria soldando fechado — falha silenciosa que anula a trava. Nesta posição, no fio de sinal, ele conduz menos de 4 mA.
+
+> [!TIP]
+> **Teste a distância de liberação antes de fechar o conjunto.** Reed tem histerese: fecha a uma distância e só abre a uma distância maior. Com o multímetro em continuidade, afaste o ímã até o contato abrir e anote a distância — o curso da boia deve ser 2 a 3 vezes esse valor. Confirme também que ele não volta a fechar em nenhuma posição intermediária do curso.
+
+> [!IMPORTANT]
+> **O firmware não enxerga esse corte.** Quando o reed agir, a máquina de estados continuará em `REFILLING` até estourar o timeout e terminar em `ERROR`. Em operação normal o ultrassônico atinge o setpoint antes, então isso não acontece — o reed é rede de proteção, não parada de rotina.
+>
+> O **GPIO4**, que era do sensor capacitivo XKC-Y25 (nunca instalado, removido do projeto), está livre. Ligar um segundo reed nele devolveria essa visibilidade ao firmware, mas exige mudança de código.
 
 ### Esquema de Ligação — Display TFT ST7735 (SPI)
 
@@ -215,22 +247,26 @@ ESP32 3.3V  ────►  LED (backlight fixo)
 
 ---
 
-### Esquema de Ligação — Botão de Navegação
+### Esquema de Ligação — Boia do Reservatório
 
-Botão físico que controla o display: pressionar brevemente muda a página; pressionar e segurar abre o menu (iniciar TPA ou modo manutenção).
+Boia horizontal que indica reservatório cheio. Fecha o solenoide no estado `FILLING_RESERVOIR` do TPA. O firmware exige 5 leituras consecutivas de "cheio" (debounce ~250 ms) antes de aceitar o sinal.
 
 | Pino | Conexão | GPIO | Configuração |
 |---|---|---|---|
 | **Terminal 1** | GPIO19 | GPIO19 | `INPUT_PULLUP` — ativo em LOW |
-| **Terminal 2** | GND | — | |
+| **Terminal 2** | **Pino GND do ESP32** | — | ⚠️ Nunca no borne da fonte |
 
 ```
-ESP32 GPIO19 ─────── [ BOTÃO ] ──── GND
-         INPUT_PULLUP, ativo em LOW (pressionado = LOW)
+ESP32 GPIO19 ─────── [ BOIA ] ─────── ESP32 GND (pino da placa)
+         INPUT_PULLUP, ativo em LOW (cheio = LOW)
+         Os 2 fios saem juntos, no mesmo cabo, o caminho todo
 ```
 
-> [!TIP]
-> O botão pode ser fixado no painel usando um push-button ou tactile switch comum. O firmware detecta **pressão curta** (troca de página) e **pressão longa > 1s** (abre menu).
+> [!NOTE]
+> A boia usava GPIO5 originalmente, mas aquele pino é um strapping pin do ESP32 e sofria interferência (~2,5 V em repouso). Foi movida para GPIO19, que antes era do botão de navegação do painel.
+
+> [!IMPORTANT]
+> **O botão de navegação do painel está desabilitado** (`PIN_BTN = 255` em `include/Config.h`), justamente porque o GPIO19 passou a ser da boia. O display cicla as páginas sozinho; o menu (iniciar TPA / modo manutenção) fica acessível só pelo dashboard web. Para reativar o botão, escolha outro GPIO livre e ajuste `PIN_BTN`.
 
 ---
 
