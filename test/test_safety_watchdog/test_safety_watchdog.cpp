@@ -24,29 +24,7 @@ void test_begin_sets_pin_modes() {
   SafetyWatchdog sw;
   sw.begin();
 
-  TEST_ASSERT_EQUAL(INPUT_PULLUP, mock_pin_mode[PIN_OPTICAL]);
   TEST_ASSERT_EQUAL(INPUT_PULLUP, mock_pin_mode[PIN_FLOAT]);
-}
-
-// ----------------------------------------------------------------------------
-// Optical Sensor
-// ----------------------------------------------------------------------------
-
-void test_optical_low_means_water_detected() {
-  SafetyWatchdog sw;
-  sw.begin();
-
-  // Active LOW: LOW = water at max level
-  mock_pin_read_value[PIN_OPTICAL] = LOW;
-  TEST_ASSERT_TRUE(sw.isOpticalHigh());
-}
-
-void test_optical_high_means_normal() {
-  SafetyWatchdog sw;
-  sw.begin();
-
-  mock_pin_read_value[PIN_OPTICAL] = HIGH;
-  TEST_ASSERT_FALSE(sw.isOpticalHigh());
 }
 
 // ----------------------------------------------------------------------------
@@ -57,9 +35,9 @@ void test_float_low_means_reservoir_full() {
   SafetyWatchdog sw;
   sw.begin();
   
-  mock_pin_read_value[PIN_FLOAT] = LOW; // Usually means full, but we disabled it
-  
-  TEST_ASSERT_FALSE(sw.isReservoirFull()); // Disabled, always false
+  // Active LOW with pullup: LOW = float triggered = reservoir full
+  mock_pin_read_value[PIN_FLOAT] = LOW;
+  TEST_ASSERT_TRUE(sw.isReservoirFull());
 }
 
 void test_float_high_means_reservoir_empty() {
@@ -244,42 +222,6 @@ void test_median_filter_with_partial_buffer() {
 
 // ----------------------------------------------------------------------------
 // Optical Overflow Flag
-// ----------------------------------------------------------------------------
-
-void test_optical_flag_set_on_update() {
-  SafetyWatchdog sw;
-  sw.begin();
-  mock_inject_a02_distance(30.0f); // Ensure sensor connected
-  sw.readUltrasonic();
-
-  // Optical sensor triggered
-  mock_pin_read_value[PIN_OPTICAL] = LOW;
-
-  mock_millis_value = SAFETY_CHECK_INTERVAL_MS + 1;
-  mock_inject_a02_distance(30.0f); // Keep sensor data flowing
-  sw.update();
-
-  TEST_ASSERT_TRUE(sw.overflowDetected());
-
-  // Refill should be forced LOW
-  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_REFILL]);
-}
-
-void test_no_overflow_when_optical_clear() {
-  SafetyWatchdog sw;
-  sw.begin();
-  mock_inject_a02_distance(30.0f);
-  sw.readUltrasonic();
-
-  mock_pin_read_value[PIN_OPTICAL] = HIGH; // Normal
-
-  mock_millis_value = SAFETY_CHECK_INTERVAL_MS + 1;
-  mock_inject_a02_distance(30.0f);
-  sw.update();
-
-  TEST_ASSERT_FALSE(sw.overflowDetected());
-}
-
 // ============================================================================
 // MAIN
 // ============================================================================
@@ -291,8 +233,6 @@ int main(int argc, char **argv) {
   RUN_TEST(test_begin_sets_pin_modes);
 
   // Optical sensor
-  RUN_TEST(test_optical_low_means_water_detected);
-  RUN_TEST(test_optical_high_means_normal);
 
   // Float switch
   RUN_TEST(test_float_low_means_reservoir_full);
@@ -317,8 +257,6 @@ int main(int argc, char **argv) {
   RUN_TEST(test_median_filter_with_partial_buffer);
 
   // Overflow flags
-  RUN_TEST(test_optical_flag_set_on_update);
-  RUN_TEST(test_no_overflow_when_optical_clear);
 
   UNITY_END();
   return 0;

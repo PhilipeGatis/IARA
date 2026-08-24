@@ -86,6 +86,10 @@ private:
   // Button handling
   void _readButton();
 
+  /// True when a real GPIO is assigned to the navigation button.
+  /// PIN_BTN == 255 means disabled (D19 is used by the reservoir float switch).
+  static constexpr bool _btnEnabled() { return PIN_BTN != 255; }
+
   // Page drawing methods
   void _drawNetworkPage();
   void _drawAquariumPage();

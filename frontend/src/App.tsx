@@ -14,7 +14,6 @@ export type AQStatus = {
   rtcConnected?: boolean;
   rtcLostPower?: boolean;
   waterLevel: number;
-  optical: boolean;
   float: boolean;
   emergency: boolean;
   maintenance: boolean;

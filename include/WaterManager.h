@@ -161,7 +161,7 @@ private:
   void _handleRefilling();
   void _handleCanisterOn();
   void _handleManualReservoirFill();
-  void _handleManualPump(uint8_t pin, float flowLPM, bool checkOptical);
+  void _handleManualPump(uint8_t pin, float flowLPM);
 
   /// Stop all TPA actuators (DRY helper)
   void _stopAllTpaActuators(PumpReason reason);

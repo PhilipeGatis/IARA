@@ -1,7 +1,7 @@
 // ============================================================================
 // WaterManager Unit Tests
 // Tests: state machine transitions, safety aborts, timeout handling,
-//        optical race condition fix, auto-calibration
+//        auto-calibration
 // ============================================================================
 
 #include "Arduino.h"
@@ -18,7 +18,6 @@ void setUp() {
   mock_reset_pins();
   mock_millis_value = 0;
   Serial2.mock_clear();
-  mock_pin_read_value[PIN_OPTICAL] = HIGH; // Normal
   mock_pin_read_value[PIN_FLOAT] = HIGH; // Reservoir empty (HIGH = not triggered)
 
   safety = SafetyWatchdog();
@@ -240,37 +239,6 @@ void test_emergency_during_tpa_aborts() {
 
 // --- Refilling ---
 
-void test_refill_stops_on_optical_sensor() {
-  WaterManager wm = makeWM();
-  goToRefilling(wm);
-
-  setDistance(24.0f); // 24cm — far from 10cm target
-  wm.update();               // Pump ON
-  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_REFILL]);
-
-  mock_pin_read_value[PIN_OPTICAL] = LOW; // Max level!
-  setDistance(24.0f);
-  wm.update();
-  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_REFILL]);
-  TEST_ASSERT_EQUAL(TPAState::CANISTER_ON, wm.getState());
-}
-
-void test_refill_checks_optical_before_pump_on() {
-  // This test verifies the race condition fix:
-  // Optical check must happen BEFORE the pump is turned on
-  WaterManager wm = makeWM();
-  goToRefilling(wm);
-
-  // Optical is already triggered before first update in REFILLING
-  mock_pin_read_value[PIN_OPTICAL] = LOW;
-  setDistance(24.0f);
-  wm.update();
-
-  // Pump should NOT have been turned on
-  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_REFILL]);
-  TEST_ASSERT_EQUAL(TPAState::CANISTER_ON, wm.getState());
-}
-
 void test_refill_stops_at_setpoint() {
   WaterManager wm = makeWM();
   goToRefilling(wm);
@@ -290,9 +258,10 @@ void test_complete_cycle_restores_canister() {
   WaterManager wm = makeWM();
   goToRefilling(wm);
 
-  mock_pin_read_value[PIN_OPTICAL] = LOW;
   setDistance(24.0f);
-  wm.update(); // REFILLING → CANISTER_ON
+  wm.update(); // Refill pump ON
+  setDistance(8.6f); // <= 10cm setpoint reached
+  wm.update(); // → CANISTER_ON
   wm.update(); // CANISTER_ON → COMPLETE
 
   TEST_ASSERT_EQUAL(TPAState::COMPLETE, wm.getState());
@@ -488,8 +457,6 @@ int main(int argc, char **argv) {
   RUN_TEST(test_fill_timeout_causes_error);
   RUN_TEST(test_abort_stops_all_and_restores_canister);
   RUN_TEST(test_emergency_during_tpa_aborts);
-  RUN_TEST(test_refill_stops_on_optical_sensor);
-  RUN_TEST(test_refill_checks_optical_before_pump_on);
   RUN_TEST(test_refill_stops_at_setpoint);
   RUN_TEST(test_complete_cycle_restores_canister);
   RUN_TEST(test_state_names);

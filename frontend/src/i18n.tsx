@@ -16,9 +16,6 @@ const translations = {
     // ---- HomeTab ----
     'home.sensors': { pt: 'Sensores e Segurança', en: 'Sensors & Safety', ja: 'センサーと安全' },
     'home.waterLevel': { pt: 'Nível de Água', en: 'Water Level', ja: '水位' },
-    'home.optical': { pt: 'Nível Ótico', en: 'Optical Level', ja: '光学レベル' },
-    'home.opticalOn': { pt: 'CHEIO', en: 'FULL', ja: '満水' },
-    'home.opticalOff': { pt: 'NORMAL', en: 'NORMAL', ja: '正常' },
     'home.float': { pt: 'Bóia de Reposição', en: 'Float Switch', ja: 'フロートスイッチ' },
     'home.floatOn': { pt: 'NO NÍVEL', en: 'AT LEVEL', ja: 'レベル内' },
     'home.floatOff': { pt: 'VAZIO', en: 'EMPTY', ja: '空' },

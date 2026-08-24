@@ -56,8 +56,10 @@ DisplayManager::DisplayManager()
 // INIT HARDWARE
 // =============================================================================
 bool DisplayManager::initHardware() {
-  // Button
-  pinMode(PIN_BTN, INPUT_PULLUP);
+  // Button (skipped when disabled — D19 is used by the reservoir float switch)
+  if (_btnEnabled()) {
+    pinMode(PIN_BTN, INPUT_PULLUP);
+  }
 
   _display.initR(INITR_BLACKTAB);
   _display.setRotation(3); // Landscape: 160×128 (rotated 180°)
@@ -237,6 +239,12 @@ void DisplayManager::update() {
 // BUTTON — debounce + short/long press detection
 // =============================================================================
 void DisplayManager::_readButton() {
+  // Bail out when the button is disabled: digitalRead() on an invalid GPIO
+  // returns 0 (LOW), which reads as "held down" and would auto-open the menu.
+  if (!_btnEnabled()) {
+    return;
+  }
+
   bool btnNow = digitalRead(PIN_BTN); // LOW = pressed (active low)
   unsigned long now = millis();
 

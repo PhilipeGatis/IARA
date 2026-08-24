@@ -4,7 +4,7 @@
 
 SafetyWatchdog::SafetyWatchdog()
     : _lastDistance(-1), _overflowThresholdCm(5.0f), _emergency(false), _sensorsConnected(false),
-      _ultrasonicFailCount(0), _overflowConsecutiveCount(0), _overflowFlag(false), _maintenance(false),
+      _ultrasonicFailCount(0), _overflowConsecutiveCount(0), _maintenance(false),
       _maintenanceStart(0), _lastCheckMs(0), _emergencyDraining(false),
       _emergencyDrainStart(0), _medianIndex(0), _medianCount(0) {}
 
@@ -12,10 +12,7 @@ void SafetyWatchdog::begin() {
   // Ultrasonic A02 UART
   Serial2.begin(9600, SERIAL_8N1, PIN_US_RX, PIN_US_TX);
 
-  // Optical level sensor (active LOW, pulled up)
-  pinMode(PIN_OPTICAL, INPUT_PULLUP);
-
-  // Float switch (active HIGH, pulled down, connected to 3.3V)
+  // Float switch on D19 (active LOW, internal pullup, switch wired to GND)
   pinMode(PIN_FLOAT, INPUT_PULLUP);
 
   // Give the A02YYUW sensor time to power up and start transmitting.
@@ -86,16 +83,9 @@ float SafetyWatchdog::readUltrasonic() {
   return _lastDistance;
 }
 
-bool SafetyWatchdog::isOpticalHigh() {
-  // Active LOW with pullup: LOW = water detected = HIGH level
-  return digitalRead(PIN_OPTICAL) == LOW;
-}
-
 bool SafetyWatchdog::isReservoirFull() {
-  // Pin 19 is currently burned/reading false LOW.
-  // Returning false temporarily so manual fill can work without sensor lock.
-  // return digitalRead(PIN_FLOAT) == LOW;
-  return false;
+  // Active LOW with pullup: LOW = float triggered = reservoir full
+  return digitalRead(PIN_FLOAT) == LOW;
 }
 
 // ============================================================================
@@ -178,18 +168,11 @@ void SafetyWatchdog::update() {
 
   // Skip sensor-based safety if sensors not connected
   if (!_sensorsConnected) {
-    _overflowFlag = false;
     return;
   }
 
-  // -- Optical sensor: immediate stop if water at max --
-  if (isOpticalHigh()) {
-    // Always stop refill when optical is triggered
-    pumpOff(PIN_REFILL, PumpReason::SAFETY_STOP);
-    _overflowFlag = true;
-  } else {
-    _overflowFlag = false;
-  }
+  // NOTE: max-level cutoff is handled in hardware by a reed switch in series
+  // with the refill MOSFET gate signal. It cuts the pump without firmware.
 
   // -- Ultrasonic overflow check --
   _checkOverflow();

@@ -92,8 +92,6 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
 
                         if (wl < 0) {
                             valid = false;
-                        } else if (status?.optical) {
-                            pct = 100;
                         } else {
                             pct = Math.max(0, Math.min(100, Math.round(100 - ((wl - sensorFull) / refCm) * 100)));
                         }
@@ -125,7 +123,6 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                 </div>
 
                 <div className="flex flex-col">
-                    <Badge label={t('home.optical')} on={status?.optical} texts={[t('home.opticalOn'), t('home.opticalOff')]} />
                     <Badge label={t('home.float')} on={status?.float} texts={[t('home.floatOn'), t('home.floatOff')]} />
                     <Badge label={t('home.canister')} on={status?.canister} texts={[t('home.canisterOn'), t('home.canisterOff')]} />
                 </div>

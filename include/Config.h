@@ -32,8 +32,10 @@ constexpr uint8_t PIN_CANISTER = 2; // Relay SSR for canister filter
 // --- Sensors ---
 constexpr uint8_t PIN_US_TX = 18; // Ultrasonic A02 UART TX (to RX on sensor)
 constexpr uint8_t PIN_US_RX = 34; // Ultrasonic A02 UART RX (from TX on sensor)
-constexpr uint8_t PIN_OPTICAL =
-    4; // Capacitive max-level sensor XKC-Y25-NPN (INPUT_PULLUP, active LOW)
+// NOTE: GPIO4 was the XKC-Y25 capacitive max-level sensor. That sensor was
+// never installed and has been dropped: max-level protection is now a physical
+// reed switch wired in series with the refill MOSFET gate signal (GPIO33 ->
+// IN7), which cuts the pump independently of the firmware. GPIO4 is free.
 constexpr uint8_t PIN_FLOAT =
     19; // Horizontal float switch reservoir (Moved from 5 to 19 for stability)
 // --- TFT Display (ST7735, SPI) ---

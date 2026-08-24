@@ -201,10 +201,10 @@ void WaterManager::update() {
     _handleManualReservoirFill();
     break;
   case TPAState::MANUAL_PUMP_DRAIN:
-    _handleManualPump(PIN_DRAIN, _drainFlowLPM, false);
+    _handleManualPump(PIN_DRAIN, _drainFlowLPM);
     break;
   case TPAState::MANUAL_PUMP_REFILL:
-    _handleManualPump(PIN_REFILL, _refillFlowLPM, true);
+    _handleManualPump(PIN_REFILL, _refillFlowLPM);
     break;
   case TPAState::CALIBRATING_RESERVOIR:
     _handleCalibratingReservoir();
@@ -356,17 +356,11 @@ void WaterManager::_handleDosingPrime() {
 }
 
 void WaterManager::_handleRefilling() {
-  // CRITICAL SAFETY: Check optical BEFORE pump-on to prevent race condition
-  // with SafetyWatchdog (which also turns off PIN_REFILL on optical trigger)
-  if (_safety && _safety->isOpticalHigh()) {
-    Serial.println("[TPA] Optical sensor HIGH — refill STOPPED (max level).");
-    pumpOff(PIN_REFILL, PumpReason::SAFETY_STOP);
-    _captureRefillCalibration();
-    _enterState(TPAState::CANISTER_ON);
-    return;
-  }
+  // NOTE: max-level cutoff is a hardware reed switch in series with the refill
+  // MOSFET gate signal. It kills the pump without the firmware being involved,
+  // so there is no max-level sensor to poll here.
 
-  // Step 5: Refill tank until optical sensor or ultrasonic setpoint
+  // Step 5: Refill tank until the ultrasonic setpoint is reached
   if (digitalRead(PIN_REFILL) == LOW) {
     pumpOn(PIN_REFILL, PumpReason::TPA_REFILLING);
     Serial.printf("[TPA] Refill pump ON. Target: %.1f cm\n", _refillTargetCm);
@@ -439,17 +433,7 @@ void WaterManager::_handleManualReservoirFill() {
 }
 
 // DRY #3: Unified manual pump handler for both drain and refill
-void WaterManager::_handleManualPump(uint8_t pin, float flowLPM, bool checkOptical) {
-  // CRITICAL SAFETY: Check optical BEFORE pump-on to prevent race condition
-  if (checkOptical && _safety && _safety->isOpticalHigh()) {
-    Serial.printf("[TPA] Optical sensor HIGH — manual %s STOPPED (max level).\n", pinName(pin));
-    if (pin == PIN_DRAIN) _captureDrainCalibration();
-    else if (pin == PIN_REFILL) _captureRefillCalibration();
-    pumpOff(pin, PumpReason::SAFETY_STOP);
-    _state = TPAState::COMPLETE;
-    return;
-  }
-
+void WaterManager::_handleManualPump(uint8_t pin, float flowLPM) {
   if (digitalRead(pin) == LOW) {
     pumpOn(pin, PumpReason::MANUAL_PUMP);
     if (_safety && _litersPerCm > 0) {

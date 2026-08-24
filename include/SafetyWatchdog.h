@@ -20,9 +20,6 @@ public:
   /// Ultrasonic distance (cm). Uses median filter. Returns -1 on error.
   float readUltrasonic();
 
-  /// Optical max-level sensor: true = water at max level (STOP pumps!)
-  bool isOpticalHigh();
-
   /// Reservoir float switch: true = reservoir is full
   bool isReservoirFull();
 
@@ -55,11 +52,6 @@ public:
   void exitMaintenance();
   bool isMaintenanceMode() const { return _maintenance; }
 
-  // ---- Flags for other managers ----
-
-  /// True if optical sensor triggered overflow during last update
-  bool overflowDetected() const { return _overflowFlag; }
-
 private:
   float _lastDistance;
   float _overflowThresholdCm;
@@ -68,7 +60,6 @@ private:
   bool _sensorsConnected;
   uint8_t _ultrasonicFailCount;
   uint8_t _overflowConsecutiveCount;
-  bool _overflowFlag;
 
   // Maintenance
   bool _maintenance;

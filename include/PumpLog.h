@@ -25,7 +25,7 @@ enum class PumpReason : uint8_t {
   CALIBRATION,         // Run3s calibration pulse
   EMERGENCY_DRAIN,     // Emergency drain (overflow detected)
   EMERGENCY_SHUTDOWN,  // Emergency shutdown (all outputs OFF)
-  SAFETY_STOP,         // Safety sensor triggered (optical/overflow)
+  SAFETY_STOP,         // Safety sensor triggered (overflow)
   ERROR_STOP,          // Error/timeout stop
   ABORT,               // User-initiated abort
   BOOT_INIT,           // Initialization during setup()

@@ -19,7 +19,6 @@ void setUp() {
   mock_reset_pins();
   mock_millis_value = 0;
   Serial2.mock_clear();
-  mock_pin_read_value[PIN_OPTICAL] = HIGH; // Normal (not triggered)
   mock_pin_read_value[PIN_FLOAT] = HIGH; // Reservoir empty (HIGH = not triggered)
   Preferences::mock_clearAll();
 
@@ -150,8 +149,9 @@ void test_drain_off_during_refilling() {
 void test_drain_off_during_canister_on() {
   WaterManager wm = makeWM();
   goToRefilling(wm);
-  mock_pin_read_value[PIN_OPTICAL] = LOW; // Max level → stop refill
   setDistance(24.0f);
+  wm.update(); // Refill pump ON
+  setDistance(8.6f); // <= 10cm setpoint reached
   wm.update(); // → CANISTER_ON
   TEST_ASSERT_EQUAL(TPAState::CANISTER_ON, wm.getState());
   assertDrainOff("CANISTER_ON state");
@@ -160,8 +160,9 @@ void test_drain_off_during_canister_on() {
 void test_drain_off_during_complete() {
   WaterManager wm = makeWM();
   goToRefilling(wm);
-  mock_pin_read_value[PIN_OPTICAL] = LOW;
   setDistance(24.0f);
+  wm.update(); // Refill pump ON
+  setDistance(8.6f); // <= 10cm setpoint reached
   wm.update(); // → CANISTER_ON
   wm.update(); // → COMPLETE
   TEST_ASSERT_EQUAL(TPAState::COMPLETE, wm.getState());
@@ -276,20 +277,6 @@ void test_manual_drain_timeout_30min() {
   wm.update();
   TEST_ASSERT_EQUAL(TPAState::ERROR, wm.getState());
   assertDrainOff("manual drain timeout");
-}
-
-void test_manual_refill_stops_on_optical() {
-  WaterManager wm = makeWM();
-  wm.setRefillFlowLPM(2.0f);
-  wm.startManualPump("refill", 10.0f);
-  wm.update(); // Refill ON
-  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_REFILL]);
-
-  // Optical sensor triggers
-  mock_pin_read_value[PIN_OPTICAL] = LOW;
-  wm.update();
-  TEST_ASSERT_EQUAL(TPAState::COMPLETE, wm.getState());
-  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_REFILL]);
 }
 
 void test_manual_refill_stops_on_goal() {
@@ -444,8 +431,9 @@ void test_drain_stays_off_after_complete_with_many_updates() {
   // Full TPA cycle → COMPLETE → many updates — drain should stay LOW
   WaterManager wm = makeWM();
   goToRefilling(wm);
-  mock_pin_read_value[PIN_OPTICAL] = LOW;
   setDistance(24.0f);
+  wm.update(); // Refill pump ON
+  setDistance(8.6f); // <= 10cm setpoint reached
   wm.update(); // → CANISTER_ON
   wm.update(); // → COMPLETE
 
@@ -479,7 +467,6 @@ void test_drain_off_safety_update_normal_conditions() {
   // SafetyWatchdog update cycle with normal conditions should never touch drain
   setDistance(30.0f); // ~30cm — sensor connected and safe
 
-  mock_pin_read_value[PIN_OPTICAL] = HIGH; // Normal
 
   for (int i = 0; i < 30; i++) {
     mock_millis_value += SAFETY_CHECK_INTERVAL_MS + 1;
@@ -495,7 +482,6 @@ void test_drain_off_overflow_detection_disabled() {
   // Even with low ultrasonic readings, drain should NOT activate
   setDistance(3.0f); // ~3cm — below LEVEL_SAFETY_MIN_CM
 
-  mock_pin_read_value[PIN_OPTICAL] = HIGH; // Normal
 
   // Run 15 update cycles to trigger overflow counter (needs 10 consecutive)
   for (int i = 0; i < 15; i++) {
@@ -550,7 +536,6 @@ int main(int argc, char **argv) {
   // Section 3: Manual pump operations (new coverage)
   RUN_TEST(test_manual_drain_stops_on_goal_reached);
   RUN_TEST(test_manual_drain_timeout_30min);
-  RUN_TEST(test_manual_refill_stops_on_optical);
   RUN_TEST(test_manual_refill_stops_on_goal);
   RUN_TEST(test_manual_reservoir_fill_completes_on_float);
   RUN_TEST(test_manual_operations_blocked_while_running);

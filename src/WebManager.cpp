@@ -175,9 +175,6 @@ String WebManager::_buildStatusJSON() {
   if (_safety) {
     json += "\"waterLevel\":" + String(_safety->getLastDistance(), 1) + ",";
     json +=
-        "\"optical\":" + String(_safety->isOpticalHigh() ? "true" : "false") +
-        ",";
-    json +=
         "\"float\":" + String(_safety->isReservoirFull() ? "true" : "false") +
         ",";
     json +=
@@ -1289,8 +1286,7 @@ void WebManager::_printStatus() {
   }
   if (_safety) {
     Serial.printf("  Water Level: %.1f cm\n", _safety->getLastDistance());
-    Serial.printf("  Optical: %s | Float: %s\n",
-                  _safety->isOpticalHigh() ? "HIGH" : "low",
+    Serial.printf("  Float: %s\n",
                   _safety->isReservoirFull() ? "FULL" : "empty");
     Serial.printf("  Emergency: %s | Maintenance: %s\n",
                   _safety->isEmergency() ? "YES" : "no",
