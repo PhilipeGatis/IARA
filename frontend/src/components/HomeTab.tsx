@@ -3,19 +3,6 @@ import { api } from '../api';
 import { useT } from '../i18n';
 import { useConfirm } from '../Confirm';
 
-/* ── Small label / status row ─────────────────────────────────── */
-function Badge({ label, on, texts }: { label: string; on?: boolean; texts: [string, string] }) {
-    if (on === undefined) return null;
-    return (
-        <div className="row">
-            <span className="row-k">{label}</span>
-            <span className={`pill ${on ? 'bg-accent/20 text-accent' : 'bg-white/5 text-muted'}`}>
-                {on ? texts[0] : texts[1]}
-            </span>
-        </div>
-    );
-}
-
 /* ── Shared "what is still missing" checklist ─────────────────── */
 export function ConfigChecklist({ status }: { status: AQStatus | null }) {
     const { t } = useT();
@@ -169,11 +156,8 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                     <div className={`h-full transition-all duration-500 ease-out ${levelBar}`} style={{ width: `${pct}%` }} />
                 </div>
 
-                <div className="mt-2 flex flex-col">
-                    <Badge label={t('home.float')} on={status?.float} texts={[t('home.floatOn'), t('home.floatOff')]} />
-                    <Badge label={t('home.canister')} on={status?.canister} texts={[t('home.canisterOn'), t('home.canisterOff')]} />
-                    <Badge label={t('home.maintenance')} on={status?.maintenance} texts={[t('home.maintActive'), t('home.maintInactive')]} />
-                </div>
+                {/* Float, canister and maintenance moved to the header, where they
+                    are visible from every tab instead of only this one. */}
             </section>
 
             {/* 3 — TPA: when is the next one, and start/stop it */}
@@ -194,38 +178,29 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
 
                     return (
                         <>
-                            <div className={`rounded-xl px-4 py-3 ${soon ? 'bg-warn/10' : 'bg-accent2/10'}`}>
-                                <div className="lbl">{t('home.nextTpa')}</div>
-                                <div className={`mt-0.5 text-xl font-bold leading-tight ${soon ? 'text-warn' : 'text-accent2'}`}>
+                            {/* One line for when, one for the details. The schedule is
+                                reference material next to the button below it. */}
+                            <div className={`flex items-baseline justify-between gap-2 rounded-lg px-3 py-2 ${soon ? 'bg-warn/10' : 'bg-accent2/10'}`}>
+                                <span className={`text-base font-bold leading-tight ${soon ? 'text-warn' : 'text-accent2'}`}>
                                     {nextRunDate
                                         ? (daysUntil === 0 ? t('home.today') : daysUntil === 1 ? t('home.tomorrow') : t('home.inDays', { n: daysUntil ?? 0 }))
                                         : '--'}
-                                </div>
+                                </span>
                                 {nextRunDate && (
-                                    <div className="hint font-mono">
+                                    <span className="font-mono text-[11px] tabular-nums text-muted">
                                         {formatDate(nextRunDate)} · {String(status.tpaHour).padStart(2, '0')}:{String(status.tpaMinute).padStart(2, '0')}
-                                    </div>
+                                    </span>
                                 )}
                             </div>
 
-                            <div className="mt-2 flex flex-col">
-                                <div className="row">
-                                    <span className="row-k">{t('home.volume')}</span>
-                                    <span className="row-v text-accent">
-                                        {status.tpaPercent}%{status.aquariumVolume ? ` (${(status.aquariumVolume * status.tpaPercent / 100).toFixed(1)} L)` : ''}
-                                    </span>
-                                </div>
-                                <div className="row">
-                                    <span className="row-k">{t('home.interval')}</span>
-                                    <span className="row-v">
-                                        {t('home.everyDays', { n: status.tpaInterval, s: status.tpaInterval > 1 ? 's' : '' })}
-                                    </span>
-                                </div>
-                                <div className="row">
-                                    <span className="row-k">{t('home.lastRun')}</span>
-                                    <span className="row-v text-muted">{lastRunDate ? formatDate(lastRunDate) : t('home.never')}</span>
-                                </div>
-                            </div>
+                            <p className="hint mt-1.5">
+                                {status.tpaPercent}%
+                                {status.aquariumVolume ? ` (${(status.aquariumVolume * status.tpaPercent / 100).toFixed(1)} L)` : ''}
+                                {' · '}
+                                {t('home.everyDays', { n: status.tpaInterval, s: status.tpaInterval > 1 ? 's' : '' })}
+                                {' · '}
+                                {t('home.lastRun')}: {lastRunDate ? formatDate(lastRunDate) : t('home.never')}
+                            </p>
                         </>
                     );
                 })() : (

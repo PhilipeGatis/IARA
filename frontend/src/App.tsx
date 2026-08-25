@@ -6,6 +6,7 @@ import ConfigTab from './components/ConfigTab';
 import LogsTab from './components/LogsTab';
 import { I18nProvider, useT } from './i18n';
 import { setNetErrorMsg } from './api';
+import LevelBadge, { StateIcon } from './LevelBadge';
 
 declare const __APP_VERSION__: string;
 
@@ -70,6 +71,13 @@ const formatUptime = (ms: number) => {
   if (d > 0) return `${d}d ${h}h`;
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
+};
+
+/** The firmware sends "YYYY/MM/DD HH:MM:SS"; the header only needs HH:MM. */
+const clockOf = (t?: string) => {
+  if (!t) return '--:--';
+  const m = t.match(/(\d{2}):(\d{2})/);
+  return m ? `${m[1]}:${m[2]}` : t;
 };
 
 const TABS = [
@@ -142,8 +150,19 @@ function AppContent() {
               {status?.uptimeMs ? ` · ${formatUptime(status.uptimeMs)}` : ''}
             </p>
           </div>
-          <span className="flex-none font-mono text-base font-medium tabular-nums tracking-wider text-accent">
-            {status?.time || '--:--:--'}
+
+          {/* State at a glance, on every tab: lit when active, dimmed when not. */}
+          <div className="flex flex-none items-center gap-1.5">
+            <StateIcon icon="🌀" on={status?.canister} label={t('home.canister')} />
+            <StateIcon icon="🛟" on={status?.float} label={t('home.float')} />
+            <StateIcon icon="🔧" on={status?.maintenance} label={t('home.maintenance')} />
+          </div>
+
+          {/* The level matters from every tab, not just Home. */}
+          <LevelBadge status={status} />
+
+          <span className="flex-none font-mono text-xs tabular-nums text-muted">
+            {clockOf(status?.time)}
           </span>
         </div>
       </header>
