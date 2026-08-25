@@ -30,7 +30,8 @@ function PumpTest({
 }) {
     const { t } = useT();
     const n = parseFloat(pct);
-    const over = Number.isFinite(n) && maxPct > 0 && n > maxPct;
+    const hasGoal = Number.isFinite(n) && n > 0;
+    const over = hasGoal && maxPct > 0 && n > maxPct;
     const liters = Number.isFinite(n) ? n * litersPerPct : 0;
 
     return (
@@ -46,15 +47,24 @@ function PumpTest({
                     />
                     <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-muted">%</span>
                 </div>
-                <button onClick={onStart} className={`btn ${tone} flex-1`} disabled={over || !(n > 0) || !trackable}>▶ ON</button>
+                <button
+                    onClick={onStart}
+                    className={`btn ${tone} flex-1`}
+                    // An empty field means "no goal": run until OFF is pressed. That path
+                    // must stay open, otherwise there is no way to run the pumps needed to
+                    // calibrate the very flow rates a goal depends on.
+                    disabled={over || (hasGoal && !trackable)}
+                >▶ ON</button>
                 <button onClick={onStop} className="btn btn-d flex-1">⏹ OFF</button>
             </div>
-            <p className={`hint ${over || !trackable ? 'text-danger' : ''}`}>
-                {!trackable
-                    ? t('tpa.goalNotTrackable')
-                    : over
-                        ? t('tpa.goalOverMax', { max: maxPct.toFixed(1) })
-                        : t('tpa.goalEquals', { liters: liters.toFixed(1) })}
+            <p className={`hint ${over || (hasGoal && !trackable) ? 'text-danger' : ''}`}>
+                {!hasGoal
+                    ? t('tpa.goalFree')
+                    : !trackable
+                        ? t('tpa.goalNotTrackable')
+                        : over
+                            ? t('tpa.goalOverMax', { max: maxPct.toFixed(1) })
+                            : t('tpa.goalEquals', { liters: liters.toFixed(1) })}
             </p>
         </div>
     );

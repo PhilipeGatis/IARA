@@ -583,13 +583,16 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                 <div className="sub" />
                 <button
                     onClick={() => {
-                        if (confirm(t('confirm.emergency'))) api('POST', '/api/emergency/stop');
+                        const msg = status?.emergency ? t('confirm.emergencyClear') : t('confirm.emergency');
+                        if (confirm(msg)) api('POST', '/api/emergency/stop');
                     }}
-                    className="btn btn-dd w-full"
+                    className={`btn w-full ${status?.emergency ? 'btn-g' : 'btn-dd'}`}
                 >
-                    {t('config.emergencyStop')}
+                    {status?.emergency ? t('config.emergencyClear') : t('config.emergencyStop')}
                 </button>
-                <p className="hint">{t('config.emergencyHint')}</p>
+                <p className="hint">
+                    {status?.emergency ? t('config.emergencyClearHint') : t('config.emergencyHint')}
+                </p>
             </section>
         </div>
     );

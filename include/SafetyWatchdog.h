@@ -37,8 +37,9 @@ public:
   /// Open drain, close everything else. Runs for TIMEOUT_EMERGENCY_MS.
   void emergencyDrain();
 
-  /// Set the dynamic overflow threshold (distance from sensor)
-  void setOverflowThresholdCm(float cm) { _overflowThresholdCm = cm > 0 ? cm : 0.1f; }
+  /// Set the overflow threshold (distance from sensor, cm).
+  /// 0 disables overflow detection — used while the sensor is uncalibrated.
+  void setOverflowThresholdCm(float cm) { _overflowThresholdCm = cm > 0 ? cm : 0.0f; }
 
   /// Returns true if currently in emergency state
   bool isEmergency() const { return _emergency; }
@@ -60,6 +61,8 @@ private:
   bool _sensorsConnected;
   uint8_t _ultrasonicFailCount;
   uint8_t _overflowConsecutiveCount;
+  /// Previous reading, used to reject physically impossible jumps.
+  float _prevOverflowDistance = -1;
 
   // Maintenance
   bool _maintenance;

@@ -49,10 +49,17 @@ public:
   float getLitersPerCm() const { return (float)_aqLength * _aqWidth / 1000.0f; }
   uint16_t getAqHeight() const { return _aqHeight; }
   uint16_t getSensorFullDistanceMm() const { return _sensorFullDistanceMm; }
+  /// Distance (cm) at or below which the water counts as overflowing.
+  /// Returns 0 — meaning "no overflow detection" — until the level sensor has
+  /// been calibrated. A freshly flashed board must never act on a placeholder
+  /// threshold: that turns a healthy tank into an emergency drain.
   float getOverflowThresholdCm() const {
-    float marginCm = _aqMarginMm / 10.0f;
-    float sfCm = _sensorFullDistanceMm / 10.0f;
-    return sfCm > marginCm ? sfCm - marginCm : 0.0f;
+    if (_sensorFullDistanceMm == 0 || _aqHeight == 0)
+      return 0.0f;
+    const float sfCm = _sensorFullDistanceMm / 10.0f;
+    const float toleranceCm = _aqHeight * (OVERFLOW_TOLERANCE_PCT / 100.0f);
+    const float t = sfCm - toleranceCm;
+    return t > 0.0f ? t : 0.0f;
   }
   float getReservoirSafetyML() const { return _reservoirSafetyML; }
   uint16_t getReservoirVolume() const { return _reservoirVolume; }

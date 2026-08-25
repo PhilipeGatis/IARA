@@ -495,11 +495,22 @@ void WebManager::_setupRoutes() {
              });
 
   // ---- POST /api/emergency/stop ----
+  // Toggles, mirroring the `emergency_stop` serial command. Without a way to
+  // clear it from here the dashboard could enter an emergency and never leave
+  // it, since main.cpp skips everything else while the flag is set.
   _server.on("/api/emergency/stop", HTTP_POST,
              [this](AsyncWebServerRequest *request) {
-               if (_safety)
-                 _safety->emergencyShutdown();
-               Serial.println("[Web] EMERGENCY STOP via dashboard!");
+               if (_safety) {
+                 if (_safety->isEmergency()) {
+                   _safety->clearEmergency();
+                   if (_water)
+                     _water->stopManual(); // back to IDLE
+                   Serial.println("[Web] Emergency CLEARED via dashboard.");
+                 } else {
+                   _safety->emergencyShutdown();
+                   Serial.println("[Web] EMERGENCY STOP via dashboard!");
+                 }
+               }
                request->send(200, "application/json", "{\"ok\":true}");
              });
 
@@ -1036,7 +1047,10 @@ void WebManager::_loadParams() {
   _aqLength = _prefs.getUShort("aqL", 60);
   _aqWidth = _prefs.getUShort("aqW", 30);
   _aqMarginMm = _prefs.getUShort("aqBord", 0);
-  _sensorFullDistanceMm = _prefs.getUShort("aqMg", 100); // Reused key for backward compat, converted default 10cm to 100mm
+  // 0 means "not calibrated yet". It must not default to a plausible-looking
+  // distance: overflow detection is derived from it, and a placeholder value
+  // makes a fresh board believe a normal water level is a flood.
+  _sensorFullDistanceMm = _prefs.getUShort("aqMg", 0);
   _drainFlowRate = _prefs.getFloat("drFR", 0);
   _refillFlowRate = _prefs.getFloat("rfFR", 0);
   _primeRatio = _prefs.getFloat("pRat", 0);

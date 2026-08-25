@@ -1,9 +1,10 @@
 #include "SafetyWatchdog.h"
 #include "PumpLog.h"
 #include <algorithm> // std::sort
+#include <cmath>     // fabsf
 
 SafetyWatchdog::SafetyWatchdog()
-    : _lastDistance(-1), _overflowThresholdCm(5.0f), _emergency(false), _sensorsConnected(false),
+    : _lastDistance(-1), _overflowThresholdCm(0.0f), _emergency(false), _sensorsConnected(false),
       _ultrasonicFailCount(0), _overflowConsecutiveCount(0), _maintenance(false),
       _maintenanceStart(0), _lastCheckMs(0), _emergencyDraining(false),
       _emergencyDrainStart(0), _medianIndex(0), _medianCount(0) {}
@@ -181,15 +182,35 @@ void SafetyWatchdog::update() {
 }
 
 void SafetyWatchdog::_checkOverflow() {
+  // Disabled until the level sensor is calibrated. Acting on a threshold
+  // derived from placeholder config is how a fresh board drains a healthy tank.
+  if (_overflowThresholdCm <= 0)
+    return;
+
   float dist = readUltrasonic();
   if (dist < 0)
     return; // No valid reading
 
+  // Reject physically impossible jumps. Water cannot move several centimetres
+  // in half a second, so a step this large means the sensor was moved, knocked
+  // or is misreading — the exact situation where draining the tank would be
+  // the wrong answer. Restart the streak and wait for readings to settle.
+  if (_prevOverflowDistance >= 0 &&
+      fabsf(dist - _prevOverflowDistance) > MAX_PLAUSIBLE_LEVEL_STEP_CM) {
+    Serial.printf("[Safety] Implausible level step: %.1f -> %.1f cm. "
+                  "Ignoring (sensor moved?).\n",
+                  _prevOverflowDistance, dist);
+    _prevOverflowDistance = dist;
+    _overflowConsecutiveCount = 0;
+    return;
+  }
+  _prevOverflowDistance = dist;
+
   // 1. OVERFLOW PROTECTION
   if (dist < _overflowThresholdCm && !_emergencyDraining) {
     _overflowConsecutiveCount++;
-        Serial.printf("[Safety] Overflow warning: dist=%.1f cm < %.1f cm (Count: %d/3)\n", dist,
-                      _overflowThresholdCm, _overflowConsecutiveCount);
+    Serial.printf("[Safety] Overflow warning: dist=%.1f cm < %.1f cm (%d/10)\n",
+                  dist, _overflowThresholdCm, _overflowConsecutiveCount);
     
     if (_overflowConsecutiveCount >= 10) {
       // Reached only with a live sensor: update() returns early when the

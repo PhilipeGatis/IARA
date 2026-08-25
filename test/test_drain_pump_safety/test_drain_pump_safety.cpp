@@ -537,6 +537,43 @@ void test_overflow_needs_ten_consecutive_readings() {
   pumpOff(PIN_DRAIN, PumpReason::SAFETY_STOP);
 }
 
+void test_overflow_disabled_while_uncalibrated() {
+  safety.clearEmergency();
+  safety.setOverflowThresholdCm(0.0f); // 0 = sensor not calibrated yet
+
+  // Readings far "above" any plausible level must do nothing: a threshold
+  // derived from placeholder config is exactly what drained a healthy tank.
+  for (int i = 0; i < 20; i++) {
+    mock_millis_value += SAFETY_CHECK_INTERVAL_MS + 1;
+    setDistance(1.0f);
+    safety.update();
+  }
+  TEST_ASSERT_FALSE(safety.isEmergency());
+  assertDrainOff("overflow detection disabled while uncalibrated");
+}
+
+void test_overflow_ignores_implausible_jump() {
+  safety.clearEmergency();
+  safety.setOverflowThresholdCm(5.0f);
+
+  // Settle at a normal level so the guard has a previous reading to compare.
+  for (int i = 0; i < 3; i++) {
+    mock_millis_value += SAFETY_CHECK_INTERVAL_MS + 1;
+    setDistance(30.0f);
+    safety.update();
+  }
+
+  // A jump this large is the sensor being moved, not the water rising.
+  // It must restart the streak instead of counting toward an emergency.
+  for (int i = 0; i < 15; i++) {
+    mock_millis_value += SAFETY_CHECK_INTERVAL_MS + 1;
+    setDistance(i % 2 == 0 ? 1.0f : 30.0f); // alternating = never plausible
+    safety.update();
+    assertDrainOff("implausible level steps");
+  }
+  TEST_ASSERT_FALSE(safety.isEmergency());
+}
+
 void test_overflow_counter_resets_when_level_drops() {
   safety.clearEmergency();
   safety.setOverflowThresholdCm(5.0f);
@@ -632,6 +669,8 @@ int main(int argc, char **argv) {
   RUN_TEST(test_drain_off_safety_update_normal_conditions);
   RUN_TEST(test_overflow_needs_ten_consecutive_readings);
   RUN_TEST(test_overflow_counter_resets_when_level_drops);
+  RUN_TEST(test_overflow_disabled_while_uncalibrated);
+  RUN_TEST(test_overflow_ignores_implausible_jump);
 
   // Section 7: Prime skip
   RUN_TEST(test_prime_disabled_skips_dosing);

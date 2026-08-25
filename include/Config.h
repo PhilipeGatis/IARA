@@ -95,6 +95,17 @@ constexpr unsigned long TIMEOUT_EMERGENCY_MS = 3UL * 60 * 1000;     // 3 min
 constexpr unsigned long MANUAL_PUMP_MAX_MS = 10UL * 60 * 1000;      // 10 min
 // Floor for that dynamic budget, so a tiny goal still gets time to start up.
 constexpr unsigned long MANUAL_PUMP_MIN_MS = 30UL * 1000;           // 30 s
+
+// Overflow trips when the level rises this far above the calibrated 100% mark,
+// expressed as a percentage of aquarium height. The 100% line is meant to sit
+// 2–3 cm below the rim, so this fires while there is still headroom to react.
+constexpr float OVERFLOW_TOLERANCE_PCT = 3.0f;
+
+// Largest level change (cm) that can plausibly happen between two safety checks
+// 500 ms apart. Even a refill pump moves the surface by a fraction of a
+// millimetre in that time, so anything beyond this is the sensor being moved,
+// knocked or lying — never the water. Such readings must not open the drain.
+constexpr float MAX_PLAUSIBLE_LEVEL_STEP_CM = 3.0f;
 constexpr unsigned long MAINTENANCE_DURATION_MS = 30UL * 60 * 1000; // 30 min
 
 // Volumes and flow
