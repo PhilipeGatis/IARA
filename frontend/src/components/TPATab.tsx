@@ -64,11 +64,11 @@ function PumpTest({
                 >▶ ON</button>
                 <button onClick={onStop} className="btn btn-d flex-1">⏹ OFF</button>
             </div>
-            {flow <= 0 && (
-                <button onClick={onCalibrate} className="btn btn-w mt-2 w-full">
-                    {t('tpa.calibrateFlow')}
-                </button>
-            )}
+            {/* Always offered. A stored rate can be wrong as easily as missing —
+                and a wrong one is worse, because it sizes the TPA timeouts. */}
+            <button onClick={onCalibrate} className="btn btn-w mt-2 w-full">
+                {flow > 0 ? t('tpa.recalibrateFlow') : t('tpa.calibrateFlow')}
+            </button>
             <p className={`hint ${over || (hasGoal && !trackable) ? 'text-danger' : ''}`}>
                 {!hasGoal
                     ? t('tpa.goalFree')
@@ -436,14 +436,10 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                         </span>
                     </div>
                 </div>
-                {(!(status?.drainFlowRate) || !(status?.refillFlowRate)) && (
-                    <>
-                        <button onClick={handleCalibrateBoth} className="btn btn-p2 mt-3 w-full">
-                            {t('tpa.calibrateBoth')}
-                        </button>
-                        <p className="hint">{t('tpa.calibrateBothHint')}</p>
-                    </>
-                )}
+                <button onClick={handleCalibrateBoth} className="btn btn-p2 mt-3 w-full">
+                    {t('tpa.calibrateBoth')}
+                </button>
+                <p className="hint">{t('tpa.calibrateBothHint')}</p>
 
                 <p className="hint mt-3">{t('tpa.autoCalibrated')}</p>
             </section>
