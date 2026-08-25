@@ -1,4 +1,5 @@
 #include "WaterManager.h"
+#include <cmath> // fabsf
 #include "FertManager.h"
 #include "PumpLog.h"
 #include "SafetyWatchdog.h"
@@ -71,7 +72,11 @@ void WaterManager::startTPA(bool manual) {
 
   Serial.println("[Water] === TPA CYCLE STARTED ===");
   _isManualTPA = manual;
-  _enterState(TPAState::CANISTER_OFF);
+  // The reservoir comes first on purpose. Everything that can fail here — no
+  // mains pressure, a stuck float, a dead solenoid — fails while the aquarium
+  // is still full and the canister still running. Draining first would leave a
+  // low tank, a stopped filter and no treated water to put back.
+  _enterState(TPAState::FILLING_RESERVOIR);
 }
 
 void WaterManager::abortTPA() {
@@ -144,11 +149,13 @@ void WaterManager::startPumpCalibration(const String &pump) {
   }
 
   _manualPumpTarget = pump;
-  _manualPumpGoalLiters = 0; // no goal: the clock ends this run
-  _calibrationRunMs = PUMP_CALIBRATION_RUN_MS;
+  _manualPumpGoalLiters = 0; // no goal: the level change ends this run
+  _calibrationRunMs = PUMP_CALIBRATION_MAX_MS;
 
-  Serial.printf("[TPA] ====== FLOW CALIBRATION: %s for %lus ======\n",
-                pump.c_str(), PUMP_CALIBRATION_RUN_MS / 1000);
+  Serial.printf("[TPA] ====== FLOW CALIBRATION: %s until the level moves "
+                "%.1f%% (max %lus) ======\n",
+                pump.c_str(), CALIBRATION_MIN_DELTA_PCT,
+                PUMP_CALIBRATION_MAX_MS / 1000);
 
   if (pump == "drain") {
     _enterState(TPAState::MANUAL_PUMP_DRAIN);
@@ -327,7 +334,7 @@ void WaterManager::_handleDraining() {
       pumpOff(PIN_DRAIN, PumpReason::TPA_TARGET_REACHED);
       Serial.printf("[TPA] Drain calibrated: %.2f L/min\n", _drainFlowLPM);
 
-      _enterState(TPAState::FILLING_RESERVOIR);
+      _enterState(TPAState::REFILLING);
       return;
     }
   }
@@ -349,17 +356,19 @@ void WaterManager::_handleDraining() {
 }
 
 void WaterManager::_handleFillingReservoir() {
-  // Step 3: Open solenoid until float switch indicates reservoir full
-  if (digitalRead(PIN_SOLENOID) == LOW) {
-    pumpOn(PIN_SOLENOID, PumpReason::TPA_SOLENOID);
-    Serial.println("[TPA] Solenoid OPEN. Filling reservoir...");
-  }
-
+  // Step 1: top the reservoir up, unless it is already full. Check before
+  // opening, so an already-full reservoir does not get a pointless pulse of
+  // mains water.
   if (_isReservoirFullDebounced()) {
     Serial.println("[TPA] Reservoir FULL (float switch triggered).");
     pumpOff(PIN_SOLENOID, PumpReason::TPA_TARGET_REACHED);
     _enterState(TPAState::DOSING_PRIME);
     return;
+  }
+
+  if (digitalRead(PIN_SOLENOID) == LOW) {
+    pumpOn(PIN_SOLENOID, PumpReason::TPA_SOLENOID);
+    Serial.println("[TPA] Solenoid OPEN. Filling reservoir...");
   }
 
   if (_stateElapsed() >= TIMEOUT_RESERVOIR_FILL_MS) {
@@ -372,7 +381,7 @@ void WaterManager::_handleFillingReservoir() {
 void WaterManager::_handleDosingPrime() {
   // Step 4: Dose Prime (dechlorinator) into reservoir
   if (!_primeEnabled) {
-    _enterState(TPAState::REFILLING);
+    _enterState(TPAState::CANISTER_OFF);
     return;
   }
 
@@ -398,7 +407,7 @@ void WaterManager::_handleDosingPrime() {
   if (!_isWaiting()) {
     _waitUntilMs = 0;
     _doseCompleted = false;
-    _enterState(TPAState::REFILLING);
+    _enterState(TPAState::CANISTER_OFF);
   }
 }
 
@@ -522,11 +531,24 @@ void WaterManager::_handleManualPump(uint8_t pin, float flowLPM) {
 
   bool reached = false;
 
-  // Calibration run: the clock ends it, and the level change measured over that
-  // window becomes the flow rate.
-  if (_calibrationRunMs > 0 && _stateElapsed() >= _calibrationRunMs) {
-    Serial.printf("[TPA] Calibration window elapsed for %s.\n", pinName(pin));
-    reached = true;
+  // Calibration run: it ends when the level has moved far enough to measure,
+  // not after a fixed time. A slow pump then simply runs longer instead of
+  // producing a number dominated by sensor noise.
+  if (_calibrationRunMs > 0 && _safety && _aqEffectiveHeightCm > 0 &&
+      _calStartLevel > 0) {
+    const float moved = fabsf(_safety->readUltrasonic() - _calStartLevel);
+    const float target =
+        _aqEffectiveHeightCm * (CALIBRATION_MIN_DELTA_PCT / 100.0f);
+    if (moved >= target) {
+      Serial.printf("[TPA] Calibration: %s moved %.2f cm (>= %.2f). Done.\n",
+                    pinName(pin), moved, target);
+      reached = true;
+    } else if (_stateElapsed() >= _calibrationRunMs) {
+      Serial.printf("[TPA] Calibration: %s only moved %.2f cm of %.2f in the "
+                    "time allowed. Discarding.\n",
+                    pinName(pin), moved, target);
+      reached = true; // stop the pump; _calcFlowRate() rejects the sample
+    }
   }
 
   // Primary stop: the ultrasonic reaching the target level.
@@ -567,9 +589,22 @@ void WaterManager::_handleManualPump(uint8_t pin, float flowLPM) {
 // DRY #4: Extract flow rate calculation
 float WaterManager::_calcFlowRate(float startLevel, float endLevel, unsigned long startMs) const {
   if (_litersPerCm <= 0 || startMs == 0) return 0;
-  float deltaLevel = (endLevel > startLevel) ? (endLevel - startLevel) : (startLevel - endLevel);
-  float deltaLiters = deltaLevel * _litersPerCm;
-  float deltaMinutes = (float)(millis() - startMs) / 60000.0f;
+
+  const float deltaLevel = fabsf(endLevel - startLevel);
+
+  // Refuse to derive a rate from a level change small enough to be noise. The
+  // ultrasonic's spread is a fixed number of millimetres, so a short run mostly
+  // measures that spread — and the TPA recalibrates on every tick, which would
+  // otherwise let the first seconds of a drain overwrite a good calibration.
+  if (_aqEffectiveHeightCm > 0) {
+    const float minDeltaCm =
+        _aqEffectiveHeightCm * (CALIBRATION_MIN_DELTA_PCT / 100.0f);
+    if (deltaLevel < minDeltaCm)
+      return 0;
+  }
+
+  const float deltaLiters = deltaLevel * _litersPerCm;
+  const float deltaMinutes = (float)(millis() - startMs) / 60000.0f;
   if (deltaMinutes > 0.1f && deltaLiters > 0.1f) {
     return deltaLiters / deltaMinutes;
   }

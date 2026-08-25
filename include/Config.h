@@ -152,4 +152,11 @@ constexpr unsigned long CALIBRATION_PULSE_MS = 3000; // 3 seconds
 // One-shot flow calibration: run a TPA pump for this long, then derive L/min
 // from how far the level moved. Longer is more accurate, because the ultrasonic
 // noise floor is a fixed number of millimetres regardless of run length.
-constexpr unsigned long PUMP_CALIBRATION_RUN_MS = 30UL * 1000; // 30 s
+// A flow rate is only trustworthy once the level has moved far enough to dwarf
+// the sensor noise. Below this the measurement is mostly noise, so it is
+// discarded rather than allowed to overwrite a good calibration.
+constexpr float CALIBRATION_MIN_DELTA_PCT = 5.0f;
+
+// Upper bound for a calibration run. It normally ends earlier, as soon as the
+// level has moved CALIBRATION_MIN_DELTA_PCT.
+constexpr unsigned long PUMP_CALIBRATION_MAX_MS = 5UL * 60 * 1000; // 5 min

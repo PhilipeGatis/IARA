@@ -74,11 +74,11 @@ A TPA é uma máquina de estados com 6 estados, rodando de forma não-bloqueante
 
 ```mermaid
 stateDiagram-v2
-    [*] --> CANISTER_OFF: startTPA()
-    CANISTER_OFF --> DRAINING: 3s estabilização
-    DRAINING --> FILLING_RESERVOIR: nível atingido
+    [*] --> FILLING_RESERVOIR: startTPA()
     FILLING_RESERVOIR --> DOSING_PRIME: boia cheia
-    DOSING_PRIME --> REFILLING: 2s mistura
+    DOSING_PRIME --> CANISTER_OFF: 2s mistura
+    CANISTER_OFF --> DRAINING: 3s estabilização
+    DRAINING --> REFILLING: nível atingido
     REFILLING --> CANISTER_ON: nível atingido
     CANISTER_ON --> [*]: COMPLETO
 
@@ -90,12 +90,14 @@ stateDiagram-v2
 
 | Passo | Estado | O que acontece |
 |---|---|---|
-| 1 | **CANISTER_OFF** | O filtro canister é desligado (SSR HIGH). Espera 3 segundos para a água estabilizar e o sensor ultrassônico ter uma leitura estável. |
-| 2 | **DRAINING** | Bomba de drenagem liga. Sensor ultrassônico monitora o nível da água. A bomba roda até atingir o nível alvo (ex: queda de 10 cm). A vazão é medida para auto-calibração. |
-| 3 | **FILLING_RESERVOIR** | Válvula solenoide abre para encher o reservatório com água da torneira. Boia float switch monitora o nível. Válvula fecha quando o reservatório está cheio. |
-| 4 | **DOSING_PRIME** | Bomba peristáltica dosa desclorificante (Prime) no reservatório. Espera 2 segundos para mistura. Estoque é deduzido e salvo no NVS. |
+| 1 | **FILLING_RESERVOIR** | Válvula solenoide abre para encher o reservatório com água da torneira. Boia monitora o nível e fecha a válvula quando cheio. Se o reservatório já estiver cheio, a etapa é pulada sem abrir a válvula. |
+| 2 | **DOSING_PRIME** | Bomba peristáltica dosa desclorificante (Prime) no reservatório. Espera 2 segundos para mistura. Estoque é deduzido e salvo no NVS. |
+| 3 | **CANISTER_OFF** | O filtro canister é desligado (SSR HIGH). Espera 3 segundos para a água estabilizar e o sensor ultrassônico ter uma leitura estável. |
+| 4 | **DRAINING** | Bomba de drenagem liga. Sensor ultrassônico monitora o nível. A bomba roda até atingir o nível alvo. A vazão é medida para auto-calibração. |
 | 5 | **REFILLING** | Bomba de recalque liga, enviando água tratada do reservatório para o aquário. Para quando o ultrassônico atinge o nível original. Um reed switch em série com o sinal do canal MOSFET corta a bomba por hardware caso o nível máximo seja atingido. Vazão é medida para calibração. |
 | 6 | **CANISTER_ON** | Filtro canister é religado. **Ciclo de TPA completo.** Vazões calibradas são salvas no NVS para a próxima TPA. |
+
+> **Por que o reservatório vem primeiro:** tudo que pode falhar nessa etapa — falta de pressão na rede, boia travada, solenoide morta — falha enquanto o aquário ainda está cheio e o filtro rodando. Drenando antes, a mesma falha deixaria o aquário baixo, o canister desligado e sem água tratada para repor.
 
 **Segurança em cada etapa:**
 - Cada estado tem **timeout dinâmico** calculado a partir das vazões calibradas (`volume / vazão × 1.5`). A primeira TPA usa defaults seguros: **30s drenagem, 15s recalque**.

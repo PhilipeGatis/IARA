@@ -59,42 +59,53 @@ void assertDrainOff(const char *ctx) {
   TEST_ASSERT_EQUAL_MESSAGE(LOW, mock_pin_state[PIN_DRAIN], msg);
 }
 
-// Helper: advance to DRAINING (water stays high)
-void goToDraining(WaterManager &wm) {
-  setDistance(7.0f); // ~7cm — far from 20cm target
-  wm.startTPA();
-  wm.update(); // CANISTER_OFF: sets _waitUntilMs
-  mock_millis_value += 3001;
-  wm.update(); // CANISTER_OFF → DRAINING
-}
-
-// Helper: advance to FILLING_RESERVOIR
-void goToFilling(WaterManager &wm) {
-  goToDraining(wm);
-  setDistance(7.0f);
-  wm.update(); // Drain pump on
-  setDistance(24.0f); // ~24cm → past 20cm target
-  wm.update(); // → FILLING_RESERVOIR
-}
-
 // Helper: simulate float sensor triggering (debounced — needs N consecutive reads)
 void simulateFloatFull(WaterManager &wm) {
   mock_pin_read_value[PIN_FLOAT] = LOW; // LOW = triggered (active LOW with pullup)
   for (int i = 0; i < 5; i++) { wm.update(); }
 }
 
+// The cycle now starts at the reservoir, so everything that can fail there
+// fails while the aquarium is still full and the canister still running.
+// Order: FILLING_RESERVOIR -> DOSING_PRIME -> CANISTER_OFF -> DRAINING
+//        -> REFILLING -> CANISTER_ON -> COMPLETE
+
+// Helper: advance to FILLING_RESERVOIR (the first state of the cycle)
+void goToFilling(WaterManager &wm) {
+  mock_pin_read_value[PIN_FLOAT] = HIGH; // reservoir not full yet
+  setDistance(7.0f);                     // water high, far from the 20cm target
+  wm.startTPA();
+  wm.update(); // opens the solenoid
+}
+
 // Helper: advance to DOSING_PRIME
 void goToDosingPrime(WaterManager &wm) {
   goToFilling(wm);
-  wm.update(); // Opens solenoid
-  simulateFloatFull(wm); // Debounced → DOSING_PRIME
+  simulateFloatFull(wm); // debounced float → DOSING_PRIME
+}
+
+// Helper: advance to CANISTER_OFF
+void goToCanisterOff(WaterManager &wm) {
+  goToDosingPrime(wm);
+  wm.update();               // doses prime, sets the 2s mixing wait
+  mock_millis_value += 2001;
+  wm.update();               // wait elapsed → CANISTER_OFF
+}
+
+// Helper: advance to DRAINING
+void goToDraining(WaterManager &wm) {
+  goToCanisterOff(wm);
+  wm.update();               // canister off, sets the 3s settle wait
+  mock_millis_value += 3001;
+  wm.update();               // wait elapsed → DRAINING
 }
 
 // Helper: advance to REFILLING
 void goToRefilling(WaterManager &wm) {
-  goToDosingPrime(wm);
-  wm.update();               // Doses prime
-  mock_millis_value += 2001;
+  goToDraining(wm);
+  setDistance(7.0f);
+  wm.update();               // drain pump on, still above target
+  setDistance(24.0f);        // past the 20cm drain target
   wm.update();               // → REFILLING
 }
 
@@ -114,8 +125,7 @@ void test_drain_off_during_idle() {
 
 void test_drain_off_during_canister_off() {
   WaterManager wm = makeWM();
-  setDistance(7.0f);
-  wm.startTPA();
+  goToCanisterOff(wm);
   wm.update(); // CANISTER_OFF: first tick
   assertDrainOff("CANISTER_OFF state");
   TEST_ASSERT_EQUAL(TPAState::CANISTER_OFF, wm.getState());
@@ -346,10 +356,10 @@ void test_manual_operations_blocked_while_running() {
 
   // All manual operations should be ignored
   wm.startManualReservoirFill();
-  TEST_ASSERT_EQUAL(TPAState::CANISTER_OFF, wm.getState()); // Unchanged
+  TEST_ASSERT_EQUAL(TPAState::FILLING_RESERVOIR, wm.getState()); // Unchanged
 
   wm.startManualPump("drain", 5.0f);
-  TEST_ASSERT_EQUAL(TPAState::CANISTER_OFF, wm.getState()); // Unchanged
+  TEST_ASSERT_EQUAL(TPAState::FILLING_RESERVOIR, wm.getState()); // Unchanged
 }
 
 // ============================================================================
@@ -612,9 +622,9 @@ void test_prime_disabled_skips_dosing() {
   mock_pin_read_value[PIN_FLOAT] = LOW; // Reservoir full (LOW = triggered)
   simulateFloatFull(wm);
   TEST_ASSERT_EQUAL(TPAState::DOSING_PRIME, wm.getState());
-  wm.update(); // DOSING_PRIME handler: prime disabled → skip to REFILLING
-  TEST_ASSERT_EQUAL(TPAState::REFILLING, wm.getState());
-  assertDrainOff("REFILLING after prime skip");
+  wm.update(); // DOSING_PRIME handler: prime disabled → skip to CANISTER_OFF
+  TEST_ASSERT_EQUAL(TPAState::CANISTER_OFF, wm.getState());
+  assertDrainOff("CANISTER_OFF after prime skip");
 }
 
 // ============================================================================

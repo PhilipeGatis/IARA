@@ -50,49 +50,58 @@ void setDistance(float dist) {
   }
 }
 
-// Helper: advance to DRAINING (water stays high, won't finish draining)
-void goToDraining(WaterManager &wm) {
-  setDistance(7.0f); // Water very high, far from 20cm target
-  wm.startTPA();
-  wm.update(); // CANISTER_OFF: first call sets _waitUntilMs = millis() + 3000
-  mock_millis_value += 3001; // Advance past the 3s wait
-  wm.update();               // CANISTER_OFF: wait elapsed → DRAINING
-}
-
-// Helper: advance to FILLING_RESERVOIR
-void goToFilling(WaterManager &wm) {
-  goToDraining(wm);
-  // Drain runs, ultrasonic reads ~7cm (< 20), stays DRAINING
-  setDistance(7.0f);
-  wm.update();
-  TEST_ASSERT_EQUAL(TPAState::DRAINING, wm.getState());
-
-  // Now ultrasonic shows level past target (>= 20cm)
-  setDistance(24.0f);
-  wm.update(); // Target reached → FILLING_RESERVOIR
-  TEST_ASSERT_EQUAL(TPAState::FILLING_RESERVOIR, wm.getState());
-}
-
 // Helper: simulate float sensor triggering (debounced — needs N consecutive reads)
 void simulateFloatFull(WaterManager &wm) {
   mock_pin_read_value[PIN_FLOAT] = LOW; // LOW = triggered (active LOW with pullup)
   for (int i = 0; i < 5; i++) { wm.update(); }
 }
 
+// The cycle now starts at the reservoir, so everything that can fail there
+// fails while the aquarium is still full and the canister still running.
+// Order: FILLING_RESERVOIR -> DOSING_PRIME -> CANISTER_OFF -> DRAINING
+//        -> REFILLING -> CANISTER_ON -> COMPLETE
+
+// Helper: advance to FILLING_RESERVOIR (the first state of the cycle)
+void goToFilling(WaterManager &wm) {
+  mock_pin_read_value[PIN_FLOAT] = HIGH; // reservoir not full yet
+  setDistance(7.0f);                     // water high, far from the 20cm target
+  wm.startTPA();
+  wm.update(); // opens the solenoid
+  TEST_ASSERT_EQUAL(TPAState::FILLING_RESERVOIR, wm.getState());
+}
+
 // Helper: advance to DOSING_PRIME
 void goToDosingPrime(WaterManager &wm) {
   goToFilling(wm);
-  wm.update();                          // Opens solenoid
-  simulateFloatFull(wm);                // Debounced → DOSING_PRIME
+  simulateFloatFull(wm); // debounced float → DOSING_PRIME
   TEST_ASSERT_EQUAL(TPAState::DOSING_PRIME, wm.getState());
+}
+
+// Helper: advance to CANISTER_OFF
+void goToCanisterOff(WaterManager &wm) {
+  goToDosingPrime(wm);
+  wm.update();               // doses prime, sets the 2s mixing wait
+  mock_millis_value += 2001;
+  wm.update();               // wait elapsed → CANISTER_OFF
+  TEST_ASSERT_EQUAL(TPAState::CANISTER_OFF, wm.getState());
+}
+
+// Helper: advance to DRAINING
+void goToDraining(WaterManager &wm) {
+  goToCanisterOff(wm);
+  wm.update();               // canister off, sets the 3s settle wait
+  mock_millis_value += 3001;
+  wm.update();               // wait elapsed → DRAINING
+  TEST_ASSERT_EQUAL(TPAState::DRAINING, wm.getState());
 }
 
 // Helper: advance to REFILLING
 void goToRefilling(WaterManager &wm) {
-  goToDosingPrime(wm);
-  wm.update();               // Doses prime, sets _waitUntilMs = millis() + 2000
-  mock_millis_value += 2001; // Advance past the 2s mixing wait
-  wm.update();               // Wait elapsed → REFILLING
+  goToDraining(wm);
+  setDistance(7.0f);
+  wm.update();               // drain pump on, still above target
+  setDistance(24.0f);        // past the 20cm drain target
+  wm.update();               // → REFILLING
   TEST_ASSERT_EQUAL(TPAState::REFILLING, wm.getState());
 }
 
@@ -106,10 +115,11 @@ void test_initial_state_is_idle() {
 
 // --- Start TPA ---
 
-void test_start_tpa_transitions_to_canister_off() {
+void test_start_tpa_transitions_to_filling_reservoir() {
   WaterManager wm = makeWM();
   wm.startTPA();
-  TEST_ASSERT_EQUAL(TPAState::CANISTER_OFF, wm.getState());
+  // The reservoir is filled first so a failure there leaves the aquarium full.
+  TEST_ASSERT_EQUAL(TPAState::FILLING_RESERVOIR, wm.getState());
   TEST_ASSERT_TRUE(wm.isRunning());
 }
 
@@ -134,8 +144,7 @@ void test_double_start_ignored() {
 void test_canister_off_disables_relay() {
   WaterManager wm = makeWM();
   digitalWrite(PIN_CANISTER, LOW); // Start with canister ON (LOW = ON)
-  setDistance(7.0f);
-  wm.startTPA();
+  goToCanisterOff(wm);
   wm.update(); // First call: sets canister HIGH (OFF) and starts 3s wait
   // SSR relay: HIGH = OFF (canister disabled)
   TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_CANISTER]);
@@ -167,7 +176,7 @@ void test_draining_stops_at_target() {
   wm.update();
 
   TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_DRAIN]);
-  TEST_ASSERT_EQUAL(TPAState::FILLING_RESERVOIR, wm.getState());
+  TEST_ASSERT_EQUAL(TPAState::REFILLING, wm.getState());
 }
 
 void test_draining_timeout_causes_error() {
@@ -289,12 +298,8 @@ void test_drain_calibration_during_tpa() {
   wm.setLitersPerCm(3.2f);      // 80cm × 40cm / 1000 = 3.2 L/cm
   wm.setTimeoutDrainMs(300000); // 5 min (so we don't hit timeout)
 
-  // Start TPA → CANISTER_OFF
-  setDistance(10.0f);
-  wm.startTPA();
-  wm.update(); // CANISTER_OFF: sets _waitUntilMs
-  mock_millis_value += 3001;
-  wm.update(); // CANISTER_OFF: wait elapsed → enters DRAINING
+  goToDraining(wm);
+  setDistance(10.0f); // start level the first DRAINING tick will record
 
   // First DRAINING tick: pump turns on, records _calStartLevel at ~10cm
   setDistance(10.0f);
@@ -308,8 +313,28 @@ void test_drain_calibration_during_tpa() {
   setDistance(20.4f);
   wm.update();               // DRAINING → FILLING (calibration captured)
 
-  TEST_ASSERT_EQUAL(TPAState::FILLING_RESERVOIR, wm.getState());
+  TEST_ASSERT_EQUAL(TPAState::REFILLING, wm.getState());
+  // 10.0 -> 20.4 cm is far more than CALIBRATION_MIN_DELTA_PCT of the tank,
+  // so the sample is accepted.
   TEST_ASSERT_TRUE(wm.getDrainFlowLPM() > 0);
+}
+
+void test_calibration_rejects_tiny_level_change() {
+  WaterManager wm = makeWM();
+  wm.setLitersPerCm(3.2f);
+  wm.setAqEffectiveHeightCm(40.0f); // 5% of 40cm = 2cm minimum
+  wm.setTimeoutDrainMs(300000);
+
+  goToDraining(wm);
+  setDistance(10.0f);
+  wm.update(); // records the start level
+
+  mock_millis_value += 20000;
+  setDistance(10.5f); // only 0.5cm — below the 2cm floor, and pure noise
+  wm.update();
+
+  // A rate derived from that would be meaningless, so none is produced.
+  TEST_ASSERT_EQUAL(0.0f, wm.getDrainFlowLPM());
 }
 
 void test_refill_calibration_during_tpa() {
@@ -318,12 +343,8 @@ void test_refill_calibration_during_tpa() {
   wm.setTimeoutDrainMs(300000);
   wm.setTimeoutRefillMs(300000);
 
-  // CANISTER_OFF
+  goToDraining(wm);
   setDistance(7.0f);
-  wm.startTPA();
-  wm.update(); // CANISTER_OFF: sets wait
-  mock_millis_value += 3001;
-  wm.update(); // → DRAINING
 
   // First DRAINING tick (start pump, record start)
   setDistance(7.0f);
@@ -361,11 +382,7 @@ void test_dynamic_timeout_drain() {
   WaterManager wm = makeWM();
   wm.setTimeoutDrainMs(5000); // 5s custom timeout
 
-  setDistance(7.0f);
-  wm.startTPA();
-  wm.update();
-  mock_millis_value += 3001;
-  wm.update(); // → DRAINING
+  goToDraining(wm);
 
   // Advance past custom timeout (5s)
   mock_millis_value += 5001;
@@ -425,12 +442,8 @@ void test_progress_uses_sensor_data() {
   wm.setLitersPerCm(3.2f);
   wm.setTimeoutDrainMs(300000);
 
-  // Start TPA → DRAINING
+  goToDraining(wm);
   setDistance(10.0f);
-  wm.startTPA();
-  wm.update();
-  mock_millis_value += 3001;
-  wm.update(); // → DRAINING
 
   // First tick records start level
   setDistance(10.0f);
@@ -447,7 +460,7 @@ int main(int argc, char **argv) {
   UNITY_BEGIN();
 
   RUN_TEST(test_initial_state_is_idle);
-  RUN_TEST(test_start_tpa_transitions_to_canister_off);
+  RUN_TEST(test_start_tpa_transitions_to_filling_reservoir);
   RUN_TEST(test_start_tpa_blocked_during_emergency);
   RUN_TEST(test_double_start_ignored);
   RUN_TEST(test_canister_off_disables_relay);
@@ -465,6 +478,7 @@ int main(int argc, char **argv) {
 
   // Calibration & Dynamic Timeouts
   RUN_TEST(test_drain_calibration_during_tpa);
+  RUN_TEST(test_calibration_rejects_tiny_level_change);
   RUN_TEST(test_refill_calibration_during_tpa);
   RUN_TEST(test_dynamic_timeout_drain);
   RUN_TEST(test_dynamic_timeout_refill);
