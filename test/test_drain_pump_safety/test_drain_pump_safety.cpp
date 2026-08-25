@@ -219,6 +219,7 @@ void test_drain_off_during_manual_pump_refill() {
   WaterManager wm = makeWM();
   wm.setRefillFlowLPM(2.0f);
   wm.startManualPump("refill", 5.0f);
+  mock_millis_value += 3001; // canister settle before the pump starts
   TEST_ASSERT_EQUAL(TPAState::MANUAL_PUMP_REFILL, wm.getState());
   wm.update();
   assertDrainOff("MANUAL_PUMP_REFILL");
@@ -243,6 +244,7 @@ void test_drain_on_during_manual_pump_drain() {
   WaterManager wm = makeWM();
   wm.setDrainFlowLPM(2.0f);
   wm.startManualPump("drain", 5.0f);
+  mock_millis_value += 3001; // canister settle before the pump starts
   TEST_ASSERT_EQUAL(TPAState::MANUAL_PUMP_DRAIN, wm.getState());
   wm.update(); // Drain pump ON
   TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_DRAIN]);
@@ -252,6 +254,7 @@ void test_drain_stops_after_manual_stop() {
   WaterManager wm = makeWM();
   wm.setDrainFlowLPM(2.0f);
   wm.startManualPump("drain", 5.0f);
+  mock_millis_value += 3001; // canister settle before the pump starts
   wm.update(); // Drain ON
   TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_DRAIN]);
 
@@ -268,6 +271,7 @@ void test_manual_drain_stops_on_goal_reached() {
   WaterManager wm = makeWM();
   wm.setDrainFlowLPM(6.0f); // 6 L/min = 0.1 L/s
   wm.startManualPump("drain", 1.0f); // Goal: 1 liter
+  mock_millis_value += 3001; // canister settle before the pump starts
   wm.update(); // Drain ON
   TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_DRAIN]);
 
@@ -282,6 +286,7 @@ void test_manual_drain_timeout_hard_ceiling() {
   WaterManager wm = makeWM();
   wm.setDrainFlowLPM(0.001f); // Almost zero flow — goal is unreachable
   wm.startManualPump("drain", 999.0f);
+  mock_millis_value += 3001; // canister settle before the pump starts
   wm.update(); // Drain ON
 
   // The computed budget is astronomically large, so it clamps to the ceiling.
@@ -295,6 +300,7 @@ void test_manual_drain_timeout_scales_with_goal() {
   WaterManager wm = makeWM();
   wm.setDrainFlowLPM(6.0f);          // 1 L takes 10 s
   wm.startManualPump("drain", 1.0f); // so the budget is 20 s, floored to 30 s
+  mock_millis_value += 3001; // canister settle before the pump starts
   wm.update();
 
   // Still inside the budget: the pump keeps running.
@@ -309,6 +315,7 @@ void test_manual_drain_stops_on_sensor_before_flow_estimate() {
   wm.setDrainFlowLPM(0.01f); // Flow estimate would take ~100 min
   setDistance(20.0f);
   wm.startManualPump("drain", 2.0f); // 2 L == 1 cm below the start level
+  mock_millis_value += 3001; // canister settle before the pump starts
   wm.update();                       // Drain ON, target = 21.0 cm
   TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_DRAIN]);
 
@@ -319,9 +326,47 @@ void test_manual_drain_stops_on_sensor_before_flow_estimate() {
   assertDrainOff("manual drain stopped by sensor");
 }
 
+void test_canister_stays_off_when_level_too_low() {
+  WaterManager wm = makeWM();
+  wm.setAqEffectiveHeightCm(40.0f);
+  wm.setCanisterSafeLevelCm(10.0f); // needs the surface within 10cm of the sensor
+  wm.setDrainFlowLPM(6.0f);
+  digitalWrite(PIN_CANISTER, LOW); // canister running
+
+  setDistance(30.0f); // water far below the safe mark
+  wm.startManualPump("drain", 1.0f);
+  mock_millis_value += 3001; // canister settle
+  wm.update();
+  // The run switched the canister off on its own behalf.
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_CANISTER]);
+
+  wm.stopManual();
+  // Restoring it here would run the filter with its intake above the water.
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_CANISTER]);
+}
+
+void test_canister_restored_when_level_is_safe() {
+  WaterManager wm = makeWM();
+  wm.setAqEffectiveHeightCm(40.0f);
+  wm.setCanisterSafeLevelCm(20.0f);
+  wm.setDrainFlowLPM(6.0f);
+  digitalWrite(PIN_CANISTER, LOW);
+
+  setDistance(12.0f); // comfortably above the safe mark
+  wm.startManualPump("drain", 1.0f);
+  mock_millis_value += 3001;
+  wm.update();
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_CANISTER]); // off during the run
+
+  setDistance(12.0f);
+  wm.stopManual();
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_CANISTER]); // back on (LOW = ON)
+}
+
 void test_manual_pump_refused_without_sensor_or_calibration() {
   WaterManager wm = makeWM(); // litersPerCm is 0 and no flow rate is set
   wm.startManualPump("drain", 5.0f);
+  mock_millis_value += 3001; // canister settle before the pump starts
   TEST_ASSERT_EQUAL(TPAState::IDLE, wm.getState());
   assertDrainOff("manual pump refused with nothing to track the goal");
 }
@@ -330,6 +375,7 @@ void test_manual_refill_stops_on_goal() {
   WaterManager wm = makeWM();
   wm.setRefillFlowLPM(6.0f); // 6 L/min
   wm.startManualPump("refill", 1.0f); // Goal: 1L
+  mock_millis_value += 3001; // canister settle before the pump starts
   wm.update(); // Refill ON
 
   mock_millis_value += 10001; // 10s at 6 L/min = 1L
@@ -359,6 +405,8 @@ void test_manual_operations_blocked_while_running() {
   TEST_ASSERT_EQUAL(TPAState::FILLING_RESERVOIR, wm.getState()); // Unchanged
 
   wm.startManualPump("drain", 5.0f);
+
+  mock_millis_value += 3001; // canister settle before the pump starts
   TEST_ASSERT_EQUAL(TPAState::FILLING_RESERVOIR, wm.getState()); // Unchanged
 }
 
@@ -384,6 +432,7 @@ void test_pump_goal_liters_manual_drain() {
   WaterManager wm = makeWM();
   wm.setDrainFlowLPM(2.0f);
   wm.startManualPump("drain", 7.5f);
+  mock_millis_value += 3001; // canister settle before the pump starts
   TEST_ASSERT_FLOAT_WITHIN(0.1f, 7.5f, wm.getPumpGoalLiters());
 }
 
@@ -391,6 +440,7 @@ void test_pump_goal_liters_manual_refill() {
   WaterManager wm = makeWM();
   wm.setRefillFlowLPM(2.0f);
   wm.startManualPump("refill", 3.0f);
+  mock_millis_value += 3001; // canister settle before the pump starts
   TEST_ASSERT_FLOAT_WITHIN(0.1f, 3.0f, wm.getPumpGoalLiters());
 }
 
@@ -398,6 +448,7 @@ void test_pump_progress_liters_manual_drain() {
   WaterManager wm = makeWM();
   wm.setDrainFlowLPM(6.0f); // 6 L/min
   wm.startManualPump("drain", 10.0f);
+  mock_millis_value += 3001; // canister settle before the pump starts
   wm.update(); // Activate
   mock_millis_value += 60000; // 1 min at 6 L/min = 6L
   float progress = wm.getPumpProgressLiters();
@@ -657,6 +708,8 @@ int main(int argc, char **argv) {
   RUN_TEST(test_manual_drain_timeout_scales_with_goal);
   RUN_TEST(test_manual_drain_stops_on_sensor_before_flow_estimate);
   RUN_TEST(test_manual_pump_refused_without_sensor_or_calibration);
+  RUN_TEST(test_canister_stays_off_when_level_too_low);
+  RUN_TEST(test_canister_restored_when_level_is_safe);
   RUN_TEST(test_manual_refill_stops_on_goal);
   RUN_TEST(test_manual_reservoir_fill_completes_on_float);
   RUN_TEST(test_manual_operations_blocked_while_running);

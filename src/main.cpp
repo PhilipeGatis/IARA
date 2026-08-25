@@ -515,9 +515,16 @@ void loop() {
       canisterOffSince = millis();
     } else if (millis() - canisterOffSince > 3600000UL) { // 1 hour
       if (!waterMgr.isRunning() && !safety.isEmergency() && !safety.isMaintenanceMode()) {
-        Serial.println("[Main] Canister was off for >1h. Turning on automatically.");
-        pumpOff(PIN_CANISTER, PumpReason::MANUAL_PUMP); // LOW = ON
-        canisterOffSince = 0;
+        Serial.println("[Main] Canister off for >1h. Restoring if the level allows.");
+        // This used to switch the filter on unconditionally. After a drain that
+        // meant starting it with the intake above the water, which is exactly
+        // what the safe-level setting exists to prevent.
+        if (!waterMgr.restoreCanisterIfSafe(PumpReason::MANUAL_PUMP)) {
+          // Still too low — check again after another hour rather than spin.
+          canisterOffSince = millis();
+        } else {
+          canisterOffSince = 0;
+        }
       }
     }
   }

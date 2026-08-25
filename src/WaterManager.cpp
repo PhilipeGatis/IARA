@@ -126,6 +126,7 @@ void WaterManager::startManualPump(const String &pump, float goalLiters) {
   _manualPumpTarget = pump;
   _manualPumpGoalLiters = goalLiters;
   _calibrationRunMs = 0;
+  _stopCanisterForManualRun();
 
   Serial.printf("[TPA] ====== MANUAL PUMP STARTED: %s (Goal: %.1f L) ======\n", pump.c_str(), goalLiters);
 
@@ -151,6 +152,7 @@ void WaterManager::startPumpCalibration(const String &pump) {
   _manualPumpTarget = pump;
   _manualPumpGoalLiters = 0; // no goal: the level change ends this run
   _calibrationRunMs = PUMP_CALIBRATION_MAX_MS;
+  _stopCanisterForManualRun();
 
   Serial.printf("[TPA] ====== FLOW CALIBRATION: %s until the level moves "
                 "%.1f%% (max %lus) ======\n",
@@ -176,6 +178,10 @@ void WaterManager::stopManual() {
     saveCalibration();
   }
   _stopAllTpaActuators(PumpReason::MANUAL_PUMP);
+  if (_canisterOffForManual) {
+    _canisterOffForManual = false;
+    restoreCanisterIfSafe(PumpReason::MANUAL_PUMP);
+  }
   _state = TPAState::IDLE;
 }
 
@@ -493,6 +499,12 @@ void WaterManager::_handleManualReservoirFill() {
 
 // DRY #3: Unified manual pump handler for both drain and refill
 void WaterManager::_handleManualPump(uint8_t pin, float flowLPM) {
+  // Let the surface settle after the canister stopped, so the start level the
+  // calibration is measured against is a calm reading.
+  if (_isWaiting())
+    return;
+  _waitUntilMs = 0;
+
   const bool isDrain = (pin == PIN_DRAIN);
 
   // First tick: start the pump and snapshot the level, so the goal is tracked
@@ -576,6 +588,10 @@ void WaterManager::_handleManualPump(uint8_t pin, float flowLPM) {
     if (isDrain) _captureDrainCalibration();
     else _captureRefillCalibration();
     pumpOff(pin, PumpReason::TPA_TARGET_REACHED);
+    if (_canisterOffForManual) {
+      _canisterOffForManual = false;
+      restoreCanisterIfSafe(PumpReason::MANUAL_PUMP);
+    }
     _state = TPAState::COMPLETE;
     return;
   }
@@ -633,6 +649,52 @@ void WaterManager::_captureRefillCalibration() {
   }
 }
 
+void WaterManager::_stopCanisterForManualRun() {
+  // The canister's outflow ripples the surface, and the ultrasonic reads that
+  // ripple as level noise — which is exactly what a manual run or a flow
+  // calibration is trying to measure. Stop it, and let the water settle before
+  // the pump starts.
+  if (isCanisterOn()) {
+    pumpOn(PIN_CANISTER, PumpReason::TPA_CANISTER); // SSR: HIGH = OFF
+    _canisterOffForManual = true;
+    Serial.println("[TPA] Canister OFF for the manual run. Settling 3s...");
+  }
+  _waitUntilMs = millis() + 3000;
+}
+
+bool WaterManager::restoreCanisterIfSafe(PumpReason reason) {
+  if (!_safety) {
+    Serial.println("[TPA] Canister stays OFF — no sensor to verify the level.");
+    return false;
+  }
+
+  const float dist = _safety->readUltrasonic();
+  const float waterPct =
+      (_aqEffectiveHeightCm > 0)
+          ? ((_aqEffectiveHeightCm - dist) / _aqEffectiveHeightCm * 100.0f)
+          : 0;
+  const float safePct =
+      (_aqEffectiveHeightCm > 0)
+          ? ((_aqEffectiveHeightCm - _canisterSafeLevelCm) /
+             _aqEffectiveHeightCm * 100.0f)
+          : 0;
+
+  // Low distance means high water. Running the canister with its intake above
+  // the surface pulls air and damages the pump, so it stays off until the
+  // level is back over the configured safe mark.
+  if (dist > 0 && dist <= _canisterSafeLevelCm) {
+    pumpOff(PIN_CANISTER, reason); // SSR: LOW = ON
+    Serial.printf("[TPA] Canister ON (level %.0f%% is safe, limit %.0f%%).\n",
+                  waterPct < 0 ? 0 : waterPct, safePct);
+    return true;
+  }
+
+  Serial.printf("[TPA] Canister stays OFF — level %.0f%% too low (need >= "
+                "%.0f%%).\n",
+                waterPct < 0 ? 0 : waterPct, safePct);
+  return false;
+}
+
 void WaterManager::_error(const char *msg) {
   Serial.printf("[TPA] ERROR: %s\n", msg);
   // Safety: turn off all TPA actuators
@@ -641,42 +703,13 @@ void WaterManager::_error(const char *msg) {
   // Build detailed error message for notifications
   _lastErrorMsg = String(msg);
 
-  // Only turn canister back on if water level is safe
-  // (low distance = high water = safe for canister intake)
-  if (_safety) {
-    float dist = _safety->readUltrasonic();
-    char buf[100];
-    // Convert to percentage (low dist = high water = high %)
-    float waterPct =
-        (_aqEffectiveHeightCm > 0)
-            ? ((_aqEffectiveHeightCm - dist) / _aqEffectiveHeightCm * 100.0f)
-            : 0;
-    float safePct = (_aqEffectiveHeightCm > 0)
-                        ? ((_aqEffectiveHeightCm - _canisterSafeLevelCm) /
-                           _aqEffectiveHeightCm * 100.0f)
-                        : 0;
-    if (waterPct < 0)
-      waterPct = 0;
-    if (dist > 0 && dist <= _canisterSafeLevelCm) {
-      pumpOff(PIN_CANISTER, PumpReason::ERROR_STOP); // SSR: LOW = ON
-      Serial.printf(
-          "[TPA] Canister ON (water level %.0f%% is safe, limit: %.0f%%).\n",
-          waterPct, safePct);
-      snprintf(buf, sizeof(buf), " | Canister: ON (nivel %.0f%%)", waterPct);
-    } else {
-      Serial.printf("[TPA] WARNING: Canister stays OFF — water level %.0f%% "
-                    "too low (need >= %.0f%%).\n",
-                    waterPct, safePct);
-      snprintf(buf, sizeof(buf), " | Canister: OFF (nivel %.0f%%, min: %.0f%%)",
-              waterPct, safePct);
-    }
-    _lastErrorMsg += buf;
+  // The canister only comes back if the level allows it.
+  if (restoreCanisterIfSafe(PumpReason::ERROR_STOP)) {
+    _lastErrorMsg += " | Canister: ON";
   } else {
-    // No safety sensor — leave canister off for safety
-    Serial.println("[TPA] WARNING: Canister stays OFF — no sensor to verify "
-                   "water level.");
-    _lastErrorMsg += " | Canister: OFF (sem sensor)";
+    _lastErrorMsg += " | Canister: OFF (nivel baixo)";
   }
+  _canisterOffForManual = false;
 
   _state = TPAState::ERROR;
 }

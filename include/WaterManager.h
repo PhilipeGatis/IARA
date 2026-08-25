@@ -102,6 +102,12 @@ public:
   /// Load calibrated flow rates from NVS
   void loadCalibration();
 
+  /// Turn the canister back on, but only if the water is deep enough for its
+  /// intake. Returns false and leaves it off otherwise. Every path that
+  /// restores the filter goes through here, so the safe-level rule cannot be
+  /// bypassed by whichever caller forgets it.
+  bool restoreCanisterIfSafe(PumpReason reason);
+
   /// Canister filter state
   bool isCanisterOn() const {
     return digitalRead(PIN_CANISTER) == LOW;
@@ -162,6 +168,9 @@ private:
   void _handleManualReservoirFill();
   void _handleManualPump(uint8_t pin, float flowLPM);
 
+  /// Switch the canister off for a manual run and start the settle wait.
+  void _stopCanisterForManualRun();
+
   /// Stop all TPA actuators (DRY helper)
   void _stopAllTpaActuators(PumpReason reason);
 
@@ -186,6 +195,8 @@ private:
   // Manual pump state
   String _manualPumpTarget;
   float _manualPumpGoalLiters;
+  /// True while a manual run has the canister switched off on its behalf.
+  bool _canisterOffForManual = false;
   /// When non-zero, the manual run stops cleanly after this long to calibrate.
   unsigned long _calibrationRunMs = 0;
   /// Ultrasonic level (cm) that satisfies the manual goal. -1 = track by flow only.
