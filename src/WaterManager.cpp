@@ -218,20 +218,29 @@ float WaterManager::getPumpGoalLiters() const {
 }
 
 float WaterManager::getPumpProgressLiters() const {
-  // Use real sensor data for accurate progress when available
-  if (_safety && _litersPerCm > 0 && _calStartLevel > 0) {
-    float currentLevel = _safety->getLastDistance();
+  const bool draining =
+      (_state == TPAState::DRAINING || _state == TPAState::MANUAL_PUMP_DRAIN);
+
+  // Measured progress: how far the surface has actually moved. Once the sensor
+  // is usable this is the only answer given — falling through to the time
+  // estimate whenever the delta was not yet positive made the reading flip
+  // between a small real number and a large estimated one, which is what made
+  // the progress bar jump around.
+  if (_safety && _safety->areSensorsConnected() && _litersPerCm > 0 &&
+      _calStartLevel > 0) {
+    const float currentLevel = _safety->getLastDistance();
     if (currentLevel > 0) {
-      float deltaCm = (_state == TPAState::DRAINING || _state == TPAState::MANUAL_PUMP_DRAIN)
-        ? (currentLevel - _calStartLevel)    // draining: distance increases
-        : (_calStartLevel - currentLevel);   // refilling: distance decreases
-      if (deltaCm > 0) return deltaCm * _litersPerCm;
+      const float deltaCm = draining ? (currentLevel - _calStartLevel)  // level falls, distance grows
+                                     : (_calStartLevel - currentLevel); // level rises, distance shrinks
+      return deltaCm > 0 ? deltaCm * _litersPerCm : 0.0f;
     }
   }
-  // Fallback: time-based estimation
-  if (_state == TPAState::MANUAL_PUMP_DRAIN || _state == TPAState::DRAINING) {
+
+  // No sensor: fall back to the flow estimate, which is all that is left.
+  if (draining) {
     return (_stateElapsed() / 60000.0f) * _drainFlowLPM;
-  } else if (_state == TPAState::MANUAL_PUMP_REFILL || _state == TPAState::REFILLING) {
+  }
+  if (_state == TPAState::MANUAL_PUMP_REFILL || _state == TPAState::REFILLING) {
     return (_stateElapsed() / 60000.0f) * _refillFlowLPM;
   }
   return 0.0f;

@@ -206,8 +206,14 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                         />
                     </div>
                     <div className="mt-1 flex justify-between px-1 text-[11px] font-bold tabular-nums text-muted">
-                        <span>{(status.pumpProgressLiters || 0).toFixed(1)} L</span>
-                        <span>{status.pumpGoalLiters.toFixed(1)} L</span>
+                        {/* Percentage first: the goal is entered as a percentage of the
+                            aquarium, so that is the number to read it back against. */}
+                        <span className="text-text">
+                            {Math.min(100, Math.round(((status.pumpProgressLiters || 0) / status.pumpGoalLiters) * 100))}%
+                        </span>
+                        <span>
+                            {(status.pumpProgressLiters || 0).toFixed(1)} / {status.pumpGoalLiters.toFixed(1)} L
+                        </span>
                     </div>
                 </section>
             )}
