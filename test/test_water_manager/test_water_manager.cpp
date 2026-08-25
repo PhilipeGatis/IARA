@@ -258,6 +258,9 @@ void test_refill_stops_at_setpoint() {
   wm.update();               // Pump ON
 
   setDistance(8.6f); // <= 10cm setpoint
+  wm.update(); // setpoint seen → pump off, settling
+  mock_millis_value += REFILL_SETTLE_MS + 1;
+  setDistance(8.6f); // still there once the surface is calm
   wm.update();
   TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_REFILL]);
   TEST_ASSERT_EQUAL(TPAState::CANISTER_ON, wm.getState());
@@ -272,6 +275,9 @@ void test_complete_cycle_restores_canister() {
   setDistance(24.0f);
   wm.update(); // Refill pump ON
   setDistance(8.6f); // <= 10cm setpoint reached
+  wm.update(); // setpoint seen → pump off, settling
+  mock_millis_value += REFILL_SETTLE_MS + 1;
+  setDistance(8.6f); // still there once the surface is calm
   wm.update(); // → CANISTER_ON
   wm.update(); // CANISTER_ON → COMPLETE
 
@@ -340,42 +346,55 @@ void test_calibration_rejects_tiny_level_change() {
 void test_refill_calibration_during_tpa() {
   WaterManager wm = makeWM();
   wm.setLitersPerCm(3.2f);
-  wm.setTimeoutDrainMs(300000);
+  wm.setAqEffectiveHeightCm(40.0f); // 5% floor = 2cm of level change
   wm.setTimeoutRefillMs(300000);
 
-  goToDraining(wm);
-  setDistance(7.0f);
+  goToRefilling(wm);
 
-  // First DRAINING tick (start pump, record start)
-  setDistance(7.0f);
-  wm.update();
-
-  // Water reaches drain target
-  setDistance(20.4f);
-  wm.update();               // → FILLING_RESERVOIR
-
-  // Float switch triggered (reservoir full) - debounced
-  simulateFloatFull(wm); // → DOSING_PRIME
-
-  // First DOSING_PRIME tick: doses and sets wait
-  wm.update();
-  mock_millis_value += 2001;
-  wm.update(); // wait elapsed → REFILLING
-  TEST_ASSERT_EQUAL(TPAState::REFILLING, wm.getState());
-
-  // First REFILLING tick: pump on, records _calStartLevel
+  // First REFILLING tick: pump on, records the start level.
   setDistance(20.4f);
   wm.update();
 
-  // Refill pump runs for 30 seconds
   mock_millis_value += 30000;
 
-  // Water level back to ~10cm
-  setDistance(9.9f); // <= 10cm target
-  wm.update();              // → CANISTER_ON
+  // Level back at the 10cm target — but the reading is taken with water still
+  // pouring in, so it only pauses the pump.
+  setDistance(9.9f);
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::REFILLING, wm.getState());
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_REFILL]); // paused, not finished
+
+  // Once the surface settles and still reads at target, it is believed.
+  mock_millis_value += REFILL_SETTLE_MS + 1;
+  setDistance(9.9f);
+  wm.update();
 
   TEST_ASSERT_EQUAL(TPAState::CANISTER_ON, wm.getState());
   TEST_ASSERT_TRUE(wm.getRefillFlowLPM() > 0);
+}
+
+void test_refill_resumes_when_settled_reading_is_short() {
+  WaterManager wm = makeWM();
+  wm.setLitersPerCm(3.2f);
+  wm.setTimeoutRefillMs(300000);
+
+  goToRefilling(wm);
+  setDistance(20.4f);
+  wm.update(); // pump on
+
+  // Inflow beside the sensor makes it look like the target was reached.
+  setDistance(9.9f);
+  wm.update();
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_REFILL]); // paused
+
+  // With the surface calm the tank is really still short, so it carries on
+  // instead of ending the refill early — the failure seen on the first real
+  // water change, where the cycle reported success with the level low.
+  mock_millis_value += REFILL_SETTLE_MS + 1;
+  setDistance(14.0f);
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::REFILLING, wm.getState());
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_REFILL]); // pumping again
 }
 
 void test_dynamic_timeout_drain() {
@@ -480,6 +499,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_drain_calibration_during_tpa);
   RUN_TEST(test_calibration_rejects_tiny_level_change);
   RUN_TEST(test_refill_calibration_during_tpa);
+  RUN_TEST(test_refill_resumes_when_settled_reading_is_short);
   RUN_TEST(test_dynamic_timeout_drain);
   RUN_TEST(test_dynamic_timeout_refill);
   RUN_TEST(test_uncalibrated_defaults_are_short);

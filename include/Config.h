@@ -157,6 +157,13 @@ constexpr unsigned long CALIBRATION_PULSE_MS = 3000; // 3 seconds
 // discarded rather than allowed to overwrite a good calibration.
 constexpr float CALIBRATION_MIN_DELTA_PCT = 5.0f;
 
+// After the refill setpoint appears to be reached, stop the pump and let the
+// surface settle for this long before believing it. Water pouring in disturbs
+// the surface right under the sensor, which reads as a level higher than the
+// tank actually holds — and the reading that ends the refill has to be taken
+// under the same calm conditions as the reference it is compared against.
+constexpr unsigned long REFILL_SETTLE_MS = 3000; // 3 s
+
 // Upper bound for a calibration run. It normally ends earlier, as soon as the
 // level has moved CALIBRATION_MIN_DELTA_PCT.
 constexpr unsigned long PUMP_CALIBRATION_MAX_MS = 5UL * 60 * 1000; // 5 min

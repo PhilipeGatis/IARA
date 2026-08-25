@@ -277,7 +277,8 @@ void WaterManager::update() {
 void WaterManager::_enterState(TPAState newState) {
   _state = newState;
   _stateStartMs = millis();
-  _floatFullCount = 0; // Reset debounce on state transition
+  _floatFullCount = 0;       // Reset debounce on state transition
+  _refillConfirming = false; // and any pending refill confirmation
   Serial.printf("[TPA] -> State: %s\n", tpaStateName(newState));
 }
 
@@ -430,6 +431,29 @@ void WaterManager::_handleRefilling() {
     return;
   }
 
+  // The setpoint looked reached, so the pump was stopped. Give the surface
+  // time to settle, then decide on a calm reading instead of on one taken with
+  // water pouring in beside the sensor.
+  if (_refillConfirming) {
+    if (_isWaiting())
+      return;
+    _waitUntilMs = 0;
+
+    const float settled = _safety ? _safety->readUltrasonic() : -1;
+    if (settled > 0 && settled <= _refillTargetCm) {
+      Serial.printf("[TPA] Refill confirmed at %.1f cm after settling.\n",
+                    settled);
+      _captureRefillCalibration();
+      Serial.printf("[TPA] Refill calibrated: %.2f L/min\n", _refillFlowLPM);
+      _enterState(TPAState::CANISTER_ON);
+      return;
+    }
+
+    Serial.printf("[TPA] Settled at %.1f cm, still short of %.1f. Resuming.\n",
+                  settled, _refillTargetCm);
+    _refillConfirming = false; // fall through and restart the pump
+  }
+
   // Step 5: Refill tank until the ultrasonic setpoint is reached
   if (digitalRead(PIN_REFILL) == LOW) {
     pumpOn(PIN_REFILL, PumpReason::TPA_REFILLING);
@@ -452,10 +476,12 @@ void WaterManager::_handleRefilling() {
     }
 
     if (dist > 0 && dist <= _refillTargetCm) {
-      Serial.printf("[TPA] Refill setpoint reached: %.1f cm\n", dist);
+      Serial.printf("[TPA] Refill setpoint seen at %.1f cm. Settling %lums "
+                    "before confirming.\n",
+                    dist, REFILL_SETTLE_MS);
       pumpOff(PIN_REFILL, PumpReason::TPA_TARGET_REACHED);
-      Serial.printf("[TPA] Refill calibrated: %.2f L/min\n", _refillFlowLPM);
-      _enterState(TPAState::CANISTER_ON);
+      _refillConfirming = true;
+      _waitUntilMs = millis() + REFILL_SETTLE_MS;
       return;
     }
   }

@@ -164,6 +164,9 @@ void test_drain_off_during_canister_on() {
   setDistance(24.0f);
   wm.update(); // Refill pump ON
   setDistance(8.6f); // <= 10cm setpoint reached
+  wm.update(); // setpoint seen → pump off, settling
+  mock_millis_value += REFILL_SETTLE_MS + 1;
+  setDistance(8.6f); // still there once the surface is calm
   wm.update(); // → CANISTER_ON
   TEST_ASSERT_EQUAL(TPAState::CANISTER_ON, wm.getState());
   assertDrainOff("CANISTER_ON state");
@@ -175,6 +178,9 @@ void test_drain_off_during_complete() {
   setDistance(24.0f);
   wm.update(); // Refill pump ON
   setDistance(8.6f); // <= 10cm setpoint reached
+  wm.update(); // setpoint seen → pump off, settling
+  mock_millis_value += REFILL_SETTLE_MS + 1;
+  setDistance(8.6f); // still there once the surface is calm
   wm.update(); // → CANISTER_ON
   wm.update(); // → COMPLETE
   TEST_ASSERT_EQUAL(TPAState::COMPLETE, wm.getState());
@@ -532,6 +538,9 @@ void test_drain_stays_off_after_complete_with_many_updates() {
   setDistance(24.0f);
   wm.update(); // Refill pump ON
   setDistance(8.6f); // <= 10cm setpoint reached
+  wm.update(); // setpoint seen → pump off, settling
+  mock_millis_value += REFILL_SETTLE_MS + 1;
+  setDistance(8.6f); // still there once the surface is calm
   wm.update(); // → CANISTER_ON
   wm.update(); // → COMPLETE
 

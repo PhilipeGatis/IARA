@@ -94,7 +94,7 @@ stateDiagram-v2
 | 2 | **DOSING_PRIME** | Peristaltic pump doses dechlorinator (Prime) into the reservoir. Waits 2 seconds for mixing. Stock is deducted and saved to NVS. |
 | 3 | **CANISTER_OFF** | Canister filter is turned off (SSR relay HIGH). Waits 3 seconds for the water to settle so the ultrasonic gets a stable reading. |
 | 4 | **DRAINING** | Drain pump turns on. The ultrasonic monitors the level and the pump runs until the target is reached. Flow rate is measured for auto-calibration. |
-| 5 | **REFILLING** | Refill pump turns on, pumping treated water from the reservoir into the aquarium. Stops when the ultrasonic reaches the original level. A reed switch in series with the MOSFET channel signal cuts the pump in hardware should max level be reached. Flow rate is measured for calibration. |
+| 5 | **REFILLING** | Refill pump turns on, pumping treated water from the reservoir into the aquarium. When the original level appears reached the pump **pauses for 3 seconds** and confirms on a settled surface — inflow beside the sensor reads as a level higher than the tank holds. If the calm reading is still short, it resumes. A reed switch in series with the MOSFET channel signal cuts the pump in hardware should max level be reached. Flow rate is measured for calibration. |
 | 6 | **CANISTER_ON** | Canister filter is turned back on. **TPA cycle complete.** Calibrated flow rates are saved to NVS for the next TPA. |
 
 > **Why the reservoir comes first:** everything that can fail there — no mains pressure, a stuck float, a dead solenoid — fails while the aquarium is still full and the filter still running. Draining first would leave the same failure with a low tank, a stopped canister and no treated water to put back.

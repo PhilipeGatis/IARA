@@ -197,6 +197,9 @@ private:
   float _manualPumpGoalLiters;
   /// True while a manual run has the canister switched off on its behalf.
   bool _canisterOffForManual = false;
+  /// True while the refill is paused, waiting for the surface to settle before
+  /// accepting that the setpoint was really reached.
+  bool _refillConfirming = false;
   /// When non-zero, the manual run stops cleanly after this long to calibrate.
   unsigned long _calibrationRunMs = 0;
   /// Ultrasonic level (cm) that satisfies the manual goal. -1 = track by flow only.

@@ -94,7 +94,7 @@ stateDiagram-v2
 | 2 | **DOSING_PRIME** | Bomba peristáltica dosa desclorificante (Prime) no reservatório. Espera 2 segundos para mistura. Estoque é deduzido e salvo no NVS. |
 | 3 | **CANISTER_OFF** | O filtro canister é desligado (SSR HIGH). Espera 3 segundos para a água estabilizar e o sensor ultrassônico ter uma leitura estável. |
 | 4 | **DRAINING** | Bomba de drenagem liga. Sensor ultrassônico monitora o nível. A bomba roda até atingir o nível alvo. A vazão é medida para auto-calibração. |
-| 5 | **REFILLING** | Bomba de recalque liga, enviando água tratada do reservatório para o aquário. Para quando o ultrassônico atinge o nível original. Um reed switch em série com o sinal do canal MOSFET corta a bomba por hardware caso o nível máximo seja atingido. Vazão é medida para calibração. |
+| 5 | **REFILLING** | Bomba de recalque liga, enviando água tratada do reservatório para o aquário. Ao ver o nível original, a bomba **pausa por 3 segundos** e confirma com a água parada — a entrada de água perturba a superfície logo abaixo do sensor e faz o nível parecer mais alto do que é. Se a leitura calma ainda estiver curta, ela retoma. Um reed switch em série com o sinal do canal MOSFET corta a bomba por hardware caso o nível máximo seja atingido. Vazão é medida para calibração. |
 | 6 | **CANISTER_ON** | Filtro canister é religado. **Ciclo de TPA completo.** Vazões calibradas são salvas no NVS para a próxima TPA. |
 
 > **Por que o reservatório vem primeiro:** tudo que pode falhar nessa etapa — falta de pressão na rede, boia travada, solenoide morta — falha enquanto o aquário ainda está cheio e o filtro rodando. Drenando antes, a mesma falha deixaria o aquário baixo, o canister desligado e sem água tratada para repor.
