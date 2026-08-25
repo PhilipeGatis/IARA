@@ -247,14 +247,14 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                     <div className="sub flex flex-col gap-4">
                         <h3 className="sub-t -mb-1">{t('tpa.pumpControl')}</h3>
                         <PumpTest
-                            label={t('tpa.testDrain')} tone="btn-a"
+                            label={t('tpa.drainPumpShort')} tone="btn-a"
                             pct={drainGoal} onPct={setDrainGoal}
                             maxPct={maxPct} litersPerPct={litersPerPct} trackable={drainTrackable}
                             onStart={() => handlePump('drain', 1, pctToLiters(drainGoal))}
                             onStop={() => handlePump('drain', 0)}
                         />
                         <PumpTest
-                            label={t('tpa.testRefill')} tone="btn-a2"
+                            label={t('tpa.refillPumpShort')} tone="btn-a2"
                             pct={refillGoal} onPct={setRefillGoal}
                             maxPct={maxPct} litersPerPct={litersPerPct} trackable={refillTrackable}
                             onStart={() => handlePump('refill', 1, pctToLiters(refillGoal))}
