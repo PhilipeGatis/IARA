@@ -403,6 +403,30 @@ void test_canister_restored_when_level_is_safe() {
   TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_CANISTER]); // back on (LOW = ON)
 }
 
+void test_overestimated_flow_cannot_end_a_run_early() {
+  WaterManager wm = makeWM();
+  wm.setLitersPerCm(2.0f);   // 1 L == 0.5 cm
+  wm.setDrainFlowLPM(60.0f); // wildly over-estimated: claims 1 L/s
+  setDistance(20.0f);
+  wm.startManualPump("drain", 4.0f); // 4 L == 2 cm below the start level
+  mock_millis_value += 3001;         // canister settle
+  wm.update();                       // pump on, target = 22.0 cm
+
+  // By the bogus flow rate 4 L is already "pumped" after four seconds. The
+  // level says otherwise, and the level is what was actually measured.
+  mock_millis_value += 4001;
+  setDistance(20.5f);
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::MANUAL_PUMP_DRAIN, wm.getState());
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_DRAIN]); // still running
+
+  // It ends when the water has genuinely moved.
+  setDistance(22.5f);
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::COMPLETE, wm.getState());
+  assertDrainOff("manual drain finished on the sensor, not the estimate");
+}
+
 void test_manual_pump_refused_without_sensor_or_calibration() {
   WaterManager wm = makeWM(); // litersPerCm is 0 and no flow rate is set
   wm.startManualPump("drain", 5.0f);
@@ -750,6 +774,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_manual_drain_timeout_hard_ceiling);
   RUN_TEST(test_manual_drain_timeout_scales_with_goal);
   RUN_TEST(test_manual_drain_stops_on_sensor_before_flow_estimate);
+  RUN_TEST(test_overestimated_flow_cannot_end_a_run_early);
   RUN_TEST(test_manual_pump_refused_without_sensor_or_calibration);
   RUN_TEST(test_paired_calibration_chains_drain_into_refill);
   RUN_TEST(test_canister_stays_off_when_level_too_low);

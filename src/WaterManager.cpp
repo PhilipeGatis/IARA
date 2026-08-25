@@ -577,9 +577,15 @@ void WaterManager::_handleManualPump(uint8_t pin, float flowLPM) {
     // Size the timeout from the job instead of using a flat half hour, so a
     // stalled or miscalibrated pump is caught in minutes.
     _manualTimeoutMs = MANUAL_PUMP_MAX_MS;
+    const bool sensorWillArbitrate =
+        _manualTargetLevelCm > 0 && _safety && _safety->areSensorsConnected();
     if (_calibrationRunMs > 0) {
       // Give the calibration window room to finish before the timeout bites.
       _manualTimeoutMs = _calibrationRunMs * 2;
+    } else if (sensorWillArbitrate) {
+      // The sensor decides when to stop, so sizing the timeout from a possibly
+      // wrong flow rate would only cut a healthy run short.
+      _manualTimeoutMs = MANUAL_PUMP_MAX_MS;
     } else if (_manualPumpGoalLiters > 0 && flowLPM > 0) {
       unsigned long budget =
           (unsigned long)((_manualPumpGoalLiters / flowLPM) * 60000.0f) * 2;
@@ -621,11 +627,18 @@ void WaterManager::_handleManualPump(uint8_t pin, float flowLPM) {
     }
   }
 
-  // Backstop: flow x time, for when the sensor goes silent mid-run.
-  if (!reached && _manualPumpGoalLiters > 0 && flowLPM > 0) {
+  // Backstop: flow x time, and ONLY when there is no sensor to trust. It used
+  // to race the sensor, so an over-estimated flow rate ended the run early —
+  // a refill calibrated at 19 L/min against a real 2-3 L/min stopped after
+  // seconds, reporting a goal it had not moved. Measured beats estimated.
+  const bool sensorArbitrates =
+      _manualTargetLevelCm > 0 && _safety && _safety->areSensorsConnected();
+  if (!reached && !sensorArbitrates && _manualPumpGoalLiters > 0 &&
+      flowLPM > 0) {
     const float pumpedLiters = (_stateElapsed() / 60000.0f) * flowLPM;
     if (pumpedLiters >= _manualPumpGoalLiters) {
-      Serial.printf("[TPA] Manual %s goal reached (flow estimate): %.1f L\n",
+      Serial.printf("[TPA] Manual %s goal reached (flow estimate, no sensor): "
+                    "%.1f L\n",
                     pinName(pin), pumpedLiters);
       reached = true;
     }
