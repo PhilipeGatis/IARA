@@ -76,13 +76,16 @@ private:
   unsigned long _emergencyDrainStart;
 
   // Median filter buffer (circular)
-  static constexpr uint8_t MEDIAN_BUFFER_SIZE = 5;
-  float _medianBuffer[MEDIAN_BUFFER_SIZE] = {-1, -1, -1, -1, -1};
+  // The A02YYUW emits a frame roughly every 100 ms, so 20 samples is about a
+  // 2 s window. Median rather than average: it discards the extremes outright,
+  // which is what surface ripple produces. A wider window costs almost nothing
+  // in tracking lag — pumping moves the level ~0.03 cm/s — while roughly
+  // halving the noise compared with 5 samples.
+  static constexpr uint8_t MEDIAN_BUFFER_SIZE = 20;
+  // Entries beyond _medianCount are never read, so zero-init is fine.
+  float _medianBuffer[MEDIAN_BUFFER_SIZE] = {};
   uint8_t _medianIndex = 0;
   uint8_t _medianCount = 0;
-
-  /// Median filter helper
-  float _medianOfFive(float *arr);
 
   /// Check if water level is dangerously high
   void _checkOverflow();

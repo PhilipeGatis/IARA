@@ -63,6 +63,12 @@ public:
   }
   float getReservoirSafetyML() const { return _reservoirSafetyML; }
   uint16_t getReservoirVolume() const { return _reservoirVolume; }
+  /// Pull freshly measured flow rates out of WaterManager into this manager's
+  /// copies. WaterManager measures them; WebManager is what isTpaConfigReady()
+  /// and /api/status read, so without this a manual calibration is invisible
+  /// until the next boot.
+  void syncFlowRatesFromWater();
+
   bool isTpaConfigReady() const {
     return _aqHeight > 0 && _aqLength > 0 && _aqWidth > 0 &&
            _sensorFullDistanceMm > 0 && _drainFlowRate > 0 && _refillFlowRate > 0 &&

@@ -40,6 +40,28 @@ WebManager::WebManager()
 // BEGIN
 // ============================================================================
 
+void WebManager::syncFlowRatesFromWater() {
+  if (!_water)
+    return;
+
+  // WaterManager measures the flow; WebManager holds the copy that
+  // isTpaConfigReady() and /api/status read. Whichever side has a value wins,
+  // so this also migrates an older install where only WebManager had one.
+  if (_water->getDrainFlowLPM() > 0) {
+    _drainFlowRate = _water->getDrainFlowLPM() * LPM_TO_ML_PER_SEC;
+  } else if (_drainFlowRate > 0) {
+    _water->setDrainFlowLPM(_drainFlowRate * ML_PER_SEC_TO_LPM);
+  }
+
+  if (_water->getRefillFlowLPM() > 0) {
+    _refillFlowRate = _water->getRefillFlowLPM() * LPM_TO_ML_PER_SEC;
+  } else if (_refillFlowRate > 0) {
+    _water->setRefillFlowLPM(_refillFlowRate * ML_PER_SEC_TO_LPM);
+  }
+
+  _saveParams();
+}
+
 void WebManager::begin(TimeManager *time, WaterManager *water,
                        FertManager *fert, SafetyWatchdog *safety,
                        NotifyManager *notify) {
@@ -55,20 +77,7 @@ void WebManager::begin(TimeManager *time, WaterManager *water,
     _water->setPrimeML(_primeML);
     _water->setPrimeEnabled(_primeEnabled);
 
-    // Sincroniza a vazão real caso as Preferences do WebManager ('drFR') 
-    // tenham se perdido ou zerado, garantindo que a UI reflita a calibração do pumpcal.
-    // E vice-versa: se pumpcal estiver vazio (ex: após OTA de versão antiga), migra do WebManager.
-    if (_water->getDrainFlowLPM() > 0) {
-      _drainFlowRate = _water->getDrainFlowLPM() * LPM_TO_ML_PER_SEC;
-    } else if (_drainFlowRate > 0) {
-      _water->setDrainFlowLPM(_drainFlowRate * ML_PER_SEC_TO_LPM);
-    }
-
-    if (_water->getRefillFlowLPM() > 0) {
-      _refillFlowRate = _water->getRefillFlowLPM() * LPM_TO_ML_PER_SEC;
-    } else if (_refillFlowRate > 0) {
-      _water->setRefillFlowLPM(_refillFlowRate * ML_PER_SEC_TO_LPM);
-    }
+    syncFlowRatesFromWater();
 
     Serial.println("[Config] ====== WebManager <-> WaterManager SYNC ======");
     Serial.printf("[Config]   WaterMgr drain: %.2f LPM, refill: %.2f LPM\n",
@@ -340,7 +349,7 @@ void WebManager::_setupRoutes() {
         request->send(200, "application/json", "{\"ok\":true}");
       });
 
-  // ---- POST /api/tpa/pump (Manual Drain/Refill/Solenoid Trigger) ----
+// ---- POST /api/tpa/pump (Manual Drain/Refill/Solenoid Trigger) ----
   _server.on(
       "/api/tpa/pump", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
       [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
@@ -371,12 +380,36 @@ void WebManager::_setupRoutes() {
         } else {
           if (_water && _water->isRunning()) {
             _water->stopManual();
+            // stopManual() is where a manual run's flow rate is measured.
+            // Pull it across now, otherwise it stays invisible until reboot.
+            syncFlowRatesFromWater();
           } else {
              if (pStr == "drain") pumpOff(PIN_DRAIN, PumpReason::MANUAL_PUMP);
              else if (pStr == "refill") pumpOff(PIN_REFILL, PumpReason::MANUAL_PUMP);
              else if (pStr == "solenoid") pumpOff(PIN_SOLENOID, PumpReason::MANUAL_SOLENOID);
           }
         }
+        request->send(200, "application/json", "{\"ok\":true}");
+      });
+
+  // ---- POST /api/tpa/calibrate-pump (timed run to measure flow rate) ----
+  _server.on(
+      "/api/tpa/calibrate-pump", HTTP_POST,
+      [](AsyncWebServerRequest *request) {}, NULL,
+      [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
+             size_t index, size_t total) {
+        String body = String((char *)data).substring(0, len);
+        String pStr = _extractString(body, "pump");
+        if (!_water || (pStr != "drain" && pStr != "refill")) {
+          request->send(400, "application/json",
+                        "{\"error\":\"pump must be drain or refill\"}");
+          return;
+        }
+        if (_water->isRunning()) {
+          request->send(400, "application/json", "{\"error\":\"TPA is running\"}");
+          return;
+        }
+        _water->startPumpCalibration(pStr);
         request->send(200, "application/json", "{\"ok\":true}");
       });
 

@@ -47,6 +47,12 @@ public:
   /// Manual Operations
   void startManualReservoirFill();
   void startManualPump(const String &pump, float goalLiters);
+
+  /// Run a pump for PUMP_CALIBRATION_RUN_MS and derive its flow rate from the
+  /// level change. This is the bootstrap: a goal cannot be honoured before a
+  /// flow rate exists, and a flow rate cannot be measured without running.
+  void startPumpCalibration(const String &pump);
+
   void stopManual();
 
   /// Pump Progress Tracking (used for UI/Display during Auto and Manual TPA)
@@ -180,6 +186,8 @@ private:
   // Manual pump state
   String _manualPumpTarget;
   float _manualPumpGoalLiters;
+  /// When non-zero, the manual run stops cleanly after this long to calibrate.
+  unsigned long _calibrationRunMs = 0;
   /// Ultrasonic level (cm) that satisfies the manual goal. -1 = track by flow only.
   float _manualTargetLevelCm = -1;
   /// Timeout for the current manual run, sized from the goal and flow rate.

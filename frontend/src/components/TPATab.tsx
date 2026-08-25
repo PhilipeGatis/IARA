@@ -15,7 +15,7 @@ import { useT } from '../i18n';
  * nowhere to go on the way back.
  */
 function PumpTest({
-    label, tone, pct, onPct, maxPct, litersPerPct, trackable, onStart, onStop,
+    label, tone, pct, onPct, maxPct, litersPerPct, trackable, flow, onCalibrate, onStart, onStop,
 }: {
     label: string;
     tone: 'btn-a' | 'btn-a2';
@@ -25,6 +25,9 @@ function PumpTest({
     litersPerPct: number;
     /** False when neither the level sensor nor a calibrated flow can track the goal. */
     trackable: boolean;
+    /** Measured flow (mL/s). 0 means this pump has never been calibrated. */
+    flow: number;
+    onCalibrate: () => void;
     onStart: () => void;
     onStop: () => void;
 }) {
@@ -57,6 +60,11 @@ function PumpTest({
                 >▶ ON</button>
                 <button onClick={onStop} className="btn btn-d flex-1">⏹ OFF</button>
             </div>
+            {flow <= 0 && (
+                <button onClick={onCalibrate} className="btn btn-w mt-2 w-full">
+                    {t('tpa.calibrateFlow')}
+                </button>
+            )}
             <p className={`hint ${over || (hasGoal && !trackable) ? 'text-danger' : ''}`}>
                 {!hasGoal
                     ? t('tpa.goalFree')
@@ -100,6 +108,12 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
     const sensorTrackable = aqVolume > 0 && (status?.litersPerCm ?? 0) > 0 && (status?.waterLevel ?? 0) > 0;
     const drainTrackable = sensorTrackable || (status?.drainFlowRate ?? 0) > 0;
     const refillTrackable = sensorTrackable || (status?.refillFlowRate ?? 0) > 0;
+
+    const handleCalibrate = (pump: 'drain' | 'refill') => {
+        if (confirm(t('confirm.calibrateFlow', { pump: t(pump === 'drain' ? 'tpa.testDrain' : 'tpa.testRefill') }))) {
+            api('POST', '/api/tpa/calibrate-pump', { pump });
+        }
+    };
 
     const pctToLiters = (v: string) => {
         const n = parseFloat(v);
@@ -231,6 +245,7 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                             label={t('tpa.testDrain')} tone="btn-a"
                             pct={drainGoal} onPct={setDrainGoal}
                             maxPct={maxPct} litersPerPct={litersPerPct} trackable={drainTrackable}
+                            flow={status?.drainFlowRate ?? 0} onCalibrate={() => handleCalibrate('drain')}
                             onStart={() => handlePump('drain', 1, pctToLiters(drainGoal))}
                             onStop={() => handlePump('drain', 0)}
                         />
@@ -238,6 +253,7 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                             label={t('tpa.testRefill')} tone="btn-a2"
                             pct={refillGoal} onPct={setRefillGoal}
                             maxPct={maxPct} litersPerPct={litersPerPct} trackable={refillTrackable}
+                            flow={status?.refillFlowRate ?? 0} onCalibrate={() => handleCalibrate('refill')}
                             onStart={() => handlePump('refill', 1, pctToLiters(refillGoal))}
                             onStop={() => handlePump('refill', 0)}
                         />

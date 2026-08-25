@@ -125,6 +125,8 @@ const translations = {
     'fert.measureResult': { pt: 'Resultado da Medição (mL)', en: 'Measurement Result (mL)', ja: '計測結果（mL）' },
     'fert.calculate': { pt: 'Calcular', en: 'Calculate', ja: '計算' },
     'tpa.goalEquals': { pt: '= {liters} L do aquário', en: '= {liters} L of the aquarium', ja: '= 水槽の{liters} L' },
+    'tpa.calibrateFlow': { pt: '⚙ Calibrar vazão (30s)', en: '⚙ Calibrate flow (30s)', ja: '⚙ 流量キャリブレーション (30秒)' },
+    'confirm.calibrateFlow': { pt: 'Rodar "{pump}" por 30 segundos para medir a vazão? A bomba liga sozinha e para no fim do tempo.', en: 'Run "{pump}" for 30 seconds to measure its flow? The pump starts on its own and stops when the time is up.', ja: '「{pump}」を30秒間運転して流量を測定しますか？ポンプは自動で始動し、時間経過後に停止します。' },
     'tpa.goalFree': { pt: 'Sem meta — a bomba roda até você apertar OFF.', en: 'No goal — the pump runs until you press OFF.', ja: '目標なし — OFFを押すまでポンプが動作します。' },
     'tpa.goalNotTrackable': { pt: 'Sem sensor de nível nem vazão calibrada — calibre antes de usar meta.', en: 'No level sensor and no calibrated flow — calibrate before using a goal.', ja: '水位センサーもキャリブレーション済み流量もありません。目標を使う前にキャリブレーションしてください。' },
     'tpa.goalOverMax': { pt: 'Máximo {max}% — limitado pelo volume do reservatório.', en: 'Maximum {max}% — capped by the reservoir volume.', ja: '最大{max}% — リザーバー容量による上限です。' },

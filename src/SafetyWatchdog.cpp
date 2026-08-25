@@ -247,8 +247,3 @@ void SafetyWatchdog::_updateEmergencyDrain() {
     emergencyShutdown();
   }
 }
-
-float SafetyWatchdog::_medianOfFive(float *arr) {
-  std::sort(arr, arr + 5);
-  return arr[2];
-}

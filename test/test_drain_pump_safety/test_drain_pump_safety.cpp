@@ -44,7 +44,9 @@ WaterManager makeWM() {
 
 // Helper: force a distance value by filling the median buffer
 void setDistance(float dist) {
-  for (int i = 0; i < 5; i++) {
+  // Must overwrite the whole median window, otherwise older samples still
+  // dominate the median and the level never actually becomes `dist`.
+  for (int i = 0; i < 32; i++) {
     mock_inject_a02_distance(dist);
     safety.readUltrasonic();
   }

@@ -120,6 +120,7 @@ void WaterManager::startManualPump(const String &pump, float goalLiters) {
 
   _manualPumpTarget = pump;
   _manualPumpGoalLiters = goalLiters;
+  _calibrationRunMs = 0;
 
   Serial.printf("[TPA] ====== MANUAL PUMP STARTED: %s (Goal: %.1f L) ======\n", pump.c_str(), goalLiters);
 
@@ -130,12 +131,42 @@ void WaterManager::startManualPump(const String &pump, float goalLiters) {
   }
 }
 
+void WaterManager::startPumpCalibration(const String &pump) {
+  if (isRunning()) {
+    Serial.println("[TPA] Already running, ignoring startPumpCalibration().");
+    return;
+  }
+  if (_litersPerCm <= 0) {
+    Serial.println("[TPA] Calibration refused: aquarium dimensions unknown, "
+                   "so a level change cannot be converted to litres.");
+    _lastErrorMsg = "Set the aquarium dimensions before calibrating";
+    return;
+  }
+
+  _manualPumpTarget = pump;
+  _manualPumpGoalLiters = 0; // no goal: the clock ends this run
+  _calibrationRunMs = PUMP_CALIBRATION_RUN_MS;
+
+  Serial.printf("[TPA] ====== FLOW CALIBRATION: %s for %lus ======\n",
+                pump.c_str(), PUMP_CALIBRATION_RUN_MS / 1000);
+
+  if (pump == "drain") {
+    _enterState(TPAState::MANUAL_PUMP_DRAIN);
+  } else if (pump == "refill") {
+    _enterState(TPAState::MANUAL_PUMP_REFILL);
+  }
+}
+
 void WaterManager::stopManual() {
   Serial.println("[TPA] Manual operation stopped.");
+  _calibrationRunMs = 0;
   if (_state == TPAState::MANUAL_PUMP_DRAIN) {
     _captureDrainCalibration();
+    saveCalibration(); // a manual run is how the flow rate gets measured in
+                       // the first place, so it must outlive the reboot
   } else if (_state == TPAState::MANUAL_PUMP_REFILL) {
     _captureRefillCalibration();
+    saveCalibration();
   }
   _stopAllTpaActuators(PumpReason::MANUAL_PUMP);
   _state = TPAState::IDLE;
@@ -478,7 +509,10 @@ void WaterManager::_handleManualPump(uint8_t pin, float flowLPM) {
     // Size the timeout from the job instead of using a flat half hour, so a
     // stalled or miscalibrated pump is caught in minutes.
     _manualTimeoutMs = MANUAL_PUMP_MAX_MS;
-    if (_manualPumpGoalLiters > 0 && flowLPM > 0) {
+    if (_calibrationRunMs > 0) {
+      // Give the calibration window room to finish before the timeout bites.
+      _manualTimeoutMs = _calibrationRunMs * 2;
+    } else if (_manualPumpGoalLiters > 0 && flowLPM > 0) {
       unsigned long budget =
           (unsigned long)((_manualPumpGoalLiters / flowLPM) * 60000.0f) * 2;
       if (budget < MANUAL_PUMP_MIN_MS) budget = MANUAL_PUMP_MIN_MS;
@@ -487,6 +521,13 @@ void WaterManager::_handleManualPump(uint8_t pin, float flowLPM) {
   }
 
   bool reached = false;
+
+  // Calibration run: the clock ends it, and the level change measured over that
+  // window becomes the flow rate.
+  if (_calibrationRunMs > 0 && _stateElapsed() >= _calibrationRunMs) {
+    Serial.printf("[TPA] Calibration window elapsed for %s.\n", pinName(pin));
+    reached = true;
+  }
 
   // Primary stop: the ultrasonic reaching the target level.
   if (_manualTargetLevelCm > 0 && _safety && _safety->areSensorsConnected()) {

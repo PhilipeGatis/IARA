@@ -148,3 +148,8 @@ constexpr float LPM_TO_ML_PER_SEC = 1.0f / ML_PER_SEC_TO_LPM;
 
 // -- Calibration pulse duration --
 constexpr unsigned long CALIBRATION_PULSE_MS = 3000; // 3 seconds
+
+// One-shot flow calibration: run a TPA pump for this long, then derive L/min
+// from how far the level moved. Longer is more accurate, because the ultrasonic
+// noise floor is a fixed number of millimetres regardless of run length.
+constexpr unsigned long PUMP_CALIBRATION_RUN_MS = 30UL * 1000; // 30 s
