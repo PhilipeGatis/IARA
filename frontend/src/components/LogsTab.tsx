@@ -14,20 +14,15 @@ type PumpLogResponse = {
 };
 
 const PIN_COLORS: Record<string, string> = {
-    DRAIN: '#ff4444',
-    REFILL: '#4488ff',
-    SOLENOID: '#44bbff',
-    CANISTER: '#ff8800',
-    FERT1: '#00FFFF',
-    FERT2: '#FF00FF',
-    FERT3: '#FFFF00',
-    FERT4: '#FFA500',
-    PRIME: '#00FF00',
-};
-
-const STATE_BADGE = {
-    ON: 'bg-accent2/20 text-accent2',
-    OFF: 'bg-white/5 text-muted',
+    DRAIN: '#ff6b6b',
+    REFILL: '#5c9dff',
+    SOLENOID: '#4ec8ff',
+    CANISTER: '#ffa040',
+    FERT1: '#00E5FF',
+    FERT2: '#FF4FD8',
+    FERT3: '#FFE45C',
+    FERT4: '#FFA726',
+    PRIME: '#66E06A',
 };
 
 export default function LogsTab({ rtcConnected, rtcLostPower }: { rtcConnected?: boolean, rtcLostPower?: boolean }) {
@@ -70,36 +65,30 @@ export default function LogsTab({ rtcConnected, rtcLostPower }: { rtcConnected?:
     const uniquePins = Array.from(new Set(logs?.log?.map((e) => e.pin) ?? []));
 
     return (
-        <div className="flex flex-col gap-4">
-            {/* Header Card */}
-            <div className="rounded-2xl bg-card p-5 shadow-md">
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-base font-medium tracking-wide text-text/90 uppercase">
-                        {t('logs.title')}
-                    </h2>
+        <div className="flex flex-col gap-3">
+            {/* Header + filters */}
+            <section className="card">
+                <div className="card-h">
+                    <h2 className="card-t">{t('logs.title')}</h2>
                     <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted font-mono">
+                        <span className="font-mono text-xs tabular-nums text-muted">
                             {logs ? `${logs.count} ${t('logs.events')}` : '...'}
                         </span>
                         <button
                             onClick={fetchLogs}
                             disabled={loading}
-                            className="rounded-lg bg-accent/10 px-3 py-1.5 text-xs font-bold text-accent transition-all hover:bg-accent/20 active:scale-95 disabled:opacity-50"
+                            className="btn btn-xs btn-a"
                         >
                             {loading ? '⟳' : t('logs.refresh')}
                         </button>
                     </div>
                 </div>
 
-                {/* Filter Pills */}
-                <div className="flex flex-wrap gap-1.5 mb-1">
+                {/* Filter pills */}
+                <div className="flex flex-wrap gap-1.5">
                     <button
                         onClick={() => setFilter('ALL')}
-                        className={`rounded-full px-3 py-1 text-[10px] font-bold tracking-wider transition-all ${
-                            filter === 'ALL'
-                                ? 'bg-accent/20 text-accent'
-                                : 'bg-white/5 text-muted hover:bg-white/10'
-                        }`}
+                        className={`pill min-h-[32px] transition-colors ${filter === 'ALL' ? 'bg-accent/20 text-accent' : 'bg-white/5 text-muted'}`}
                     >
                         {t('logs.all')}
                     </button>
@@ -107,104 +96,82 @@ export default function LogsTab({ rtcConnected, rtcLostPower }: { rtcConnected?:
                         <button
                             key={pin}
                             onClick={() => setFilter(pin)}
-                            className={`rounded-full px-3 py-1 text-[10px] font-bold tracking-wider transition-all ${
-                                filter === pin
-                                    ? 'bg-accent/20 text-accent'
-                                    : 'bg-white/5 text-muted hover:bg-white/10'
-                            }`}
+                            className={`pill min-h-[32px] transition-colors ${filter === pin ? 'bg-accent/20' : 'bg-white/5 text-muted'}`}
                             style={filter === pin ? { color: PIN_COLORS[pin] || undefined } : {}}
                         >
                             {pin}
                         </button>
                     ))}
                 </div>
-            </div>
+            </section>
 
             {/* Error State */}
             {error && (
-                <div className="rounded-2xl bg-danger/10 border border-danger/30 p-4 text-center">
-                    <span className="text-xs font-bold text-danger">{error}</span>
-                </div>
+                <div className="note note-d text-center text-xs font-bold text-danger">{error}</div>
             )}
 
             {/* Empty State */}
             {logs && displayLogs.length === 0 && (
-                <div className="rounded-2xl bg-card p-8 shadow-md text-center">
-                    <span className="text-4xl block mb-3">📋</span>
+                <div className="card py-10 text-center">
+                    <span className="mb-3 block text-4xl">📋</span>
                     <span className="text-sm text-muted">{t('logs.empty')}</span>
                 </div>
             )}
 
             {/* Log Entries */}
             {displayLogs.length > 0 && (
-                <div className="rounded-2xl bg-card shadow-md overflow-hidden">
-                    <div className="divide-y divide-border/30">
+                <section className="overflow-hidden rounded-2xl bg-card shadow-md">
+                    <div className="divide-y divide-border/40">
                         {displayLogs.map((entry, i) => (
                             <div
                                 key={i}
-                                className={`flex items-center gap-3 px-4 py-3 transition-colors ${
-                                    entry.state === 'ON' ? 'bg-accent2/5' : ''
-                                }`}
+                                className={`px-4 py-2.5 ${entry.state === 'ON' ? 'bg-accent2/5' : ''}`}
                             >
-                                {/* State indicator dot */}
-                                <div
-                                    className={`h-2 w-2 flex-none rounded-full ${
-                                        entry.state === 'ON'
+                                <div className="flex items-center gap-2">
+                                    <span
+                                        className={`h-2 w-2 flex-none rounded-full ${entry.state === 'ON'
                                             ? 'bg-accent2 shadow-[0_0_6px_var(--accent2)]'
-                                            : 'bg-muted/30'
-                                    }`}
-                                />
-
-                                {/* Pin name */}
-                                <span
-                                    className="text-xs font-bold tracking-wider w-[70px] flex-none"
-                                    style={{ color: PIN_COLORS[entry.pin] || 'var(--text)' }}
-                                >
-                                    {entry.pin}
-                                </span>
-
-                                {/* State badge */}
-                                <span
-                                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wider flex-none ${
-                                        STATE_BADGE[entry.state]
-                                    }`}
-                                >
-                                    {entry.state}
-                                </span>
-
-                                {/* Reason */}
-                                <span className="text-[10px] text-muted font-medium truncate flex-1 min-w-0">
+                                            : 'bg-muted/40'
+                                            }`}
+                                    />
+                                    <span
+                                        className="min-w-0 flex-1 truncate text-xs font-bold tracking-wider"
+                                        style={{ color: PIN_COLORS[entry.pin] || 'var(--text)' }}
+                                    >
+                                        {entry.pin}
+                                    </span>
+                                    <span className={`pill flex-none ${entry.state === 'ON' ? 'bg-accent2/20 text-accent2' : 'bg-white/5 text-muted'}`}>
+                                        {entry.state}
+                                    </span>
+                                    <span className="flex-none font-mono text-[11px] tabular-nums text-muted">
+                                        {entry.t}
+                                    </span>
+                                </div>
+                                <div className="mt-0.5 pl-4 text-[11px] font-medium text-muted/85">
                                     {entry.reason.replace(/_/g, ' ')}
-                                </span>
-
-                                {/* Timestamp */}
-                                <span className="text-[10px] font-mono text-muted/70 flex-none">
-                                    {entry.t}
-                                </span>
+                                </div>
                             </div>
                         ))}
                     </div>
-                </div>
+                </section>
             )}
 
             {/* Info Card */}
-            <div className="rounded-2xl bg-card/50 p-4 shadow-md">
-                <p className="text-[10px] text-muted/60 leading-relaxed mb-3">
-                    {t('logs.info')}
-                </p>
-                
+            <section className="card bg-card/60">
+                <p className="hint leading-relaxed">{t('logs.info')}</p>
+
                 {rtcConnected !== undefined && (
-                    <div className="flex items-center gap-2 border-t border-border/30 pt-3">
-                        <div className={`w-2 h-2 rounded-full ${rtcConnected ? (rtcLostPower ? 'bg-danger' : 'bg-accent2') : 'bg-muted'}`} />
-                        <span className="text-[10px] font-medium text-muted">
-                            RTC Status: 
-                            <span className={rtcConnected ? (rtcLostPower ? 'text-danger ml-1' : 'text-accent2 ml-1') : 'text-muted ml-1'}>
+                    <div className="mt-3 flex items-center gap-2 border-t border-border/50 pt-3">
+                        <div className={`h-2 w-2 flex-none rounded-full ${rtcConnected ? (rtcLostPower ? 'bg-danger' : 'bg-accent2') : 'bg-muted'}`} />
+                        <span className="text-[11px] font-medium text-muted">
+                            RTC:
+                            <span className={rtcConnected ? (rtcLostPower ? 'ml-1 text-danger' : 'ml-1 text-accent2') : 'ml-1 text-muted'}>
                                 {rtcConnected ? (rtcLostPower ? 'Battery Dead / Lost Power' : 'OK') : 'Not Found'}
                             </span>
                         </span>
                     </div>
                 )}
-            </div>
+            </section>
         </div>
     );
 }

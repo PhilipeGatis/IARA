@@ -422,12 +422,7 @@ void loop() {
     }
 
     // --- Notifications: daily level report + midnight reset ---
-    notifyMgr.update(now.hour(), now.minute());
-    if (now.hour() == notifyMgr.getDailyReportHour() &&
-        now.minute() == notifyMgr.getDailyReportMinute()) {
-      float level = safety.getLastDistance();
-      notifyMgr.notifyDailyLevel(level);
-    }
+    notifyMgr.update(now.hour(), now.minute(), safety.getLastDistance());
 
     // --- TPA schedule ---
     if (currentMinute != lastTPAMinute) {

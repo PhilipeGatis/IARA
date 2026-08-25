@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
-import { api } from './App';
+import { api } from './api';
 
 export type Lang = 'pt' | 'en' | 'ja';
 
@@ -12,6 +12,8 @@ const translations = {
 
     // ---- Emergency ----
     'emergency.banner': { pt: '⚠️ EMERGÊNCIA — Sensor detectou risco de transbordamento! Parando bombas imediatamente.', en: '⚠️ EMERGENCY — Sensor detected overflow risk! Stopping pumps immediately.', ja: '⚠️ 緊急事態 — センサーがオーバーフローリスクを検出！ポンプを即時停止。' },
+
+    'maintenance.banner': { pt: '🔧 Modo manutenção ativo — TPA e fertilização automáticas estão pausadas.', en: '🔧 Maintenance mode on — automatic TPA and dosing are paused.', ja: '🔧 メンテナンスモード作動中 — 自動TPAと施肥は一時停止しています。' },
 
     // ---- HomeTab ----
     'home.sensors': { pt: 'Sensores e Segurança', en: 'Sensors & Safety', ja: 'センサーと安全' },
@@ -83,7 +85,8 @@ const translations = {
     'tpa.testRefill': { pt: 'Testar Recalque', en: 'Test Refill', ja: '給水テスト' },
     'tpa.fillReservoir': { pt: 'Encher Reservatório', en: 'Fill Reservoir', ja: '貯水槽を満水にする' },
     'tpa.stopFill': { pt: 'Parar Enchimento', en: 'Stop Fill', ja: '給水停止' },
-    'tpa.goalLiters': { pt: 'Meta (L)', en: 'Goal (L)', ja: '目標 (L)' },
+    'tpa.goalHint': { pt: 'Meta em % do aquário. Máximo {max}% — o reservatório tem {res} L e o aquário {aq} L.', en: 'Goal as % of the aquarium. Maximum {max}% — the reservoir holds {res} L and the aquarium {aq} L.', ja: '目標は水槽に対する%。最大{max}% — リザーバー{res} L、水槽{aq} L。' },
+    'tpa.goalHintNoConfig': { pt: 'Configure o volume do aquário e do reservatório para liberar as metas.', en: 'Set the aquarium and reservoir volumes to enable goals.', ja: '目標を有効にするには、水槽とリザーバーの容量を設定してください。' },
     'tpa.pumpControl': { pt: 'Controle Manual (Ligar/Desligar)', en: 'Manual Control (On/Off)', ja: '手動制御 (オン/オフ)' },
     'tpa.primeDose': { pt: 'Dose de Prime no Reservatório', en: 'Prime Dose in Reservoir', ja: '貯水槽のプライム投与量' },
     'tpa.primeEnabled': { pt: 'Habilitar Prime na TPA (Canal 5)', en: 'Enable Prime in TPA (Channel 5)', ja: 'TPAでプライムを有効にする（チャンネル5）' },
@@ -97,6 +100,10 @@ const translations = {
     'tpa.autoCalibrated': { pt: '(Vazão atualizada automaticamente a cada ciclo de TPA)', en: '(Flow updated automatically every TPA cycle)', ja: '（TPAサイクルごとに流量が自動更新されます）' },
     'tpa.pumpProgress': { pt: 'Progresso (L):', en: 'Progress (L):', ja: '進行状況 (L):' },
     'tpa.pumpTime': { pt: 'Tempo:', en: 'Time:', ja: '時間:' },
+    'tpa.manual': { pt: 'Controles Manuais', en: 'Manual Controls', ja: '手動制御' },
+    'tpa.summary': { pt: '{p}% a cada {n} dia(s), às {t}', en: '{p}% every {n} day(s), at {t}', ja: '{n}日ごと {t} に {p}%' },
+    'tpa.canisterOn': { pt: 'Ligar Canister', en: 'Turn Canister On', ja: 'キャニスターON' },
+    'tpa.canisterOff': { pt: 'Desligar Canister', en: 'Turn Canister Off', ja: 'キャニスターOFF' },
 
     // ---- FertsTab ----
     'fert.loading': { pt: 'Carregando fertilizantes...', en: 'Loading fertilizers...', ja: '肥料を読み込み中...' },
@@ -117,6 +124,20 @@ const translations = {
     'fert.mlMeasured': { pt: 'mL medidos', en: 'mL measured', ja: '計測mL' },
     'fert.measureResult': { pt: 'Resultado da Medição (mL)', en: 'Measurement Result (mL)', ja: '計測結果（mL）' },
     'fert.calculate': { pt: 'Calcular', en: 'Calculate', ja: '計算' },
+    'tpa.goalEquals': { pt: '= {liters} L do aquário', en: '= {liters} L of the aquarium', ja: '= 水槽の{liters} L' },
+    'tpa.goalNotTrackable': { pt: 'Sem sensor de nível nem vazão calibrada — calibre antes de usar meta.', en: 'No level sensor and no calibrated flow — calibrate before using a goal.', ja: '水位センサーもキャリブレーション済み流量もありません。目標を使う前にキャリブレーションしてください。' },
+    'tpa.goalOverMax': { pt: 'Máximo {max}% — limitado pelo volume do reservatório.', en: 'Maximum {max}% — capped by the reservoir volume.', ja: '最大{max}% — リザーバー容量による上限です。' },
+    'net.error': { pt: 'Falha na conexão com o controlador. O comando NÃO foi enviado.', en: 'Connection to the controller failed. The command was NOT sent.', ja: 'コントローラーへの接続に失敗しました。コマンドは送信されていません。' },
+    'net.stale': { pt: '⚠️ Sem conexão — os dados abaixo podem estar desatualizados.', en: '⚠️ Disconnected — the data below may be out of date.', ja: '⚠️ 接続なし — 以下のデータは古い可能性があります。' },
+    'confirm.tpaStart': { pt: 'Iniciar a TPA agora? O filtro canister será desligado, {pct}% da água será drenada e as bombas vão operar por vários minutos.', en: 'Start the water change now? The canister filter will switch off, {pct}% of the water will be drained and the pumps will run for several minutes.', ja: '今すぐ換水を開始しますか？キャニスターフィルターが停止し、水の{pct}%が排水され、ポンプが数分間動作します。' },
+    'confirm.tpaAbort': { pt: 'Abortar a TPA em andamento? Todas as bombas param imediatamente e o ciclo não será concluído.', en: 'Abort the running water change? All pumps stop immediately and the cycle will not complete.', ja: '実行中の換水を中止しますか？全ポンプが即座に停止し、サイクルは完了しません。' },
+    'confirm.pumpDrain': { pt: 'Ligar a bomba de DRENAGEM manualmente? Ela vai retirar água do aquário até você parar ou atingir a meta.', en: 'Run the DRAIN pump manually? It will remove water from the aquarium until you stop it or the goal is reached.', ja: '排水ポンプを手動で運転しますか？停止するか目標に達するまで水槽から水を抜きます。' },
+    'confirm.pumpRefill': { pt: 'Ligar a bomba de RECALQUE manualmente? Ela vai enviar água do reservatório para o aquário até você parar ou atingir a meta.', en: 'Run the REFILL pump manually? It will pump water from the reservoir into the aquarium until you stop it or the goal is reached.', ja: '給水ポンプを手動で運転しますか？停止するか目標に達するまでリザーバーから水槽へ送水します。' },
+    'confirm.solenoid': { pt: 'Abrir a válvula solenoide? Água da torneira vai encher o reservatório até você fechar.', en: 'Open the solenoid valve? Tap water will fill the reservoir until you close it.', ja: 'ソレノイドバルブを開きますか？閉じるまで水道水がリザーバーに供給されます。' },
+    'confirm.canisterOff': { pt: 'Desligar o filtro canister? O aquário fica sem filtragem biológica enquanto estiver desligado.', en: 'Switch off the canister filter? The aquarium has no biological filtration while it is off.', ja: 'キャニスターフィルターを停止しますか？停止中は生物ろ過が働きません。' },
+    'confirm.emergency': { pt: 'PARADA DE EMERGÊNCIA: desligar TODOS os atuadores imediatamente — bombas, solenoide e filtro canister. Confirmar?', en: 'EMERGENCY STOP: switch off ALL actuators immediately — pumps, solenoid and canister filter. Confirm?', ja: '緊急停止：全てのアクチュエーター（ポンプ、ソレノイド、キャニスターフィルター）を即座に停止します。実行しますか？' },
+    'config.emergencyStop': { pt: '🛑 Parada de emergência', en: '🛑 Emergency stop', ja: '🛑 緊急停止' },
+    'config.emergencyHint': { pt: 'Desliga todos os atuadores na hora. Use se algo estiver claramente errado.', en: 'Switches off every actuator at once. Use it if something is clearly wrong.', ja: '全アクチュエーターを即座に停止します。明らかに異常がある場合に使用してください。' },
     'fert.confirmRun3s': { pt: 'Ativar canal {ch} por exatamente 3 segundos? Tenha um recipiente pronto para medir a saída em mL.', en: 'Activate channel {ch} for exactly 3 seconds? Have a container ready to measure output in mL.', ja: 'チャンネル{ch}を3秒間作動させますか？mLを計測する容器を用意してください。' },
     'fert.confirmCalib': { pt: 'Usar {ml}mL como medida de calibração de 3 segundos no canal {ch}?', en: 'Use {ml}mL as 3-second calibration for channel {ch}?', ja: '{ml}mLをチャンネル{ch}の3秒キャリブレーション値として使用しますか？' },
     'fert.enterMl': { pt: 'Insira a quantidade de mL medida.', en: 'Enter the measured mL amount.', ja: '計測したmL量を入力してください。' },
@@ -132,8 +153,10 @@ const translations = {
     'config.lengthLabel': { pt: 'Comprimento (C)', en: 'Length (L)', ja: '長さ(L)' },
     'config.width': { pt: 'Largura', en: 'Width', ja: '幅' },
     'config.widthLabel': { pt: 'Largura (L)', en: 'Width (W)', ja: '幅(W)' },
-    'config.margin': { pt: 'Margem da borda (cm)', en: 'Edge margin (cm)', ja: '上端マージン（cm）' },
-    'config.marginHint': { pt: 'Distância da borda do aquário até a lâmina de água', en: 'Distance from tank rim to water level', ja: '水槽の縁から水面までの距離' },
+    'config.margin': { pt: 'Margem da borda (mm)', en: 'Edge margin (mm)', ja: '上端マージン（mm）' },
+    'config.marginHint': { pt: 'Distância da borda do vidro até onde começa o limite de transbordo da água.', en: 'Distance from the glass rim down to the water overflow limit.', ja: 'ガラスの縁から溢水限界までの距離。' },
+    'config.sensorSection': { pt: 'Sensor de Nível', en: 'Level Sensor', ja: '水位センサー' },
+    'config.reservoirSection': { pt: 'Reservatório e Prime', en: 'Reservoir & Prime', ja: '貯水槽とプライム' },
     'config.sensorFull': { pt: 'Distância 100% (Sensor até água)', en: '100% Distance (Sensor to water)', ja: '100%の距離（センサーから水面）' },
     'config.sensorFullHint': { pt: 'Distância do sensor até a água quando o aquário está cheio', en: 'Distance from sensor to water when tank is full', ja: '満水時のセンサーから水面までの距離' },
     'config.calibrateSensor': { pt: 'Calibrar 100%', en: 'Calibrate 100%', ja: '100%を校正' },
@@ -141,6 +164,8 @@ const translations = {
     'config.litersPerCm': { pt: 'Litros por cm:', en: 'Liters per cm:', ja: 'cm当たりリットル:' },
     'config.primeRatio': { pt: 'Proporção de Prime (mL por Litro)', en: 'Prime Ratio (mL per Liter)', ja: 'プライム比率（mL/L）' },
     'config.primeHint': { pt: 'Conforme recomendação do fabricante (Ex: Seachem Prime = 0.05 mL/L)', en: 'Per manufacturer recommendation (e.g. Seachem Prime = 0.05 mL/L)', ja: 'メーカー推奨値（例: Seachem Prime = 0.05 mL/L）' },
+    'config.canisterSafe': { pt: 'Nível seguro do canister (%)', en: 'Canister safe level (%)', ja: 'キャニスター安全水位 (%)' },
+    'config.canisterSafeHint': { pt: 'Altura mínima da água, em % do aquário, para religar o canister após um erro. Abaixo disso ele fica desligado para não funcionar a seco.', en: 'Minimum water height, as % of the aquarium, to switch the canister back on after an error. Below it the filter stays off so it does not run dry.', ja: 'エラー後にキャニスターを再始動するための最低水位（水槽に対する%）。これを下回る場合、空運転を避けるため停止したままにします。' },
     'config.reservoirVol': { pt: 'Volume do Reservatório de Tratamento (Litros)', en: 'Treatment Reservoir Volume (Liters)', ja: '処理リザーバー容量（リットル）' },
     'config.reservoirHint': { pt: 'Água tratada com Prime antes de repor no aquário', en: 'Water treated with Prime before refilling aquarium', ja: 'プライム処理した水を水槽に戻す前の量' },
     'config.calcPrime': { pt: 'Dose de Prime calculada (reservatório):', en: 'Calculated Prime dose (reservoir):', ja: 'プライム投与量（計算値）:' },
@@ -154,6 +179,7 @@ const translations = {
     'config.saveRestart': { pt: 'Salvar e Reiniciar', en: 'Save & Restart', ja: '保存して再起動' },
     'config.emergency': { pt: 'Ações de Emergência', en: 'Emergency Actions', ja: '緊急操作' },
     'config.pauseTpa': { pt: 'Pausar TPA / Ligar Manutenção', en: 'Pause TPA / Enable Maintenance', ja: 'TPA一時停止 / メンテナンス有効' },
+    'config.resumeTpa': { pt: 'Retomar TPA / Sair da Manutenção', en: 'Resume TPA / Exit Maintenance', ja: 'TPA再開 / メンテナンス解除' },
     'config.wifiOk': { pt: 'WiFi configurado! O sistema reiniciará para conectar.', en: 'WiFi configured! System will restart to connect.', ja: 'WiFi設定完了！接続のため再起動します。' },
     'config.wifiError': { pt: 'Erro ao salvar WiFi.', en: 'Error saving WiFi.', ja: 'WiFi保存エラー。' },
     'config.commError': { pt: 'Erro de comunicação.', en: 'Communication error.', ja: '通信エラー。' },

@@ -9,8 +9,10 @@ SafetyWatchdog::SafetyWatchdog()
       _emergencyDrainStart(0), _medianIndex(0), _medianCount(0) {}
 
 void SafetyWatchdog::begin() {
-  // Ultrasonic A02 UART
-  Serial2.begin(9600, SERIAL_8N1, PIN_US_RX, PIN_US_TX);
+  // Ultrasonic A02YYUW UART. The sensor streams frames on its own and nothing
+  // here ever writes to Serial2, so no TX pin is assigned: -1 leaves GPIO18
+  // free. The sensor's control wire goes to 3.3V to keep continuous mode.
+  Serial2.begin(9600, SERIAL_8N1, PIN_US_RX, -1);
 
   // Float switch on D19 (active LOW, internal pullup, switch wired to GND)
   pinMode(PIN_FLOAT, INPUT_PULLUP);
@@ -190,8 +192,13 @@ void SafetyWatchdog::_checkOverflow() {
                       _overflowThresholdCm, _overflowConsecutiveCount);
     
     if (_overflowConsecutiveCount >= 10) {
-      Serial.println("[Safety] CONFIRMED OVERFLOW (10 consecutive readings). Drain temporarily disabled!");
-      // emergencyDrain();
+      // Reached only with a live sensor: update() returns early when the
+      // ultrasonic is disconnected, readings are median-filtered over 5
+      // samples and checksum-validated, and 10 consecutive hits at the 500 ms
+      // check interval means the level has been over the threshold for ~5 s.
+      Serial.println("[Safety] CONFIRMED OVERFLOW (10 consecutive readings). "
+                     "Starting emergency drain.");
+      emergencyDrain();
     }
   } else {
     _overflowConsecutiveCount = 0;

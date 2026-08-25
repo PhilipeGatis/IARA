@@ -167,7 +167,7 @@ Waterproof ultrasonic sensor that reports distance over **UART**. No TRIG/ECHO, 
 > [!NOTE]
 > **The control wire (sensor RX) is unused.** Nothing in the firmware writes to `Serial2`; the sensor transmits on its own. That wire should go to **3.3V** to keep continuous-transmission mode — what must be avoided is leaving it floating.
 >
-> Today it is wired to `PIN_US_TX = GPIO18` (`include/Config.h`), which as a UART TX pin idles high and has the same effect. Wiring it straight to 3.3V frees GPIO18 for other use.
+> That wire used to sit on GPIO18, reserved as the UART TX pin. Since nothing ever wrote to it, the pin was freed (`Serial2.begin(..., -1)`) and now carries the **panel navigation button**. Wire the sensor's control lead straight to **3.3V**.
 
 > [!TIP]
 > **Protocol:** 9600 baud, 8N1. 4-byte frame — `0xFF`, `DataH`, `DataL`, `Checksum`, where distance is in **millimeters** (`(DataH << 8) | DataL`) and the checksum is `(0xFF + DataH + DataL) & 0xFF`. The firmware discards frames with an invalid checksum and applies a 5-sample median filter.
@@ -266,7 +266,7 @@ ESP32 GPIO19 ─────── [ FLOAT ] ─────── ESP32 GND (bo
 > The float switch originally used GPIO5, but that pin is an ESP32 strapping pin and suffered interference (~2.5 V at rest). It was moved to GPIO19, which previously drove the panel navigation button.
 
 > [!IMPORTANT]
-> **The panel navigation button is disabled** (`PIN_BTN = 255` in `include/Config.h`), precisely because GPIO19 now belongs to the float switch. The display cycles pages on its own; the menu (start TPA / maintenance mode) is reachable only from the web dashboard. To bring the button back, pick another free GPIO and update `PIN_BTN`.
+> **The panel navigation button moved to GPIO18** (`PIN_BTN` in `include/Config.h`), freed once the ultrasonic's UART TX pin turned out to be unused. It had no pin for a while, after the float switch took GPIO19.
 
 ---
 

@@ -44,30 +44,25 @@ void NotifyManager::begin() {
 
 // UPDATE (called from loop — checks daily report schedule)
 
-void NotifyManager::update(uint8_t currentHour, uint8_t currentMinute) {
-  // Reset daily counter at midnight
+void NotifyManager::update(uint8_t currentHour, uint8_t currentMinute,
+                           float levelCm) {
+  // Re-arm at midnight. This must not be conditional on anything: gating it on
+  // _dailyCount meant a quiet day left the flag stuck and the daily report was
+  // never sent again.
   if (currentHour == 0 && currentMinute == 0) {
-    if (_dailyCount > 0) {
-      _dailyCount = 0;
-      _dailyReportSent = false;
-    }
+    _dailyCount = 0;
+    _dailyReportSent = false;
   }
 
-  // Reset daily report flag when we pass the report hour
   if (currentHour != _dailyReportHour || currentMinute != _dailyReportMinute) {
-    if (_dailyReportSent && (currentHour != _dailyReportHour ||
-                             currentMinute != _dailyReportMinute)) {
-      // Only reset when we move past the report minute
-      // (handled implicitly — _dailyReportSent stays true until next midnight)
-    }
     return;
   }
 
-  // It's report time and we haven't sent yet
+  // Report time. The flag keeps it to one send even though the loop runs at
+  // ~20 Hz for the whole minute.
   if (!_dailyReportSent) {
     _dailyReportSent = true;
-    // The actual level reading will be provided by main.cpp calling
-    // notifyDailyLevel()
+    notifyDailyLevel(levelCm);
   }
 }
 

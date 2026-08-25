@@ -30,7 +30,10 @@ constexpr uint8_t PIN_SOLENOID = 32; // CH8 - Solenoid valve
 constexpr uint8_t PIN_CANISTER = 2; // Relay SSR for canister filter
 
 // --- Sensors ---
-constexpr uint8_t PIN_US_TX = 18; // Ultrasonic A02 UART TX (to RX on sensor)
+// GPIO18 was assigned as the ultrasonic UART TX pin, but the A02YYUW streams
+// unprompted and nothing ever writes to Serial2, so the pin was never driven.
+// It is now the panel navigation button, which lost GPIO19 to the float switch.
+constexpr uint8_t PIN_BTN_NAV = 18; // Panel button (INPUT_PULLUP, active LOW)
 constexpr uint8_t PIN_US_RX = 34; // Ultrasonic A02 UART RX (from TX on sensor)
 // NOTE: GPIO4 was the XKC-Y25 capacitive max-level sensor. That sensor was
 // never installed and has been dropped: max-level protection is now a physical
@@ -47,9 +50,11 @@ constexpr uint8_t PIN_TFT_SCK = 16;  // SCK  — SPI Clock
 constexpr int8_t PIN_TFT_RST = -1;   // RESET — Tied to ESP32 EN
 
 // --- Navigation Button ---
-constexpr uint8_t PIN_BTN = 255; // Disabled to free D19 for float switch
+constexpr uint8_t PIN_BTN = PIN_BTN_NAV; // Panel button, moved off D19
 
 // --- Display ---
+// Blank the TFT after this long without a button press. Only clears pixels —
+// the backlight is hardwired to 3.3V on this module and cannot be switched.
 constexpr unsigned long DISPLAY_TIMEOUT_MS = 30UL * 1000; // 30s auto-off
 
 // --- I2C (DS3231 RTC) ---
@@ -75,10 +80,21 @@ constexpr uint8_t NUM_FERTS = 4;
 // Pump timeouts
 constexpr unsigned long TIMEOUT_DRAIN_MS = 5UL * 60 * 1000;         // 5 min
 constexpr unsigned long TIMEOUT_FILL_MS = 10UL * 60 * 1000;         // 10 min
+// Backstop for filling the reservoir from the mains solenoid. The float switch
+// is the real stop; this only bounds a stuck float. A ~18 L reservoir on a
+// typical ~5 L/min solenoid fills in about 4 minutes, so 20 minutes is generous
+// without leaving mains water running for hours.
+constexpr unsigned long TIMEOUT_RESERVOIR_FILL_MS = 20UL * 60 * 1000; // 20 min
 constexpr unsigned long TIMEOUT_REFILL_MS = 10UL * 60 * 1000;       // 10 min
 constexpr unsigned long TIMEOUT_PRIME_MS = 60UL * 1000;             // 1 min
 constexpr unsigned long TIMEOUT_FERT_MS = 30UL * 1000;              // 30 sec
 constexpr unsigned long TIMEOUT_EMERGENCY_MS = 3UL * 60 * 1000;     // 3 min
+// Hard ceiling for a manual pump run. The real limit is dynamic — twice the
+// expected duration once a flow rate is known — this is only the fallback for
+// an uncalibrated pump.
+constexpr unsigned long MANUAL_PUMP_MAX_MS = 10UL * 60 * 1000;      // 10 min
+// Floor for that dynamic budget, so a tiny goal still gets time to start up.
+constexpr unsigned long MANUAL_PUMP_MIN_MS = 30UL * 1000;           // 30 s
 constexpr unsigned long MAINTENANCE_DURATION_MS = 30UL * 60 * 1000; // 30 min
 
 // Volumes and flow

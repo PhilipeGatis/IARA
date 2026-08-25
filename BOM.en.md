@@ -33,7 +33,7 @@ Complete component list for the IARA system.
 | 9 | T5AL250V Fuse | 5A, DC protection | 1 |
 | 10 | LM2596 Module | Adjustable step-down (→ 5.1V) | 1 |
 | 11 | 8-Channel MOSFET Module | IRF540N or equivalent, 12V | 1 |
-| 12 | 470µF Electrolytic Cap | 16V, MOSFET input filter | 2 |
+| 12 | 470µF Electrolytic Cap | 16V, MOSFET input filter | 1 |
 | 13 | 1000µF Electrolytic Cap | 10V, 5V output filter (ESP32) | 4 |
 
 ---

@@ -29,8 +29,6 @@ const char *tpaStateName(TPAState s) {
     return "MANUAL_PUMP_DRAIN";
   case TPAState::MANUAL_PUMP_REFILL:
     return "MANUAL_PUMP_REFILL";
-  case TPAState::CALIBRATING_RESERVOIR:
-    return "CALIBRATING_RESERVOIR";
   default:
     return "UNKNOWN";
   }
@@ -103,6 +101,23 @@ void WaterManager::startManualPump(const String &pump, float goalLiters) {
     Serial.println("[TPA] Already running, ignoring startManualPump().");
     return;
   }
+
+  // A volume goal can only be honoured with something to measure it against:
+  // a working level sensor (with litersPerCm known) or a calibrated flow rate.
+  // With neither, the pump would just run to the timeout, which is how an
+  // uncalibrated manual run used to become half an hour of pumping.
+  if (goalLiters > 0) {
+    const bool sensorOk =
+        _safety && _safety->areSensorsConnected() && _litersPerCm > 0;
+    const float flow = (pump == "drain") ? _drainFlowLPM : _refillFlowLPM;
+    if (!sensorOk && flow <= 0) {
+      Serial.println("[TPA] Manual pump refused: no level sensor and no "
+                     "calibrated flow rate to track the goal.");
+      _lastErrorMsg = "Manual pump needs a level sensor or a calibrated flow";
+      return;
+    }
+  }
+
   _manualPumpTarget = pump;
   _manualPumpGoalLiters = goalLiters;
 
@@ -206,9 +221,6 @@ void WaterManager::update() {
   case TPAState::MANUAL_PUMP_REFILL:
     _handleManualPump(PIN_REFILL, _refillFlowLPM);
     break;
-  case TPAState::CALIBRATING_RESERVOIR:
-    _handleCalibratingReservoir();
-    break;
   default:
     break;
   }
@@ -257,6 +269,15 @@ void WaterManager::_handleDraining() {
       _calStartLevel = _safety->readUltrasonic();
       _calStartMs = millis();
     }
+  }
+
+  // A stale reading is worse than no reading: readUltrasonic() keeps returning
+  // the last good value when the sensor goes quiet, so the setpoint would never
+  // be met and the pump would run to the timeout against a frozen number.
+  if (_safety && !_safety->areSensorsConnected()) {
+    pumpOff(PIN_DRAIN, PumpReason::ERROR_STOP);
+    _error("Ultrasonic sensor lost during drain!");
+    return;
   }
 
   // Read ultrasonic
@@ -310,12 +331,7 @@ void WaterManager::_handleFillingReservoir() {
     return;
   }
 
-  // Safety timeout: use calibrated time × 1.5, or 2h hard limit
-  unsigned long timeout = (_solenoidFillTimeSec > 0)
-    ? (unsigned long)(_solenoidFillTimeSec * 1500) // 1.5× calibrated time
-    : 2UL * 60 * 60 * 1000; // 2h fallback
-
-  if (_stateElapsed() >= timeout) {
+  if (_stateElapsed() >= TIMEOUT_RESERVOIR_FILL_MS) {
     pumpOff(PIN_SOLENOID, PumpReason::ERROR_STOP);
     _error("Reservoir fill timeout exceeded!");
     return;
@@ -359,6 +375,14 @@ void WaterManager::_handleRefilling() {
   // NOTE: max-level cutoff is a hardware reed switch in series with the refill
   // MOSFET gate signal. It kills the pump without the firmware being involved,
   // so there is no max-level sensor to poll here.
+
+  // Same reasoning as DRAINING: acting on a frozen level while pumping water
+  // *into* the aquarium is the direction that overflows.
+  if (_safety && !_safety->areSensorsConnected()) {
+    pumpOff(PIN_REFILL, PumpReason::ERROR_STOP);
+    _error("Ultrasonic sensor lost during refill!");
+    return;
+  }
 
   // Step 5: Refill tank until the ultrasonic setpoint is reached
   if (digitalRead(PIN_REFILL) == LOW) {
@@ -420,12 +444,7 @@ void WaterManager::_handleManualReservoirFill() {
     return;
   }
 
-  // Safety timeout: calibrated × 1.5, or 30 min fallback
-  unsigned long timeout = (_solenoidFillTimeSec > 0)
-    ? (unsigned long)(_solenoidFillTimeSec * 1500)
-    : 30UL * 60 * 1000;
-
-  if (_stateElapsed() >= timeout) {
+  if (_stateElapsed() >= TIMEOUT_RESERVOIR_FILL_MS) {
     pumpOff(PIN_SOLENOID, PumpReason::ERROR_STOP);
     _error("Manual reservoir fill timeout exceeded!");
     return;
@@ -434,28 +453,71 @@ void WaterManager::_handleManualReservoirFill() {
 
 // DRY #3: Unified manual pump handler for both drain and refill
 void WaterManager::_handleManualPump(uint8_t pin, float flowLPM) {
+  const bool isDrain = (pin == PIN_DRAIN);
+
+  // First tick: start the pump and snapshot the level, so the goal is tracked
+  // against the sensor — the same closed loop the automatic TPA states use —
+  // instead of against elapsed time alone.
   if (digitalRead(pin) == LOW) {
     pumpOn(pin, PumpReason::MANUAL_PUMP);
-    if (_safety && _litersPerCm > 0) {
-      _calStartLevel = _safety->readUltrasonic();
-      _calStartMs = millis();
+    _calStartMs = millis();
+    _calStartLevel =
+        (_safety && _litersPerCm > 0) ? _safety->readUltrasonic() : -1;
+
+    _manualTargetLevelCm = -1;
+    if (_manualPumpGoalLiters > 0 && _litersPerCm > 0 && _calStartLevel > 0) {
+      // Draining lowers the water, so the measured distance grows.
+      // Refilling raises it, so the distance shrinks.
+      const float deltaCm = _manualPumpGoalLiters / _litersPerCm;
+      _manualTargetLevelCm = isDrain ? (_calStartLevel + deltaCm)
+                                     : (_calStartLevel - deltaCm);
+      Serial.printf("[TPA] Manual %s target level: %.1f cm\n", pinName(pin),
+                    _manualTargetLevelCm);
+    }
+
+    // Size the timeout from the job instead of using a flat half hour, so a
+    // stalled or miscalibrated pump is caught in minutes.
+    _manualTimeoutMs = MANUAL_PUMP_MAX_MS;
+    if (_manualPumpGoalLiters > 0 && flowLPM > 0) {
+      unsigned long budget =
+          (unsigned long)((_manualPumpGoalLiters / flowLPM) * 60000.0f) * 2;
+      if (budget < MANUAL_PUMP_MIN_MS) budget = MANUAL_PUMP_MIN_MS;
+      if (budget < _manualTimeoutMs) _manualTimeoutMs = budget;
     }
   }
 
-  if (_manualPumpGoalLiters > 0 && flowLPM > 0) {
-    float pumpedLiters = (_stateElapsed() / 60000.0f) * flowLPM;
+  bool reached = false;
+
+  // Primary stop: the ultrasonic reaching the target level.
+  if (_manualTargetLevelCm > 0 && _safety && _safety->areSensorsConnected()) {
+    const float dist = _safety->readUltrasonic();
+    if (dist > 0 && (isDrain ? (dist >= _manualTargetLevelCm)
+                             : (dist <= _manualTargetLevelCm))) {
+      Serial.printf("[TPA] Manual %s goal reached (sensor): %.1f cm\n",
+                    pinName(pin), dist);
+      reached = true;
+    }
+  }
+
+  // Backstop: flow x time, for when the sensor goes silent mid-run.
+  if (!reached && _manualPumpGoalLiters > 0 && flowLPM > 0) {
+    const float pumpedLiters = (_stateElapsed() / 60000.0f) * flowLPM;
     if (pumpedLiters >= _manualPumpGoalLiters) {
-      Serial.printf("[TPA] Manual %s goal reached: %.1f L\n", pinName(pin), pumpedLiters);
-      if (pin == PIN_DRAIN) _captureDrainCalibration();
-      else if (pin == PIN_REFILL) _captureRefillCalibration();
-      pumpOff(pin, PumpReason::TPA_TARGET_REACHED);
-      _state = TPAState::COMPLETE;
-      return;
+      Serial.printf("[TPA] Manual %s goal reached (flow estimate): %.1f L\n",
+                    pinName(pin), pumpedLiters);
+      reached = true;
     }
   }
 
-  // Safety: maximum timeout (30 mins)
-  if (_stateElapsed() >= 30UL * 60 * 1000) {
+  if (reached) {
+    if (isDrain) _captureDrainCalibration();
+    else _captureRefillCalibration();
+    pumpOff(pin, PumpReason::TPA_TARGET_REACHED);
+    _state = TPAState::COMPLETE;
+    return;
+  }
+
+  if (_stateElapsed() >= _manualTimeoutMs) {
     pumpOff(pin, PumpReason::ERROR_STOP);
     _error("Manual pump timeout exceeded!");
   }
@@ -569,7 +631,6 @@ void WaterManager::loadCalibration() {
   calPref.begin("pumpcal", true); // read-only
   float drainLPM = calPref.getFloat("drainLPM", 0);
   float refillLPM = calPref.getFloat("refillLPM", 0);
-  _solenoidFillTimeSec = calPref.getFloat("solFillS", 0);
   calPref.end();
   if (drainLPM > 0) {
     _drainFlowLPM = drainLPM;
@@ -578,9 +639,6 @@ void WaterManager::loadCalibration() {
   if (refillLPM > 0) {
     _refillFlowLPM = refillLPM;
     Serial.printf("[TPA] Loaded refill calibration: %.2f L/min\n", refillLPM);
-  }
-  if (_solenoidFillTimeSec > 0) {
-    Serial.printf("[TPA] Loaded solenoid fill time: %.0f sec\n", _solenoidFillTimeSec);
   }
   if (drainLPM <= 0 && refillLPM <= 0) {
     Serial.println("[TPA] No pump calibration found. Using safe defaults.");
@@ -607,51 +665,3 @@ bool WaterManager::_isReservoirFullDebounced() {
 // RESERVOIR SOLENOID CALIBRATION
 // ============================================================================
 
-void WaterManager::startReservoirCalibration() {
-  if (isRunning()) {
-    Serial.println("[TPA] Already running, ignoring startReservoirCalibration().");
-    return;
-  }
-  _floatFullCount = 0;
-  Serial.println("[TPA] ====== RESERVOIR CALIBRATION STARTED ======");
-  _enterState(TPAState::CALIBRATING_RESERVOIR);
-}
-
-void WaterManager::_handleCalibratingReservoir() {
-  // Open solenoid
-  if (digitalRead(PIN_SOLENOID) == LOW) {
-    pumpOn(PIN_SOLENOID, PumpReason::TPA_SOLENOID);
-    Serial.println("[TPA] Calibration: Solenoid OPEN. Timing fill...");
-  }
-
-  // Wait for float sensor (debounced)
-  if (_isReservoirFullDebounced()) {
-    float fillTimeSec = _stateElapsed() / 1000.0f;
-    _solenoidFillTimeSec = fillTimeSec;
-    pumpOff(PIN_SOLENOID, PumpReason::TPA_TARGET_REACHED);
-
-    // Save to NVS
-    Preferences calPref;
-    calPref.begin("pumpcal", false);
-    calPref.putFloat("solFillS", _solenoidFillTimeSec);
-    calPref.end();
-
-    Serial.printf("[TPA] ====== RESERVOIR CALIBRATION COMPLETE ======\n");
-    Serial.printf("[TPA] Fill time: %.1f seconds\n", fillTimeSec);
-    _state = TPAState::COMPLETE;
-    return;
-  }
-
-  // Hard timeout: 1 hour (safety)
-  if (_stateElapsed() >= 3600000UL) {
-    pumpOff(PIN_SOLENOID, PumpReason::ERROR_STOP);
-    _error("Reservoir calibration timeout (1h)!");
-  }
-}
-
-float WaterManager::getReservoirVolume() const {
-  // Returns estimated reservoir volume based on calibrated fill time
-  // Assumes typical residential solenoid flow of ~5 L/min
-  // User can override via config
-  return 0; // TODO: calculate from fill time + known flow rate
-}

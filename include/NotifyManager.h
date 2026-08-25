@@ -24,8 +24,9 @@ public:
   /// Initialize — load config from NVS
   void begin();
 
-  /// Call from loop — checks if daily report should be sent
-  void update(uint8_t currentHour, uint8_t currentMinute);
+  /// Call from loop — sends the daily level report when its time comes.
+  /// Owns the whole decision so the caller cannot double-fire it.
+  void update(uint8_t currentHour, uint8_t currentMinute, float levelCm);
 
   // ---- Typed notifications ----
 

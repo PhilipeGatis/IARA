@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { api, type AQStatus } from '../App';
+import { type AQStatus } from '../App';
+import { api } from '../api';
 import { useT } from '../i18n';
 
 type Props = {
@@ -80,61 +81,67 @@ export default function FertConfigModal({ index, s, onClose }: Props) {
         } else alert(t('fert.enterMl'));
     };
 
+    const weekTotal = doses.reduce((a, b) => a + Number(b), 0);
+
     return (
         <div
-            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+            className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
             onClick={(e) => e.target === e.currentTarget && onClose()}
         >
             {/* Overlay */}
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
 
             {/* Modal */}
-            <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-2xl bg-card shadow-2xl animate-slide-up">
+            <div className="animate-slide-up relative z-10 max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-card shadow-2xl sm:rounded-2xl">
                 {/* Header */}
-                <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-3xl sm:rounded-t-2xl bg-card border-b border-white/10 px-5 py-4">
-                    <div className="flex flex-col flex-1">
-                        <span className="text-xs font-bold text-muted uppercase tracking-wider">{t('fert.channel')} {index + 1}</span>
-                        <div className="flex items-center gap-3 mt-1">
-                            <span className="text-base font-bold text-white">{s.name || `Canal ${index + 1}`}</span>
+                <div className="sticky top-0 z-10 flex items-center gap-3 rounded-t-3xl border-b border-border/60 bg-card px-4 py-3 sm:rounded-t-2xl">
+                    <div className="min-w-0 flex-1">
+                        <span className="lbl">{t('fert.channel')} {index + 1}</span>
+                        <div className="mt-0.5 flex items-center gap-3">
+                            <span className="truncate text-base font-bold text-text">{s.name || `${t('fert.channel')} ${index + 1}`}</span>
                             {/* Enable Toggle Switch */}
                             <button
                                 onClick={handleToggleEnabled}
-                                className={`inline-flex items-center h-5 w-9 rounded-full p-0.5 transition-colors ${enabled ? 'bg-accent' : 'bg-white/20'}`}
+                                aria-pressed={enabled}
+                                className={`inline-flex h-6 w-11 flex-none items-center rounded-full p-0.5 transition-colors ${enabled ? 'bg-accent' : 'bg-white/20'}`}
                                 title={enabled ? t('notify.enabled') : t('notify.disabled')}
                             >
-                                <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-md transform transition-transform ${enabled ? 'translate-x-4' : 'translate-x-0'}`} />
+                                <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-md transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0'}`} />
                             </button>
                         </div>
                     </div>
                     <button
                         onClick={onClose}
-                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-muted transition hover:bg-white/20 hover:text-white active:scale-90"
+                        aria-label="close"
+                        className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-white/10 text-muted transition hover:bg-white/20 hover:text-text active:scale-90"
                     >
                         ✕
                     </button>
                 </div>
 
-                <div className="p-5 flex flex-col gap-6">
-                    {/* SCHEDULE — per day doses + times */}
+                <div className="flex flex-col gap-6 p-4">
+                    {/* SCHEDULE — one row per day, thumb sized */}
                     <section>
-                        <h3 className="mb-3 flex justify-between items-center text-xs font-bold uppercase tracking-wider text-muted">
-                            <span>{t('fert.schedule')}</span>
-                            {s.fR > 0 && <span>{(doses.reduce((a, b) => a + Number(b), 0) / s.fR).toFixed(1)}s {t('fert.totalWeek')}</span>}
-                        </h3>
+                        <div className="card-h">
+                            <h3 className="card-t">{t('fert.schedule')}</h3>
+                            <span className="pill bg-white/5 text-muted">
+                                {weekTotal.toFixed(1)} mL{s.fR > 0 ? ` · ${(weekTotal / s.fR).toFixed(1)}s` : ''} / {t('fert.totalWeek')}
+                            </span>
+                        </div>
 
-                        <div className="mb-4 grid grid-cols-7 gap-1">
+                        <div className="mb-4 flex flex-col">
                             {shortDays.map((day, i) => {
                                 const doseVal = Number(doses[i]);
                                 const estimatedSecs = s.fR > 0 ? (doseVal / s.fR).toFixed(1) : '0';
                                 const hasActiveDose = doseVal > 0;
                                 return (
-                                    <div key={i} className="flex flex-col items-center gap-1">
-                                        <span className={`text-[10px] font-bold ${hasActiveDose ? 'text-accent' : 'text-muted'}`}>{day}</span>
-                                        {/* Dose input */}
+                                    <div key={i} className="flex items-center gap-2 border-b border-border/40 py-1.5 last:border-0">
+                                        <span className={`w-7 flex-none text-xs font-bold ${hasActiveDose ? 'text-accent' : 'text-muted'}`}>{day}</span>
+
                                         <input
                                             type="number" step="0.5" min="0" max="100"
-                                            className="w-full min-w-0 rounded-t-sm border-b border-muted bg-white/5 p-1 text-center text-[11px] font-medium text-text outline-none transition-colors focus:border-accent remove-arrow"
-                                            style={{ MozAppearance: 'textfield' }}
+                                            aria-label={`${day} mL`}
+                                            className="inp remove-arrow h-10 w-16 flex-none px-1 text-center"
                                             value={doses[i]}
                                             onChange={(e) => {
                                                 const nd = [...doses];
@@ -142,90 +149,86 @@ export default function FertConfigModal({ index, s, onClose }: Props) {
                                                 setDoses(nd);
                                             }}
                                         />
-                                        <span className="text-[9px] text-accent font-bold tracking-tighter">
-                                            {hasActiveDose ? `${estimatedSecs}s` : '-'}
-                                        </span>
-                                        {/* Time input — only if dose > 0 */}
-                                        {hasActiveDose && (
-                                            <div className="flex flex-col items-center gap-0.5 w-full">
+                                        <span className="flex-none text-[10px] text-muted">mL</span>
+
+                                        {hasActiveDose ? (
+                                            <div className="flex flex-none items-center gap-0.5">
                                                 <input
-                                                    type="number" min="0" max="23"
-                                                    className="w-full min-w-0 rounded-sm border-b border-accent/30 bg-accent/5 p-0.5 text-center text-[10px] font-medium text-accent outline-none transition-colors focus:border-accent remove-arrow"
-                                                    style={{ MozAppearance: 'textfield' }}
+                                                    type="number" min="0" max="23" placeholder="H"
+                                                    aria-label={`${day} ${t('fert.hour')}`}
+                                                    className="inp remove-arrow h-10 w-12 border-accent/40 bg-accent/5 px-1 text-center text-accent"
                                                     value={hours[i]}
                                                     onChange={(e) => { const nh = [...hours]; nh[i] = e.target.value; setHours(nh); }}
-                                                    placeholder="H"
                                                 />
+                                                <span className="text-xs font-bold text-muted">:</span>
                                                 <input
-                                                    type="number" min="0" max="59"
-                                                    className="w-full min-w-0 rounded-sm border-b border-accent/30 bg-accent/5 p-0.5 text-center text-[10px] font-medium text-accent outline-none transition-colors focus:border-accent remove-arrow"
-                                                    style={{ MozAppearance: 'textfield' }}
+                                                    type="number" min="0" max="59" placeholder="M"
+                                                    aria-label={`${day} ${t('fert.min')}`}
+                                                    className="inp remove-arrow h-10 w-12 border-accent/40 bg-accent/5 px-1 text-center text-accent"
                                                     value={mins[i]}
                                                     onChange={(e) => { const nm = [...mins]; nm[i] = e.target.value; setMins(nm); }}
-                                                    placeholder="M"
                                                 />
                                             </div>
+                                        ) : (
+                                            <span className="flex-1" />
                                         )}
+
+                                        <span className="ml-auto w-10 flex-none text-right text-[11px] font-bold tabular-nums text-accent">
+                                            {hasActiveDose ? `${estimatedSecs}s` : '–'}
+                                        </span>
                                     </div>
                                 );
                             })}
                         </div>
 
-                        <button
-                            onClick={handleSave}
-                            className="w-full rounded-full bg-accent px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-black shadow-md transition-all hover:bg-blue-300 active:scale-95"
-                        >
+                        <button onClick={handleSave} className="btn btn-p w-full">
                             {t('fert.save')}
                         </button>
                     </section>
 
                     {/* CALIBRATION & PWM */}
-                    <section>
-                        <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted">
-                            {t('fert.calibPower')} ({(s.fR || 0).toFixed(2)} mL/s)
-                        </h3>
+                    <section className="sub">
+                        <div className="card-h">
+                            <h3 className="card-t">{t('fert.calibPower')}</h3>
+                            <span className="pill bg-white/5 text-muted">{(s.fR || 0).toFixed(2)} mL/s</span>
+                        </div>
 
-                        <div className="mb-5 rounded-xl bg-black/20 p-4">
-                            <div className="mb-2 flex items-center justify-between text-xs font-bold text-muted">
-                                <span className="tracking-wider">{t('fert.power')}</span>
-                                <span className="text-accent">{Math.round((pwm / 255) * 100)}%</span>
+                        <div className="mb-4 rounded-xl bg-black/25 p-4">
+                            <div className="mb-2 flex items-center justify-between">
+                                <span className="lbl">{t('fert.power')}</span>
+                                <span className="font-mono text-sm font-bold tabular-nums text-accent">{Math.round((pwm / 255) * 100)}%</span>
                             </div>
                             <input
                                 type="range" min="0" max="255"
-                                className="w-full accent-accent cursor-pointer mb-2"
+                                aria-label={t('fert.power')}
+                                className="mb-3 h-6 w-full cursor-pointer accent-accent"
                                 value={pwm}
                                 onChange={(e) => setPwm(Number(e.target.value))}
                                 onMouseUp={handlePwm} onTouchEnd={handlePwm}
                             />
-                            <div className="flex gap-2">
+                            <div className="grid grid-cols-2 gap-2">
                                 <button
                                     onMouseDown={() => handlePump(1)} onMouseUp={() => handlePump(0)} onMouseLeave={() => handlePump(0)}
                                     onTouchStart={() => handlePump(1)} onTouchEnd={() => handlePump(0)} onTouchCancel={() => handlePump(0)}
-                                    className="flex-1 rounded-full border border-muted bg-transparent py-2 text-[10px] font-bold uppercase tracking-wider text-muted transition hover:bg-white/5 active:bg-white/10 select-none"
+                                    className="btn btn-n text-xs"
                                 >
                                     {t('fert.holdPurge')}
                                 </button>
-                                <button
-                                    onClick={handleRun3s}
-                                    className="flex-1 rounded-full border border-muted bg-transparent py-2 text-[10px] font-bold uppercase tracking-wider text-muted transition hover:bg-white/5 active:bg-white/10 select-none"
-                                >
+                                <button onClick={handleRun3s} className="btn btn-n text-xs">
                                     {t('fert.run3s')}
                                 </button>
                             </div>
                         </div>
 
-                        <div className="flex flex-col gap-1">
-                            <label className="text-[10px] font-bold text-muted uppercase tracking-wider">{t('fert.measureResult')}</label>
+                        <div className="field">
+                            <label className="lbl">{t('fert.measureResult')}</label>
                             <div className="flex gap-2">
                                 <input
                                     type="number" step="0.1" min="0" placeholder={t('fert.mlMeasured')}
-                                    className="w-full min-w-0 flex-1 rounded-t-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm outline-none transition-colors focus:border-accent"
+                                    className="inp remove-arrow flex-1"
                                     value={calibMl} onChange={(e) => setCalibMl(e.target.value)}
                                 />
-                                <button
-                                    onClick={handleSaveCalib}
-                                    className="flex-none rounded-r-md bg-warn/20 px-4 py-2 text-xs font-bold uppercase tracking-wider text-warn transition hover:bg-warn/30 active:scale-95 shadow-sm"
-                                >
+                                <button onClick={handleSaveCalib} className="btn btn-w flex-none">
                                     {t('fert.calculate')}
                                 </button>
                             </div>

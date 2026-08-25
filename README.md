@@ -124,7 +124,8 @@ graph LR
     ESP32 -->|SPI D15,16,17,23| TFT[TFT Display ST7735]
     ESP32 -->|D12, D13, D14, D25-D27, D32, D33| MOSFET
     ESP32 -->|D2| SSR[Omron SSR]
-    ESP32 ---|D18 TX, D34 RX| Ultra[Ultrasonic A02YYUW UART]
+    ESP32 ---|D34 RX| Ultra[Ultrasonic A02YYUW UART]
+    ESP32 ---|D18| Button[Panel button]
     ESP32 ---|D19| Float[Float Switch]
   end
 
@@ -149,7 +150,7 @@ graph LR
 | **D15** | TFT CS | ST7735 Display (CS) | Output | SPI (CS) |
 | **D16** | TFT SCK | ST7735 Display (SCK) | Output | SPI (SCK) |
 | **D17** | TFT A0 (Data/Command) | ST7735 Display (A0) | Output | SPI (DC) |
-| **D18** | Ultrasonic UART TX | A02YYUW | Output | Digital (Connect to Sensor RX) |
+| **D18** | Navigation button | Push/Tactile Button (Panel) | Input (PULLUP) | Digital |
 | **D19** | Reservoir float | Horizontal Float Switch | Input (PULLUP) | Digital |
 | **D21** | SDA | DS3231 RTC | Bidirectional | I2C |
 | **D22** | SCL | DS3231 RTC | Bidirectional | I2C |
@@ -340,6 +341,18 @@ open coverage/index.html
 ---
 
 ## 🚀 Build & Deploy
+
+### First-time setup — WiFi credentials
+
+Credentials live outside the repository. Before the first build:
+
+```bash
+cp secrets.ini.example secrets.ini
+# then edit secrets.ini with your network's SSID and password
+```
+
+`secrets.ini` is gitignored, so it never reaches the repository. The build fails
+without it.
 
 ### Build and flash firmware
 

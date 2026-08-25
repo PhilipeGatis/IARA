@@ -33,7 +33,7 @@ Lista completa de componentes do sistema IARA.
 | 9 | Fusível T5AL250V | 5A, proteção DC | 1 |
 | 10 | Módulo LM2596 | Step-down ajustável (→ 5.1V) | 1 |
 | 11 | Módulo MOSFET 8 canais | IRF540N ou equivalente, 12V | 1 |
-| 12 | Capacitor eletrolítico 470µF | 16V, filtro entrada MOSFET | 2 |
+| 12 | Capacitor eletrolítico 470µF | 16V, filtro entrada MOSFET | 1 |
 | 13 | Capacitor eletrolítico 1000µF | 10V, filtro saída 5V (ESP32) | 4 |
 
 ---

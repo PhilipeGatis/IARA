@@ -266,17 +266,52 @@ void test_manual_drain_stops_on_goal_reached() {
   assertDrainOff("manual drain goal reached");
 }
 
-void test_manual_drain_timeout_30min() {
+void test_manual_drain_timeout_hard_ceiling() {
   WaterManager wm = makeWM();
-  wm.setDrainFlowLPM(0.001f); // Almost zero flow — will timeout
-  wm.startManualPump("drain", 999.0f); // Unreachable goal
+  wm.setDrainFlowLPM(0.001f); // Almost zero flow — goal is unreachable
+  wm.startManualPump("drain", 999.0f);
   wm.update(); // Drain ON
 
-  // 30 minutes timeout
-  mock_millis_value += 30UL * 60 * 1000 + 1;
+  // The computed budget is astronomically large, so it clamps to the ceiling.
+  mock_millis_value += MANUAL_PUMP_MAX_MS + 1;
   wm.update();
   TEST_ASSERT_EQUAL(TPAState::ERROR, wm.getState());
-  assertDrainOff("manual drain timeout");
+  assertDrainOff("manual drain hard ceiling");
+}
+
+void test_manual_drain_timeout_scales_with_goal() {
+  WaterManager wm = makeWM();
+  wm.setDrainFlowLPM(6.0f);          // 1 L takes 10 s
+  wm.startManualPump("drain", 1.0f); // so the budget is 20 s, floored to 30 s
+  wm.update();
+
+  // Still inside the budget: the pump keeps running.
+  mock_millis_value += MANUAL_PUMP_MIN_MS - 1000;
+  wm.update();
+  TEST_ASSERT_NOT_EQUAL(TPAState::ERROR, wm.getState());
+}
+
+void test_manual_drain_stops_on_sensor_before_flow_estimate() {
+  WaterManager wm = makeWM();
+  wm.setLitersPerCm(2.0f);   // 1 L == 0.5 cm
+  wm.setDrainFlowLPM(0.01f); // Flow estimate would take ~100 min
+  setDistance(20.0f);
+  wm.startManualPump("drain", 2.0f); // 2 L == 1 cm below the start level
+  wm.update();                       // Drain ON, target = 21.0 cm
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_DRAIN]);
+
+  setDistance(21.5f); // Water dropped past the target
+  mock_millis_value += 1000;
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::COMPLETE, wm.getState());
+  assertDrainOff("manual drain stopped by sensor");
+}
+
+void test_manual_pump_refused_without_sensor_or_calibration() {
+  WaterManager wm = makeWM(); // litersPerCm is 0 and no flow rate is set
+  wm.startManualPump("drain", 5.0f);
+  TEST_ASSERT_EQUAL(TPAState::IDLE, wm.getState());
+  assertDrainOff("manual pump refused with nothing to track the goal");
 }
 
 void test_manual_refill_stops_on_goal() {
@@ -477,19 +512,53 @@ void test_drain_off_safety_update_normal_conditions() {
   TEST_ASSERT_FALSE(safety.isEmergency());
 }
 
-void test_drain_off_overflow_detection_disabled() {
-  // Overflow detection is currently commented out (line 204 of SafetyWatchdog.cpp)
-  // Even with low ultrasonic readings, drain should NOT activate
-  setDistance(3.0f); // ~3cm — below LEVEL_SAFETY_MIN_CM
+void test_overflow_needs_ten_consecutive_readings() {
+  safety.clearEmergency();
+  safety.setOverflowThresholdCm(5.0f);
 
-
-  // Run 15 update cycles to trigger overflow counter (needs 10 consecutive)
-  for (int i = 0; i < 15; i++) {
+  // Nine hits must not be enough: the debounce exists so a single bad frame
+  // cannot open the drain on a healthy aquarium.
+  for (int i = 0; i < 9; i++) {
     mock_millis_value += SAFETY_CHECK_INTERVAL_MS + 1;
     setDistance(3.0f);
     safety.update();
-    assertDrainOff("overflow detection should be disabled");
+    assertDrainOff("only 9 consecutive overflow readings");
   }
+  TEST_ASSERT_FALSE(safety.isEmergency());
+
+  // The tenth confirms it and the emergency drain opens.
+  mock_millis_value += SAFETY_CHECK_INTERVAL_MS + 1;
+  setDistance(3.0f);
+  safety.update();
+  TEST_ASSERT_TRUE(safety.isEmergency());
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_DRAIN]);
+
+  safety.clearEmergency();
+  pumpOff(PIN_DRAIN, PumpReason::SAFETY_STOP);
+}
+
+void test_overflow_counter_resets_when_level_drops() {
+  safety.clearEmergency();
+  safety.setOverflowThresholdCm(5.0f);
+
+  for (int i = 0; i < 9; i++) {
+    mock_millis_value += SAFETY_CHECK_INTERVAL_MS + 1;
+    setDistance(3.0f);
+    safety.update();
+  }
+
+  // One good reading clears the streak, so the next 9 must not trip it either.
+  mock_millis_value += SAFETY_CHECK_INTERVAL_MS + 1;
+  setDistance(30.0f);
+  safety.update();
+
+  for (int i = 0; i < 9; i++) {
+    mock_millis_value += SAFETY_CHECK_INTERVAL_MS + 1;
+    setDistance(3.0f);
+    safety.update();
+    assertDrainOff("streak restarted after a good reading");
+  }
+  TEST_ASSERT_FALSE(safety.isEmergency());
 }
 
 // ============================================================================
@@ -535,7 +604,10 @@ int main(int argc, char **argv) {
 
   // Section 3: Manual pump operations (new coverage)
   RUN_TEST(test_manual_drain_stops_on_goal_reached);
-  RUN_TEST(test_manual_drain_timeout_30min);
+  RUN_TEST(test_manual_drain_timeout_hard_ceiling);
+  RUN_TEST(test_manual_drain_timeout_scales_with_goal);
+  RUN_TEST(test_manual_drain_stops_on_sensor_before_flow_estimate);
+  RUN_TEST(test_manual_pump_refused_without_sensor_or_calibration);
   RUN_TEST(test_manual_refill_stops_on_goal);
   RUN_TEST(test_manual_reservoir_fill_completes_on_float);
   RUN_TEST(test_manual_operations_blocked_while_running);
@@ -558,7 +630,8 @@ int main(int argc, char **argv) {
   RUN_TEST(test_drain_stays_off_after_complete_with_many_updates);
   RUN_TEST(test_drain_off_after_abort);
   RUN_TEST(test_drain_off_safety_update_normal_conditions);
-  RUN_TEST(test_drain_off_overflow_detection_disabled);
+  RUN_TEST(test_overflow_needs_ten_consecutive_readings);
+  RUN_TEST(test_overflow_counter_resets_when_level_drops);
 
   // Section 7: Prime skip
   RUN_TEST(test_prime_disabled_skips_dosing);

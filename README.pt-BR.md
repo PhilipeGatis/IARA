@@ -124,7 +124,8 @@ graph LR
     ESP32 -->|SPI D15,16,17,23| TFT[Display TFT ST7735]
     ESP32 -->|D12, D13, D14, D25-D27, D32, D33| MOSFET
     ESP32 -->|D2| SSR[Omron SSR]
-    ESP32 ---|D18 TX, D34 RX| Ultra[Ultrassônico A02YYUW UART]
+    ESP32 ---|D34 RX| Ultra[Ultrassônico A02YYUW UART]
+    ESP32 ---|D18| Button[Botão do painel]
     ESP32 ---|D19| Float[Boia]
   end
 
@@ -149,7 +150,7 @@ graph LR
 | **D15** | TFT CS | Display ST7735 (CS) | Saída | SPI (CS) |
 | **D16** | TFT SCK | Display ST7735 (SCK) | Saída | SPI (SCK) |
 | **D17** | TFT A0 (Data/Command) | Display ST7735 (A0) | Saída | SPI (DC) |
-| **D18** | UART TX ultrassônico | A02YYUW | Saída | Digital (Liga no RX do Sensor) |
+| **D18** | Botão de navegação | Botão Push/Tactile (Painel) | Entrada (PULLUP) | Digital |
 | **D19** | Boia do reservatório | Float Switch horizontal | Entrada (PULLUP) | Digital |
 | **D21** | SDA | RTC DS3231 | Bidirecional | I2C |
 | **D22** | SCL | RTC DS3231 | Bidirecional | I2C |
@@ -338,6 +339,18 @@ open coverage/index.html
 ---
 
 ## 🚀 Build & Deploy
+
+### Primeira configuração — credenciais WiFi
+
+As credenciais ficam fora do repositório. Antes da primeira compilação:
+
+```bash
+cp secrets.ini.example secrets.ini
+# depois edite secrets.ini com o SSID e a senha da sua rede
+```
+
+O `secrets.ini` está no `.gitignore`, então nunca chega ao repositório. Sem ele
+a compilação falha.
 
 ### Compilar e enviar firmware
 

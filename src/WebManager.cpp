@@ -221,8 +221,6 @@ String WebManager::_buildStatusJSON() {
     json += "\"pumpGoalLiters\":" + String(_water->getPumpGoalLiters(), 2) + ",";
     json += "\"pumpProgressLiters\":" + String(_water->getPumpProgressLiters(), 2) + ",";
     json += "\"pumpElapsedMs\":" + String(_water->getPumpElapsedMs()) + ",";
-    json += "\"solenoidFillTimeSec\":" + String(_water->getSolenoidFillTimeSec(), 1) + ",";
-    json += "\"reservoirCalibrated\":" + String(_water->isReservoirCalibrated() ? "true" : "false") + ",";
   }
   // Stocks
   json += "\"stocks\":[";
@@ -318,18 +316,6 @@ void WebManager::_setupRoutes() {
                  _water->abortTPA();
                Serial.println("[Web] TPA aborted via dashboard");
                request->send(200, "application/json", "{\"ok\":true}");
-             });
-
-  // ---- POST /api/tpa/calibrate-reservoir ----
-  _server.on("/api/tpa/calibrate-reservoir", HTTP_POST,
-             [this](AsyncWebServerRequest *request) {
-               if (_water) {
-                 _water->startReservoirCalibration();
-                 Serial.println("[Web] Reservoir calibration started via dashboard");
-                 request->send(200, "application/json", "{\"ok\":true}");
-               } else {
-                 request->send(500, "application/json", "{\"error\":\"WaterManager not available\"}");
-               }
              });
 
   // ---- POST /api/tpa/config (reservoir safety margin) ----
@@ -479,23 +465,6 @@ void WebManager::_setupRoutes() {
                }
                request->send(500, "application/json", "{\"error\":\"Sensor error\"}");
              });
-
-  // ---- GET /api/debug/nvs ----
-  _server.on("/api/debug/nvs", HTTP_GET, [this](AsyncWebServerRequest *request) {
-    nvs_stats_t nvs_stats;
-    esp_err_t err = nvs_get_stats(NULL, &nvs_stats);
-    if (err == ESP_OK) {
-      String json = "{";
-      json += "\"used_entries\":" + String(nvs_stats.used_entries) + ",";
-      json += "\"free_entries\":" + String(nvs_stats.free_entries) + ",";
-      json += "\"total_entries\":" + String(nvs_stats.total_entries) + ",";
-      json += "\"namespace_count\":" + String(nvs_stats.namespace_count);
-      json += "}";
-      request->send(200, "application/json", json);
-    } else {
-      request->send(500, "application/json", "{\"error\":\"Failed to get NVS stats\"}");
-    }
-  });
 
   // ---- POST /api/maintenance/toggle ----
   _server.on("/api/maintenance/toggle", HTTP_POST,

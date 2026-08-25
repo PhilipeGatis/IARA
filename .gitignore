@@ -1,5 +1,12 @@
 .pio
 .vscode
+.idea
 .DS_Store
 *.denvs
 coverage/
+
+# Build/test artifacts
+pio_test.log
+
+# Local secrets — see secrets.ini.example
+secrets.ini

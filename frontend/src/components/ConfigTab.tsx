@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { api, type AQStatus } from '../App';
+import { type AQStatus } from '../App';
+import { api } from '../api';
 import { useT, type Lang } from '../i18n';
 
 type NotifyStatus = {
@@ -27,6 +28,12 @@ const NOTIFY_TYPE_API_KEYS = [
     'emergency',
     'fertComplete',
     'dailyLevel',
+];
+
+const LANGS: { code: Lang; flag: string; label: string }[] = [
+    { code: 'pt', flag: '🇧🇷', label: 'PT' },
+    { code: 'en', flag: '🇺🇸', label: 'EN' },
+    { code: 'ja', flag: '🇯🇵', label: '日本語' },
 ];
 
 export default function ConfigTab({ status }: { status: AQStatus | null }) {
@@ -62,13 +69,13 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
         if (status && !initialized.current) {
             initialized.current = true;
             if (status.aqHeight) setHeight(status.aqHeight.toString());
-            if ((status as any).aqMarginMm !== undefined) setMargin((status as any).aqMarginMm.toString());
+            if (status.aqMarginMm !== undefined) setMargin(status.aqMarginMm.toString());
             if (status.aqLength) setLength(status.aqLength.toString());
             if (status.aqWidth) setWidth(status.aqWidth.toString());
             if (status.sensorFullDistanceMm !== undefined) setSensorFull(status.sensorFullDistanceMm.toString());
             if (status.primeRatio) setPrimeRatio(status.primeRatio.toString());
             if (status.reservoirVolume) setReservoirVol(status.reservoirVolume.toString());
-            if ((status as any).canisterSafePct) setCanisterSafePct((status as any).canisterSafePct.toString());
+            if (status.canisterSafePct) setCanisterSafePct(status.canisterSafePct.toString());
         }
     }, [status]);
 
@@ -106,7 +113,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
             if (data.networks) {
                 setNetworks(data.networks.map((n: any) => n.ssid || n));
             } else if (data.status === 'scanning') {
-                alert('Scanning in progress. Please try again in 5 seconds.');
+                alert(t('config.scanning'));
             }
         } catch {
             alert(t('config.scanError'));
@@ -151,8 +158,17 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
         return rv * pr;
     };
 
-    const handleLangChange = (newLang: Lang) => {
-        setLang(newLang);
+    const handleCalibrateSensor = async () => {
+        try {
+            const res = await fetch('/api/config/calibrate-sensor-full', { method: 'POST' });
+            if (res.ok) {
+                alert(t('config.success'));
+                window.location.reload();
+            }
+            else alert(t('config.commError'));
+        } catch {
+            alert(t('config.commError'));
+        }
     };
 
     // Notification handlers
@@ -250,195 +266,160 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
     };
 
     return (
-        <div className="flex flex-col gap-4 pb-4">
-            {/* LANGUAGE SELECTOR */}
-            <div className="rounded-2xl bg-card p-5 shadow-md">
-                <h2 className="mb-4 text-base font-medium tracking-wide text-text/90 uppercase">{t('config.language')}</h2>
-                <div className="flex gap-2">
-                    {([
-                        { code: 'pt' as Lang, flag: '🇧🇷', label: 'Português' },
-                        { code: 'en' as Lang, flag: '🇺🇸', label: 'English' },
-                        { code: 'ja' as Lang, flag: '🇯🇵', label: '日本語' },
-                    ]).map((l) => (
+        <div className="flex flex-col gap-3">
+            {/* LANGUAGE — compact segmented control */}
+            <section className="card">
+                <div className="card-h">
+                    <h2 className="card-t">{t('config.language')}</h2>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                    {LANGS.map((l) => (
                         <button
                             key={l.code}
-                            onClick={() => handleLangChange(l.code)}
-                            className={`flex-1 flex flex-col items-center gap-1.5 rounded-xl py-3 px-2 transition-all active:scale-95 border-2 ${lang === l.code
-                                ? 'border-accent bg-accent/10 text-accent shadow-md'
-                                : 'border-transparent bg-white/5 text-muted hover:bg-white/10'
-                                }`}
+                            onClick={() => setLang(l.code)}
+                            aria-pressed={lang === l.code}
+                            className={`btn ${lang === l.code ? 'btn-a' : 'btn-n'}`}
                         >
-                            <span className="text-2xl">{l.flag}</span>
-                            <span className="text-xs font-bold tracking-wide">{l.label}</span>
+                            <span className="text-lg leading-none">{l.flag}</span>
+                            <span className="text-xs">{l.label}</span>
                         </button>
                     ))}
                 </div>
-            </div>
+            </section>
 
-            {/* AQUARIUM CONFIG */}
-            <div className="rounded-2xl bg-card p-5 shadow-md">
-                <h2 className="mb-4 text-base font-medium tracking-wide text-text/90 uppercase">{t('config.aquarium')}</h2>
+            {/* AQUARIUM — dimensions, level sensor, reservoir; one save */}
+            <section className="card">
+                <div className="card-h">
+                    <h2 className="card-t">{t('config.aquarium')}</h2>
+                </div>
+
                 <div className="flex flex-col gap-4">
-                    <div className="flex flex-col gap-2">
-                        <label className="text-xs font-bold text-muted uppercase tracking-wider">{t('config.dimensions')}</label>
+                    {/* Dimensions */}
+                    <div className="field">
+                        <label className="lbl">{t('config.dimensions')}</label>
                         <div className="grid grid-cols-3 gap-2">
-                            <div className="flex flex-col gap-1">
-                                <label className="text-[10px] text-muted">{t('config.heightLabel')}</label>
-                                <input
-                                    type="number" min="0" step="1" placeholder={t('config.height')}
-                                    className="w-full rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
-                                    value={height} onChange={(e) => setHeight(e.target.value)}
-                                />
-                            </div>
-                            <div className="flex flex-col gap-1">
-                                <label className="text-[10px] text-muted">{t('config.lengthLabel')}</label>
-                                <input
-                                    type="number" min="0" step="1" placeholder={t('config.length')}
-                                    className="w-full rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
-                                    value={length} onChange={(e) => setLength(e.target.value)}
-                                />
-                            </div>
-                            <div className="flex flex-col gap-1">
-                                <label className="text-[10px] text-muted">{t('config.widthLabel')}</label>
-                                <input
-                                    type="number" min="0" step="1" placeholder={t('config.width')}
-                                    className="w-full rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
-                                    value={width} onChange={(e) => setWidth(e.target.value)}
-                                />
-                            </div>
+                            <input
+                                type="number" min="0" step="1" placeholder={t('config.height')}
+                                aria-label={t('config.heightLabel')}
+                                className="inp remove-arrow text-center"
+                                value={height} onChange={(e) => setHeight(e.target.value)}
+                            />
+                            <input
+                                type="number" min="0" step="1" placeholder={t('config.length')}
+                                aria-label={t('config.lengthLabel')}
+                                className="inp remove-arrow text-center"
+                                value={length} onChange={(e) => setLength(e.target.value)}
+                            />
+                            <input
+                                type="number" min="0" step="1" placeholder={t('config.width')}
+                                aria-label={t('config.widthLabel')}
+                                className="inp remove-arrow text-center"
+                                value={width} onChange={(e) => setWidth(e.target.value)}
+                            />
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-center text-[10px] text-muted">
+                            <span>{t('config.heightLabel')}</span>
+                            <span>{t('config.lengthLabel')}</span>
+                            <span>{t('config.widthLabel')}</span>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2">
-                        <div className="flex flex-col gap-1">
-                            <label className="text-[10px] font-bold text-muted uppercase tracking-wider">MARGEM BORDA (MM)</label>
-                            <input
-                                type="number" min="0" step="1" placeholder="Ex: 15"
-                                className="w-full rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
-                                value={margin} onChange={(e) => setMargin(e.target.value)}
-                            />
-                            <span className="text-[10px] text-muted italic mt-1">Distância da borda do vidro até onde começa o limite de transbordo da água.</span>
-                        </div>
+                    <div className="field">
+                        <label className="lbl">{t('config.margin')}</label>
+                        <input
+                            type="number" min="0" step="1" placeholder="15"
+                            className="inp remove-arrow"
+                            value={margin} onChange={(e) => setMargin(e.target.value)}
+                        />
+                        <span className="hint">{t('config.marginHint')}</span>
+                    </div>
 
-                        <div className="flex flex-col gap-1">
-                            <label className="text-[10px] font-bold text-muted uppercase tracking-wider">{t('config.sensorFull')}</label>
+                    <div className="grid grid-cols-2 gap-2">
+                        <div className="rounded-lg bg-accent/10 px-3 py-2">
+                            <span className="block text-[10px] text-muted">{t('config.calcVolume')}</span>
+                            <strong className="font-mono text-sm text-accent">{calcVolume().toFixed(1)} L</strong>
+                        </div>
+                        <div className="rounded-lg bg-accent2/10 px-3 py-2">
+                            <span className="block text-[10px] text-muted">{t('config.litersPerCm')}</span>
+                            <strong className="font-mono text-sm text-accent2">{litersPerCm().toFixed(2)}</strong>
+                        </div>
+                    </div>
+
+                    {/* Level sensor */}
+                    <div className="sub flex flex-col gap-3">
+                        <h3 className="sub-t">{t('config.sensorSection')}</h3>
+                        <div className="field">
+                            <label className="lbl">{t('config.sensorFull')}</label>
                             <input
-                                type="number" min="0" step="1" placeholder="Ex: 50"
-                                className="w-full rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
+                                type="number" min="0" step="1" placeholder="50"
+                                className="inp remove-arrow"
                                 value={sensorFull} onChange={(e) => setSensorFull(e.target.value)}
                             />
-                            <span className="text-[10px] text-muted italic mt-1">{t('config.sensorFullHint')}</span>
+                            <span className="hint">{t('config.sensorFullHint')}</span>
+                        </div>
+                        <button onClick={handleCalibrateSensor} className="btn btn-a2 w-full">
+                            {t('config.calibrateSensor')}
+                        </button>
+                    </div>
+
+                    {/* Reservoir & Prime */}
+                    <div className="sub flex flex-col gap-4">
+                        <h3 className="sub-t">{t('config.reservoirSection')}</h3>
+                        <div className="field">
+                            <label className="lbl">{t('config.reservoirVol')}</label>
+                            <input
+                                type="number" step="1" min="0" placeholder="20"
+                                className="inp remove-arrow"
+                                value={reservoirVol} onChange={(e) => setReservoirVol(e.target.value)}
+                            />
+                            <span className="hint">{t('config.reservoirHint')}</span>
                         </div>
 
-                        <div className="flex flex-col justify-start pt-5">
-                            <button
-                                onClick={async () => {
-                                    try {
-                                        const res = await fetch('/api/config/calibrate-sensor-full', { method: 'POST' });
-                                        if (res.ok) {
-                                            alert(t('notify.keySaved'));
-                                            window.location.reload();
-                                        }
-                                        else alert(t('config.commError'));
-                                    } catch {
-                                        alert(t('config.commError'));
-                                    }
-                                }}
-                                className="w-full h-[38px] rounded-md bg-accent2/20 px-4 py-2 text-xs font-bold uppercase tracking-wider text-accent2 shadow-md transition-all hover:bg-accent2/30 active:scale-95"
-                            >
-                                {t('config.calibrateSensor')}
-                            </button>
+                        <div className="field">
+                            <label className="lbl">{t('config.canisterSafe')}</label>
+                            <input
+                                type="number" step="1" min="0" max="100" placeholder="25"
+                                className="inp remove-arrow"
+                                value={canisterSafePct} onChange={(e) => setCanisterSafePct(e.target.value)}
+                            />
+                            <span className="hint">{t('config.canisterSafeHint')}</span>
                         </div>
-                    </div>
-                    <div className="flex gap-4">
-                        <div className="flex-1 rounded-lg bg-accent/10 px-4 py-2">
-                            <span className="text-[10px] text-muted">{t('config.calcVolume')}</span>
-                            <strong className="ml-2 text-sm text-accent">{calcVolume().toFixed(1)} L</strong>
+
+                        <div className="field">
+                            <label className="lbl">{t('config.primeRatio')}</label>
+                            <input
+                                type="number" step="0.01" min="0" placeholder="0.05"
+                                className="inp remove-arrow"
+                                value={primeRatio} onChange={(e) => setPrimeRatio(e.target.value)}
+                            />
+                            <span className="hint">{t('config.primeHint')}</span>
                         </div>
-                        <div className="flex-1 rounded-lg bg-accent2/10 px-4 py-2">
-                            <span className="text-[10px] text-muted">{t('config.litersPerCm')}</span>
-                            <strong className="ml-2 text-sm text-accent2">{litersPerCm().toFixed(2)}</strong>
+
+                        <div className="rounded-lg bg-accent/10 px-3 py-2">
+                            <span className="block text-[10px] text-muted">{t('config.calcPrime')}</span>
+                            <strong className="font-mono text-sm text-accent">
+                                {calcPrimeDose() > 0 ? `${calcPrimeDose().toFixed(2)} mL` : t('config.calcPrimeHint')}
+                            </strong>
                         </div>
                     </div>
 
-                    <div className="flex flex-col gap-1">
-                        <label className="text-xs font-bold text-muted uppercase tracking-wider">{t('config.primeRatio')}</label>
-                        <input
-                            type="number" step="0.01" min="0" placeholder="Ex: 0.05"
-                            className="w-full rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
-                            value={primeRatio} onChange={(e) => setPrimeRatio(e.target.value)}
-                        />
-                        <span className="text-[10px] text-muted italic mt-1">{t('config.primeHint')}</span>
-                    </div>
-
-                    <div className="flex flex-col gap-1">
-                        <label className="text-xs font-bold text-muted uppercase tracking-wider">{t('config.reservoirVol')}</label>
-                        <input
-                            type="number" step="1" min="0" placeholder="Ex: 20"
-                            className="w-full rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
-                            value={reservoirVol} onChange={(e) => setReservoirVol(e.target.value)}
-                        />
-                        <span className="text-[10px] text-muted italic mt-1">{t('config.reservoirHint')}</span>
-                    </div>
-
-                    <div className="rounded-lg bg-accent/10 px-4 py-3">
-                        <span className="text-[10px] text-muted">{t('config.calcPrime')}</span>
-                        <strong className="ml-2 text-sm text-accent">{calcPrimeDose() > 0 ? `${calcPrimeDose().toFixed(2)} mL` : t('config.calcPrimeHint')}</strong>
-                    </div>
-
-                    <button
-                        onClick={handleSaveConfig}
-                        className="mt-2 rounded-full bg-accent2 px-6 py-2.5 text-sm font-bold uppercase tracking-wider text-black shadow-md transition-all hover:bg-teal-300 active:scale-95"
-                    >
+                    <button onClick={handleSaveConfig} className="btn btn-p2 w-full">
                         {t('config.saveConfig')}
                     </button>
                 </div>
-            </div>
+            </section>
 
-            {/* OTA UPDATE CARD */}
-            <div className="rounded-2xl bg-card p-5 shadow-md">
-                <h2 className="mb-4 text-base font-medium tracking-wide text-text/90 uppercase">{t('config.otaTitle')}</h2>
-                
-                <div className="flex flex-col gap-4">
-                    <div className="flex items-center justify-between rounded-md border border-muted/20 bg-white/5 px-4 py-3">
-                        <input 
-                            type="file" 
-                            accept=".bin"
-                            onChange={(e) => setOtaFile(e.target.files?.[0] || null)}
-                            className="text-xs text-text file:mr-4 file:rounded-full file:border-0 file:bg-accent2/20 file:px-4 file:py-2 file:text-xs file:font-bold file:text-accent2 hover:file:bg-accent2/30"
-                        />
-                    </div>
-
-                    {otaProgress >= 0 && (
-                        <div className="w-full bg-black/30 rounded-full h-3 mb-2 overflow-hidden border border-muted/20">
-                            <div className="bg-accent2 h-3 rounded-full transition-all duration-300 ease-out" style={{ width: `${otaProgress}%` }}></div>
-                        </div>
-                    )}
-                    
-                    {otaStatus && (
-                        <div className={`text-xs font-bold text-center ${otaProgress === 100 ? 'text-accent2' : 'text-danger'}`}>
-                            {otaStatus}
-                        </div>
-                    )}
-
-                    <button
-                        onClick={handleOtaUpload}
-                        disabled={!otaFile || otaProgress >= 0}
-                        className="w-full rounded-full bg-accent px-4 py-3 text-sm font-bold uppercase tracking-wider text-black shadow-md transition-all hover:bg-blue-300 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {otaProgress >= 0 && otaProgress < 100 ? `${t('config.otaUploading')} ${otaProgress}%` : t('config.otaUpload')}
-                    </button>
+            {/* NETWORK */}
+            <section className="card">
+                <div className="card-h">
+                    <h2 className="card-t">{t('config.network')}</h2>
                 </div>
-            </div>
 
-            {/* NETWORK CONFIG */}
-            <div className="rounded-2xl bg-card p-5 shadow-md">
-                <h2 className="mb-4 text-base font-medium tracking-wide text-text/90 uppercase">{t('config.network')}</h2>
-
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-3">
                     <div className="flex gap-2">
                         <select
-                            className="flex-1 rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm font-medium text-white outline-none transition-colors focus:border-accent"
+                            className="inp flex-1"
+                            aria-label={t('config.selectNetwork')}
                             value={ssid}
                             onChange={(e) => setSsid(e.target.value)}
                         >
@@ -450,7 +431,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                         <button
                             onClick={handleScanWifi}
                             disabled={scanning}
-                            className="flex-none rounded-md bg-accent/20 px-4 py-2 text-xs font-bold uppercase tracking-wider text-accent transition hover:bg-accent/30 active:scale-95 disabled:opacity-50"
+                            className="btn btn-a flex-none"
                         >
                             {scanning ? t('config.scanning') : '📡'}
                         </button>
@@ -458,121 +439,158 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
 
                     <input
                         type="password" placeholder={t('config.password')}
-                        className="w-full rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
+                        className="inp"
                         value={pass} onChange={(e) => setPass(e.target.value)}
                     />
 
-                    <button
-                        onClick={handleSaveWifi}
-                        className="rounded-full bg-accent px-6 py-2.5 text-sm font-bold uppercase tracking-wider text-black shadow-md transition-all hover:bg-blue-300 active:scale-95"
-                    >
+                    <button onClick={handleSaveWifi} className="btn btn-p w-full">
                         {t('config.saveRestart')}
                     </button>
                 </div>
-            </div>
+            </section>
 
             {/* NOTIFICATIONS (ntfy.sh) */}
-            <div className="rounded-2xl bg-card p-5 shadow-md">
-                <div className="mb-4 flex items-center justify-between">
-                    <h2 className="text-base font-medium tracking-wide text-text/90 uppercase">{t('notify.title')}</h2>
-                    <span className={`rounded-full px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider ${notifyStatus?.enabled
-                        ? 'bg-accent2/20 text-accent2'
-                        : 'bg-white/10 text-muted'
-                        }`}>
+            <section className="card">
+                <div className="card-h">
+                    <h2 className="card-t">{t('notify.title')}</h2>
+                    <span className={`pill ${notifyStatus?.enabled ? 'bg-accent2/20 text-accent2' : 'bg-white/10 text-muted'}`}>
                         {notifyStatus?.enabled ? t('notify.enabled') : t('notify.disabled')}
                     </span>
                 </div>
 
                 <div className="flex flex-col gap-4">
-                    {/* Key input */}
-                    <div className="flex flex-col gap-1">
-                        <label className="text-xs font-bold text-muted uppercase tracking-wider">{t('notify.key')}</label>
+                    <div className="field">
+                        <label className="lbl">{t('notify.key')}</label>
                         <div className="flex gap-2">
                             <input
                                 type="text"
                                 placeholder={notifyStatus?.topic || 'iara_topic'}
-                                className="flex-1 rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
+                                className="inp flex-1"
                                 value={topicInput}
                                 onChange={(e) => setTopicInput(e.target.value)}
                             />
-                            <button
-                                onClick={handleSaveTopic}
-                                className="flex-none rounded-md bg-accent/20 px-4 py-2 text-xs font-bold uppercase tracking-wider text-accent transition hover:bg-accent/30 active:scale-95"
-                            >
+                            <button onClick={handleSaveTopic} className="btn btn-a flex-none">
                                 {t('notify.save')}
                             </button>
                         </div>
-                        <span className="text-[10px] text-muted italic mt-1">{t('notify.keyHint')}</span>
+                        <span className="hint">{t('notify.keyHint')}</span>
                     </div>
 
-                    {/* Test button */}
                     {notifyStatus?.enabled && (
-                        <button
-                            onClick={handleTestNotify}
-                            className="rounded-full bg-accent2/20 px-6 py-2.5 text-sm font-bold uppercase tracking-wider text-accent2 shadow-md transition-all hover:bg-accent2/30 active:scale-95"
-                        >
+                        <button onClick={handleTestNotify} className="btn btn-a2 w-full">
                             {t('notify.test')}
                         </button>
                     )}
 
-                    {/* Daily report time */}
-                    <div className="flex flex-col gap-1">
-                        <label className="text-xs font-bold text-muted uppercase tracking-wider">{t('notify.reportTime')}</label>
-                        <div className="grid grid-cols-2 gap-2">
-                            <input
-                                type="number" min="0" max="23" step="1"
-                                className="w-full rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
-                                value={reportH} onChange={(e) => setReportH(e.target.value)}
-                            />
-                            <input
-                                type="number" min="0" max="59" step="1"
-                                className="w-full rounded-md border-b-2 border-muted bg-white/5 px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent"
-                                value={reportM} onChange={(e) => setReportM(e.target.value)}
-                            />
+                    <div className="sub flex flex-col gap-3">
+                        <div className="field">
+                            <label className="lbl">{t('notify.reportTime')}</label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <input
+                                    type="number" min="0" max="23" step="1"
+                                    aria-label={t('tpa.hour')}
+                                    className="inp remove-arrow text-center"
+                                    value={reportH} onChange={(e) => setReportH(e.target.value)}
+                                />
+                                <input
+                                    type="number" min="0" max="59" step="1"
+                                    aria-label={t('tpa.minute')}
+                                    className="inp remove-arrow text-center"
+                                    value={reportM} onChange={(e) => setReportM(e.target.value)}
+                                />
+                            </div>
                         </div>
+
+                        <div className="flex flex-col gap-2">
+                            {NOTIFY_TYPE_KEYS.map((key, idx) => (
+                                <button
+                                    key={key}
+                                    onClick={() => handleToggleType(idx)}
+                                    aria-pressed={!!typeToggles[idx]}
+                                    className={`flex min-h-[48px] items-center justify-between gap-3 rounded-xl border px-4 py-2 text-left transition-all active:scale-[0.98] ${typeToggles[idx] ? 'border-accent2/40 bg-accent2/10' : 'border-border bg-white/5'
+                                        }`}
+                                >
+                                    <span className="min-w-0 text-sm text-text">{t(key)}</span>
+                                    <span className={`inline-flex h-6 w-11 flex-none items-center rounded-full p-0.5 transition-colors ${typeToggles[idx] ? 'bg-accent2' : 'bg-white/20'}`}>
+                                        <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-md transition-transform ${typeToggles[idx] ? 'translate-x-5' : 'translate-x-0'}`} />
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+
+                        <button onClick={handleSaveNotifyConfig} className="btn btn-p2 w-full">
+                            {t('notify.saveConfig')}
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            {/* FIRMWARE UPDATE */}
+            <section className="card">
+                <div className="card-h">
+                    <h2 className="card-t">{t('config.otaTitle')}</h2>
+                </div>
+
+                <div className="flex flex-col gap-3">
+                    <div className="field">
+                        <label className="lbl">{t('config.otaSelect')}</label>
+                        <input
+                            type="file"
+                            accept=".bin"
+                            onChange={(e) => setOtaFile(e.target.files?.[0] || null)}
+                            className="w-full rounded-lg border border-border bg-white/5 p-2 text-xs text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-accent2/20 file:px-3 file:py-2 file:text-xs file:font-bold file:text-accent2"
+                        />
                     </div>
 
-                    {/* Per-type toggles */}
-                    <div className="flex flex-col gap-2">
-                        {NOTIFY_TYPE_KEYS.map((key, idx) => (
-                            <button
-                                key={key}
-                                onClick={() => handleToggleType(idx)}
-                                className={`flex items-center justify-between rounded-xl px-4 py-2.5 transition-all active:scale-[0.98] border ${typeToggles[idx]
-                                    ? 'border-accent2/30 bg-accent2/10'
-                                    : 'border-transparent bg-white/5'
-                                    }`}
-                            >
-                                <span className="text-sm text-text">{t(key)}</span>
-                                <span className={`inline-flex items-center h-6 w-11 rounded-full p-0.5 transition-colors ${typeToggles[idx] ? 'bg-accent2' : 'bg-white/20'}`}>
-                                    <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-md transform transition-transform ${typeToggles[idx] ? 'translate-x-5' : 'translate-x-0'}`} />
-                                </span>
-                            </button>
-                        ))}
-                    </div>
+                    {otaProgress >= 0 && (
+                        <div className="h-3 w-full overflow-hidden rounded-full border border-border bg-black/30">
+                            <div className="h-full rounded-full bg-accent2 transition-all duration-300 ease-out" style={{ width: `${otaProgress}%` }} />
+                        </div>
+                    )}
 
-                    {/* Save config */}
+                    {otaStatus && (
+                        <div className={`text-center text-xs font-bold ${otaProgress === 100 ? 'text-accent2' : 'text-danger'}`}>
+                            {otaStatus}
+                        </div>
+                    )}
+
                     <button
-                        onClick={handleSaveNotifyConfig}
-                        className="mt-2 rounded-full bg-accent2 px-6 py-2.5 text-sm font-bold uppercase tracking-wider text-black shadow-md transition-all hover:bg-teal-300 active:scale-95"
+                        onClick={handleOtaUpload}
+                        disabled={!otaFile || otaProgress >= 0}
+                        className="btn btn-p w-full"
                     >
-                        {t('notify.saveConfig')}
+                        {otaProgress >= 0 && otaProgress < 100 ? `${t('config.otaUploading')} ${otaProgress}%` : t('config.otaUpload')}
                     </button>
                 </div>
-            </div>
+            </section>
 
-            {/* EMERGENCY ACTIONS */}
-            <div className="rounded-2xl bg-card p-5 shadow-md">
-                <h2 className="mb-4 text-base font-medium tracking-wide text-text/90 uppercase">{t('config.emergency')}</h2>
+            {/* EMERGENCY / MAINTENANCE */}
+            <section className="card">
+                <div className="card-h">
+                    <h2 className="card-t">{t('config.emergency')}</h2>
+                    <span className={`pill ${status?.maintenance ? 'bg-warn/20 text-warn' : 'bg-white/5 text-muted'}`}>
+                        {status?.maintenance ? t('home.maintActive') : t('home.maintInactive')}
+                    </span>
+                </div>
 
                 <button
                     onClick={() => api('POST', '/api/maintenance/toggle')}
-                    className="w-full rounded-full bg-warn/20 px-6 py-2.5 text-sm font-bold uppercase tracking-wider text-warn shadow-md transition-all hover:bg-warn/30 active:scale-95"
+                    className={`btn w-full ${status?.maintenance ? 'btn-g' : 'btn-w'}`}
                 >
-                    {t('config.pauseTpa')}
+                    {status?.maintenance ? t('config.resumeTpa') : t('config.pauseTpa')}
                 </button>
-            </div>
+
+                <div className="sub" />
+                <button
+                    onClick={() => {
+                        if (confirm(t('confirm.emergency'))) api('POST', '/api/emergency/stop');
+                    }}
+                    className="btn btn-dd w-full"
+                >
+                    {t('config.emergencyStop')}
+                </button>
+                <p className="hint">{t('config.emergencyHint')}</p>
+            </section>
         </div>
     );
 }
-

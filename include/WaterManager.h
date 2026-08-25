@@ -21,8 +21,7 @@ enum class TPAState : uint8_t {
   ERROR,
   MANUAL_RESERVOIR_FILL,
   MANUAL_PUMP_DRAIN,
-  MANUAL_PUMP_REFILL,
-  CALIBRATING_RESERVOIR  // Calibrating solenoid fill rate
+  MANUAL_PUMP_REFILL
 };
 
 /// @brief Returns human-readable name for a TPA state
@@ -96,12 +95,6 @@ public:
   void saveCalibration();
   /// Load calibrated flow rates from NVS
   void loadCalibration();
-
-  // ---- Reservoir solenoid calibration ----
-  void startReservoirCalibration();
-  float getSolenoidFillTimeSec() const { return _solenoidFillTimeSec; }
-  float getReservoirVolume() const;
-  bool isReservoirCalibrated() const { return _solenoidFillTimeSec > 0; }
 
   /// Canister filter state
   bool isCanisterOn() const {
@@ -187,6 +180,10 @@ private:
   // Manual pump state
   String _manualPumpTarget;
   float _manualPumpGoalLiters;
+  /// Ultrasonic level (cm) that satisfies the manual goal. -1 = track by flow only.
+  float _manualTargetLevelCm = -1;
+  /// Timeout for the current manual run, sized from the goal and flow rate.
+  unsigned long _manualTimeoutMs = MANUAL_PUMP_MAX_MS;
   bool _primeEnabled = true;
 
   // Float sensor debounce (requires N consecutive "full" reads to confirm)
@@ -194,7 +191,4 @@ private:
   uint8_t _floatFullCount = 0;
   bool _isReservoirFullDebounced();
 
-  // Reservoir solenoid calibration
-  float _solenoidFillTimeSec = 0; // Time to fill reservoir (0 = uncalibrated)
-  void _handleCalibratingReservoir();
 };

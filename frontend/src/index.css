@@ -3,43 +3,62 @@
 @tailwind utilities;
 
 :root {
-  --bg: #121212;
-  --card: #1E1E1E;
-  --accent: #90CAF9;
+  /* Channel triples power Tailwind's alpha modifiers (bg-accent/20 etc.). */
+  --bg-rgb: 18 18 18;
+  --card-rgb: 30 30 30;
+  --card2-rgb: 42 42 42;
+  --accent-rgb: 144 202 249;
   /* Material Blue 200 */
-  --accent2: #80CBC4;
+  --accent2-rgb: 128 203 196;
   /* Material Teal 200 */
-  --warn: #FFB74D;
+  --good-rgb: 129 199 132;
+  /* Material Green 300 */
+  --warn-rgb: 255 183 77;
   /* Material Orange 300 */
-  --danger: #EF5350;
+  --danger-rgb: 239 83 80;
   /* Material Red 400 */
-  --text: #E0E0E0;
-  --muted: #9E9E9E;
-  --border: #424242;
+  --text-rgb: 232 232 232;
+  --muted-rgb: 170 170 170;
+  --border-rgb: 74 74 74;
+
+  /* Literal forms, for arbitrary values like shadow-[0_0_8px_var(--accent)] */
+  --bg: rgb(var(--bg-rgb));
+  --card: rgb(var(--card-rgb));
+  --card2: rgb(var(--card2-rgb));
+  --accent: rgb(var(--accent-rgb));
+  --accent2: rgb(var(--accent2-rgb));
+  --good: rgb(var(--good-rgb));
+  --warn: rgb(var(--warn-rgb));
+  --danger: rgb(var(--danger-rgb));
+  --text: rgb(var(--text-rgb));
+  --muted: rgb(var(--muted-rgb));
+  --border: rgb(var(--border-rgb));
+
+  /* Ink that sits on top of a filled accent surface */
+  --on-accent: #10171d;
+
+  /* Chrome heights, so content padding can track the real nav */
+  --nav-h: 58px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+
+  color-scheme: dark;
+}
+
+html {
+  /* Never let a wide table or long token push the whole page sideways.
+     `clip` (not `hidden`) so it does not become a scroll container and
+     break the sticky header / bottom nav. */
+  overflow-x: clip;
 }
 
 body {
-  font-family: 'Roboto', sans-serif;
+  font-family: 'Roboto', system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
+  overflow-x: clip;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-.stock-fill {
-  height: 100%;
-  border-radius: 3px;
-  background: var(--accent2);
-  transition: width 0.5s;
-}
-
-.stock-fill.low {
-  background: var(--warn);
-}
-
-.stock-fill.empty {
-  background: var(--danger);
 }
 
 body.ap-mode .tabs {
@@ -55,11 +74,160 @@ body.ap-mode .tab-pane {
   display: none;
 }
 
-/* Modal slide-up animation */
-@keyframes slide-up {
-  from { transform: translateY(100%); opacity: 0.5; }
-  to   { transform: translateY(0);    opacity: 1; }
+/* Number inputs: spinners steal width on narrow phones */
+.remove-arrow::-webkit-outer-spin-button,
+.remove-arrow::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
+
+.remove-arrow {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0.5;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
 .animate-slide-up {
   animation: slide-up 0.25s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@layer components {
+
+  /* ── Surfaces ─────────────────────────────────────────────── */
+  .card {
+    @apply rounded-2xl bg-card p-4 shadow-md;
+  }
+
+  .card-h {
+    @apply mb-3 flex min-h-[28px] flex-wrap items-center justify-between gap-2;
+  }
+
+  .card-t {
+    @apply text-xs font-bold uppercase tracking-[0.14em] text-muted;
+  }
+
+  /* Divider between grouped subsections inside one card */
+  .sub {
+    @apply border-t border-border/60 pt-4;
+  }
+
+  .sub-t {
+    @apply mb-3 text-[11px] font-bold uppercase tracking-[0.14em] text-accent/80;
+  }
+
+  /* ── Label / value rows ───────────────────────────────────── */
+  .row {
+    @apply flex min-h-[44px] items-center justify-between gap-3 border-b border-border/50 py-2 last:border-b-0;
+  }
+
+  .row-k {
+    @apply text-sm text-muted;
+  }
+
+  .row-v {
+    @apply text-right font-mono text-sm font-bold tabular-nums text-text;
+  }
+
+  /* ── Form controls ────────────────────────────────────────── */
+  .field {
+    @apply flex min-w-0 flex-col gap-1.5;
+  }
+
+  .lbl {
+    @apply text-[11px] font-bold uppercase tracking-wider text-muted;
+  }
+
+  .hint {
+    @apply text-[11px] leading-snug text-muted/85;
+  }
+
+  .inp {
+    @apply h-11 w-full min-w-0 rounded-lg border border-border bg-white/5 px-3 text-sm text-text outline-none transition-colors placeholder:text-muted/70 focus:border-accent focus:bg-white/10;
+  }
+
+  /* ── Buttons — every one clears a 44px touch target ───────── */
+  .btn {
+    @apply inline-flex min-h-[44px] select-none items-center justify-center gap-1.5 rounded-xl px-4 text-center text-sm font-bold leading-tight tracking-wide transition-all active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40;
+  }
+
+  .btn-xs {
+    @apply min-h-[36px] rounded-lg px-3 text-[11px] uppercase tracking-wider;
+  }
+
+  .btn-p {
+    @apply bg-accent text-[color:var(--on-accent)] shadow-sm hover:brightness-110;
+  }
+
+  .btn-p2 {
+    @apply bg-accent2 text-[color:var(--on-accent)] shadow-sm hover:brightness-110;
+  }
+
+  .btn-a {
+    @apply border border-accent/40 bg-accent/15 text-accent hover:bg-accent/25;
+  }
+
+  .btn-a2 {
+    @apply border border-accent2/40 bg-accent2/15 text-accent2 hover:bg-accent2/25;
+  }
+
+  .btn-g {
+    @apply border border-good/40 bg-good/15 text-good hover:bg-good/25;
+  }
+
+  .btn-w {
+    @apply border border-warn/40 bg-warn/15 text-warn hover:bg-warn/25;
+  }
+
+  .btn-d {
+    @apply border border-danger/40 bg-danger/15 text-danger hover:bg-danger/25;
+  }
+
+  .btn-dd {
+    @apply bg-danger text-white shadow-sm hover:brightness-110;
+  }
+
+  .btn-n {
+    @apply border border-border bg-white/5 text-text hover:bg-white/10;
+  }
+
+  /* ── Pills / chips ────────────────────────────────────────── */
+  .pill {
+    @apply inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider;
+  }
+
+  /* ── Notice blocks ────────────────────────────────────────── */
+  .note {
+    @apply rounded-xl border px-4 py-3;
+  }
+
+  .note-w {
+    @apply border-warn/40 bg-warn/10;
+  }
+
+  .note-d {
+    @apply border-danger/50 bg-danger/10;
+  }
+
+  /* Bleed a scrolling table to the card edges instead of overflowing */
+  .bleed {
+    @apply -mx-4 overflow-x-auto px-4;
+  }
 }

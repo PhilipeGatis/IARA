@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { api, type AQStatus } from '../App';
+import { type AQStatus } from '../App';
+import { api } from '../api';
 import { useT } from '../i18n';
 import FertConfigModal from './FertConfigModal';
 
@@ -29,30 +30,36 @@ function FertCardCompact({
         : [];
     const totalWeek = activeDays.reduce((a, d) => a + d.dose, 0);
 
+    const commitRefill = () => {
+        if (resetVol) {
+            api('POST', '/api/stock/reset', { channel: index, ml: +resetVol });
+            setResetVol('');
+            setShowRefill(false);
+        }
+    };
+
     return (
-        <div className="rounded-2xl bg-card shadow-md overflow-hidden">
+        <section className="overflow-hidden rounded-2xl bg-card shadow-md">
             {/* Header: channel tag + name + stock */}
-            <div className="px-4 pt-4 pb-1 flex items-center justify-between">
-                <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-[10px] font-bold text-black bg-accent/80 rounded px-1.5 py-0.5 uppercase tracking-wider flex-none">CH{index + 1}</span>
-                    <input
-                        type="text"
-                        placeholder={t('fert.namePlaceholder')}
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        onBlur={() => name ? api('POST', '/api/fert/name', { channel: index, name }) : null}
-                        className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-white outline-none border-b border-transparent focus:border-accent transition-colors truncate"
-                    />
-                </div>
-                <div className="flex items-baseline gap-0.5 flex-none ml-2">
-                    <span className="text-xl font-bold text-white tabular-nums">{s.stock.toFixed(0)}</span>
-                    <span className="text-[10px] text-muted font-medium">mL</span>
-                </div>
+            <div className="flex items-center gap-2 px-4 pt-4">
+                <span className="pill flex-none bg-accent text-[color:var(--on-accent)]">CH{index + 1}</span>
+                <input
+                    type="text"
+                    placeholder={t('fert.namePlaceholder')}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    onBlur={() => name ? api('POST', '/api/fert/name', { channel: index, name }) : null}
+                    className="h-9 min-w-0 flex-1 truncate border-b border-transparent bg-transparent text-sm font-semibold text-text outline-none transition-colors focus:border-accent"
+                />
+                <span className="flex-none items-baseline whitespace-nowrap">
+                    <span className="text-xl font-bold tabular-nums text-text">{s.stock.toFixed(0)}</span>
+                    <span className="ml-0.5 text-[11px] font-medium text-muted">mL</span>
+                </span>
             </div>
 
             {/* Stock bar */}
-            <div className="px-4 pb-3">
-                <div className="h-1 w-full overflow-hidden rounded-full bg-white/5">
+            <div className="px-4 pb-3 pt-2">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
                     <div
                         className={`h-full transition-all duration-500 ease-out ${pct < 10 ? 'bg-danger' : pct < 20 ? 'bg-warn' : 'bg-accent2'}`}
                         style={{ width: `${pct}%` }}
@@ -63,24 +70,28 @@ function FertCardCompact({
             {/* Schedule mini-table */}
             {activeDays.length > 0 && (
                 <div className="px-4 pb-2">
-                    <table className="w-full text-[10px]">
+                    <table className="w-full text-xs">
                         <tbody>
                             {activeDays.map(({ dose, i }) => {
                                 const h = Array.isArray(s.sH) ? String(s.sH[i] ?? 0).padStart(2, '0') : '00';
                                 const m = Array.isArray(s.sM) ? String(s.sM[i] ?? 0).padStart(2, '0') : '00';
                                 return (
-                                    <tr key={i} className="border-b border-white/5 last:border-0">
-                                        <td className="py-1 pr-2 font-bold text-accent w-6">{shortDays[i]}</td>
-                                        <td className="py-1 font-mono text-muted">{h}:{m}</td>
-                                        <td className="py-1 text-right font-bold text-accent2">{dose}<span className="text-muted font-normal">mL</span></td>
+                                    <tr key={i} className="border-b border-border/40 last:border-0">
+                                        <td className="w-8 py-1.5 pr-2 font-bold text-accent">{shortDays[i]}</td>
+                                        <td className="py-1.5 font-mono tabular-nums text-muted">{h}:{m}</td>
+                                        <td className="py-1.5 text-right font-bold tabular-nums text-accent2">
+                                            {dose}<span className="font-normal text-muted">mL</span>
+                                        </td>
                                     </tr>
                                 );
                             })}
                         </tbody>
                         <tfoot>
-                            <tr className="border-t border-white/10">
-                                <td colSpan={2} className="py-1 text-muted font-bold uppercase tracking-wider">{t('fert.totalWeek')}</td>
-                                <td className="py-1 text-right font-bold text-white">{totalWeek.toFixed(1)}<span className="text-muted font-normal">mL</span></td>
+                            <tr className="border-t border-border/60">
+                                <td colSpan={2} className="py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted">{t('fert.totalWeek')}</td>
+                                <td className="py-1.5 text-right font-bold tabular-nums text-text">
+                                    {totalWeek.toFixed(1)}<span className="font-normal text-muted">mL</span>
+                                </td>
                             </tr>
                         </tfoot>
                     </table>
@@ -89,35 +100,19 @@ function FertCardCompact({
 
             {/* Refill popover */}
             {showRefill && (
-                <div className="px-4 pb-2">
-                    <div className="flex items-center gap-2 rounded-lg bg-accent2/5 border border-accent2/20 p-2">
+                <div className="px-4 pb-3">
+                    <div className="flex items-center gap-2 rounded-xl border border-accent2/30 bg-accent2/5 p-2">
                         <input
-                            type="number" min="0" max="2000" placeholder="mL" autoFocus
-                            className="w-20 min-w-0 rounded-md border border-muted/30 bg-white/5 px-2 py-1.5 text-xs text-text outline-none transition-colors focus:border-accent2 text-center"
+                            type="number" min="0" max="2000" placeholder={t('fert.newVolume')} autoFocus
+                            className="inp remove-arrow h-10 flex-1 text-center"
                             value={resetVol} onChange={(e) => setResetVol(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && resetVol) {
-                                    api('POST', '/api/stock/reset', { channel: index, ml: +resetVol });
-                                    setResetVol('');
-                                    setShowRefill(false);
-                                }
-                            }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') commitRefill(); }}
                         />
-                        <button
-                            onClick={() => {
-                                if (resetVol) {
-                                    api('POST', '/api/stock/reset', { channel: index, ml: +resetVol });
-                                    setResetVol('');
-                                    setShowRefill(false);
-                                }
-                            }}
-                            className="flex-none rounded-md bg-accent2/20 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-accent2 transition hover:bg-accent2/30 active:scale-95"
-                        >
-                            OK
-                        </button>
+                        <button onClick={commitRefill} className="btn btn-xs btn-a2 flex-none">OK</button>
                         <button
                             onClick={() => setShowRefill(false)}
-                            className="flex-none text-muted hover:text-white text-xs transition"
+                            className="btn btn-xs flex-none text-muted hover:text-text"
+                            aria-label="close"
                         >
                             ✕
                         </button>
@@ -126,21 +121,21 @@ function FertCardCompact({
             )}
 
             {/* Footer buttons */}
-            <div className="flex border-t border-white/5">
+            <div className="flex border-t border-border/50">
                 <button
                     onClick={() => setShowRefill(!showRefill)}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[10px] font-bold uppercase tracking-wider text-accent2 transition hover:bg-white/5 active:bg-white/10 border-r border-white/5"
+                    className="flex min-h-[48px] flex-1 items-center justify-center gap-1.5 border-r border-border/50 text-[11px] font-bold uppercase tracking-wider text-accent2 transition active:bg-white/10"
                 >
                     <span>📦</span> {t('fert.refill')}
                 </button>
                 <button
                     onClick={onConfig}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[10px] font-bold uppercase tracking-wider text-muted transition hover:bg-white/5 hover:text-accent active:bg-white/10"
+                    className="flex min-h-[48px] flex-1 items-center justify-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted transition hover:text-accent active:bg-white/10"
                 >
                     <span>⚙️</span> {t('fert.configure')}
                 </button>
             </div>
-        </div>
+        </section>
     );
 }
 
@@ -152,7 +147,7 @@ export default function FertsTab({ status }: { status: AQStatus | null }) {
     const { t } = useT();
     const [configChannel, setConfigChannel] = useState<number | null>(null);
 
-    if (!status?.stocks) return <div className="text-muted text-center p-4">{t('fert.loading')}</div>;
+    if (!status?.stocks) return <div className="card text-center text-sm text-muted">{t('fert.loading')}</div>;
 
     // Filter out channel 4 (Prime) ONLY if primeEnabled is true
     const channels = status.stocks

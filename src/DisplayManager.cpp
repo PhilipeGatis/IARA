@@ -164,11 +164,16 @@ void DisplayManager::update() {
 
   unsigned long now = millis();
 
-  // --- Auto-off display after timeout (DISABLED per user request) ---
-  // if (_displayOn && (now - _lastInteraction >= DISPLAY_TIMEOUT_MS)) {
-  //   _displayOff();
-  //   return;
-  // }
+  // Blank the panel after a period with no button press. The backlight is wired
+  // straight to 3.3V on this module and cannot be switched, so this only clears
+  // the pixels — pressing the button in _readButton() brings the page back.
+  // Never blank while a water change is running: that is exactly when someone
+  // walking past needs to see the state.
+  if (_displayOn && !_water->isRunning() &&
+      (now - _lastInteraction >= DISPLAY_TIMEOUT_MS)) {
+    _displayOff();
+    return;
+  }
 
   if (!_displayOn)
     return; // screen is off, nothing to draw
