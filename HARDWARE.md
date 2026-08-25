@@ -167,7 +167,7 @@ Sensor ultrassônico à prova d'água que envia a distância por **UART**. Não 
 > [!NOTE]
 > **O fio de controle (RX do sensor) não é usado.** Nada no firmware escreve no `Serial2`; o sensor transmite por conta própria. Esse fio deve ir ao **3.3V** para manter o modo de transmissão contínua — o que não se deve fazer é deixá-lo flutuando.
 >
-> Esse fio ficava no GPIO18, reservado como TX do UART. Como nada nunca escrevia nele, o pino foi liberado (`Serial2.begin(..., -1)`) e passou a ser o **botão de navegação do painel**. Ligue o fio de controle do sensor direto ao **3.3V**.
+> Esse fio fica no **GPIO18**. Nada no firmware escreve no `Serial2`, mas o pino segue declarado como TX do UART justamente para manter a linha em nível alto, que é o que o sensor precisa para permanecer em transmissão contínua.
 
 > [!TIP]
 > **Protocolo:** 9600 baud, 8N1. Frame de 4 bytes — `0xFF`, `DataH`, `DataL`, `Checksum`, onde a distância vem em **milímetros** (`(DataH << 8) | DataL`) e o checksum é `(0xFF + DataH + DataL) & 0xFF`. O firmware descarta frames com checksum inválido e aplica filtro de mediana de 5 amostras.
@@ -266,7 +266,7 @@ ESP32 GPIO19 ─────── [ BOIA ] ─────── ESP32 GND (pin
 > A boia usava GPIO5 originalmente, mas aquele pino é um strapping pin do ESP32 e sofria interferência (~2,5 V em repouso). Foi movida para GPIO19, que antes era do botão de navegação do painel.
 
 > [!IMPORTANT]
-> **O botão de navegação do painel foi para o GPIO18** (`PIN_BTN` em `include/Config.h`), liberado quando o TX do UART do ultrassônico se mostrou inútil. Ele ficou sem pino por um tempo, quando a boia tomou o GPIO19.
+> **O botão de navegação do painel está no GPIO5** (`PIN_BTN` em `include/Config.h`). Ele perdeu o GPIO19 para a boia. O GPIO5 é strapping pin do ESP32, então não pode ficar pressionado durante a energização; um toque momentâneo em qualquer outro momento é inofensivo.
 
 ---
 

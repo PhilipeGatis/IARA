@@ -125,7 +125,7 @@ graph LR
     ESP32 -->|D12, D13, D14, D25-D27, D32, D33| MOSFET
     ESP32 -->|D2| SSR[Omron SSR]
     ESP32 ---|D34 RX| Ultra[超音波 A02YYUW UART]
-    ESP32 ---|D18| Button[パネルボタン]
+    ESP32 ---|D5| Button[パネルボタン]
     ESP32 ---|D19| Float[フロートスイッチ]
   end
 
@@ -150,7 +150,8 @@ graph LR
 | **D15** | TFT CS | ST7735ディスプレイ (CS) | 出力 | SPI (CS) |
 | **D16** | TFT SCK | ST7735ディスプレイ (SCK) | 出力 | SPI (SCK) |
 | **D17** | TFT A0 (データ/コマンド) | ST7735ディスプレイ (A0) | 出力 | SPI (DC) |
-| **D18** | ナビゲーションボタン | プッシュ/タクタイルボタン（パネル） | 入力 (PULLUP) | デジタル |
+| **D5** | ナビゲーションボタン | プッシュ/タクタイルボタン（パネル） | 入力 (PULLUP) | デジタル |
+| **D18** | 超音波センサー制御線 | A02YYUW（制御線） | 出力 | Highで保持 |
 | **D19** | リザーバーフロート | 水平フロートスイッチ | 入力 (PULLUP) | デジタル |
 | **D21** | SDA | DS3231 RTC | 双方向 | I2C |
 | **D22** | SCL | DS3231 RTC | 双方向 | I2C |

@@ -125,7 +125,7 @@ graph LR
     ESP32 -->|D12, D13, D14, D25-D27, D32, D33| MOSFET
     ESP32 -->|D2| SSR[Omron SSR]
     ESP32 ---|D34 RX| Ultra[Ultrassônico A02YYUW UART]
-    ESP32 ---|D18| Button[Botão do painel]
+    ESP32 ---|D5| Button[Botão do painel]
     ESP32 ---|D19| Float[Boia]
   end
 
@@ -150,7 +150,8 @@ graph LR
 | **D15** | TFT CS | Display ST7735 (CS) | Saída | SPI (CS) |
 | **D16** | TFT SCK | Display ST7735 (SCK) | Saída | SPI (SCK) |
 | **D17** | TFT A0 (Data/Command) | Display ST7735 (A0) | Saída | SPI (DC) |
-| **D18** | Botão de navegação | Botão Push/Tactile (Painel) | Entrada (PULLUP) | Digital |
+| **D5** | Botão de navegação | Botão Push/Tactile (Painel) | Entrada (PULLUP) | Digital |
+| **D18** | Controle do ultrassônico | A02YYUW (fio de controle) | Saída | Mantido em nível alto |
 | **D19** | Boia do reservatório | Float Switch horizontal | Entrada (PULLUP) | Digital |
 | **D21** | SDA | RTC DS3231 | Bidirecional | I2C |
 | **D22** | SCL | RTC DS3231 | Bidirecional | I2C |

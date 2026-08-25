@@ -30,10 +30,10 @@ constexpr uint8_t PIN_SOLENOID = 32; // CH8 - Solenoid valve
 constexpr uint8_t PIN_CANISTER = 2; // Relay SSR for canister filter
 
 // --- Sensors ---
-// GPIO18 was assigned as the ultrasonic UART TX pin, but the A02YYUW streams
-// unprompted and nothing ever writes to Serial2, so the pin was never driven.
-// It is now the panel navigation button, which lost GPIO19 to the float switch.
-constexpr uint8_t PIN_BTN_NAV = 18; // Panel button (INPUT_PULLUP, active LOW)
+// The A02YYUW's control lead is wired here. Nothing writes to Serial2 — the
+// sensor streams unprompted — but keeping it as the UART TX pin holds the line
+// at the idle-high level the sensor needs to stay in continuous mode.
+constexpr uint8_t PIN_US_TX = 18; // Ultrasonic A02 control lead (idle high)
 constexpr uint8_t PIN_US_RX = 34; // Ultrasonic A02 UART RX (from TX on sensor)
 // NOTE: GPIO4 was the XKC-Y25 capacitive max-level sensor. That sensor was
 // never installed and has been dropped: max-level protection is now a physical
@@ -50,7 +50,9 @@ constexpr uint8_t PIN_TFT_SCK = 16;  // SCK  — SPI Clock
 constexpr int8_t PIN_TFT_RST = -1;   // RESET — Tied to ESP32 EN
 
 // --- Navigation Button ---
-constexpr uint8_t PIN_BTN = PIN_BTN_NAV; // Panel button, moved off D19
+// Panel button. GPIO5 is a strapping pin, so it must not be held down through
+// power-on; a momentary press at any other time is harmless.
+constexpr uint8_t PIN_BTN = 5; // Panel button (INPUT_PULLUP, active LOW)
 
 // --- Display ---
 // Blank the TFT after this long without a button press. Only clears pixels —

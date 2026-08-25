@@ -10,10 +10,10 @@ SafetyWatchdog::SafetyWatchdog()
       _emergencyDrainStart(0), _medianIndex(0), _medianCount(0) {}
 
 void SafetyWatchdog::begin() {
-  // Ultrasonic A02YYUW UART. The sensor streams frames on its own and nothing
-  // here ever writes to Serial2, so no TX pin is assigned: -1 leaves GPIO18
-  // free. The sensor's control wire goes to 3.3V to keep continuous mode.
-  Serial2.begin(9600, SERIAL_8N1, PIN_US_RX, -1);
+  // Ultrasonic A02YYUW UART. Nothing here ever writes to Serial2 — the sensor
+  // streams frames on its own — but PIN_US_TX stays assigned so the control
+  // lead wired to it is held at the idle-high level continuous mode needs.
+  Serial2.begin(9600, SERIAL_8N1, PIN_US_RX, PIN_US_TX);
 
   // Float switch on D19 (active LOW, internal pullup, switch wired to GND)
   pinMode(PIN_FLOAT, INPUT_PULLUP);
