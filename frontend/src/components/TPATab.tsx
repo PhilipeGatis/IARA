@@ -19,7 +19,7 @@ const CALIBRATION_STEP_PCT = 5;
  * nowhere to go on the way back.
  */
 function PumpTest({
-    label, tone, pct, onPct, maxPct, litersPerPct, trackable, flow, onCalibrate, onStart, onStop,
+    label, tone, pct, onPct, maxPct, litersPerPct, trackable, onStart, onStop,
 }: {
     label: string;
     tone: 'btn-a' | 'btn-a2';
@@ -29,9 +29,6 @@ function PumpTest({
     litersPerPct: number;
     /** False when neither the level sensor nor a calibrated flow can track the goal. */
     trackable: boolean;
-    /** Measured flow (mL/s). 0 means this pump has never been calibrated. */
-    flow: number;
-    onCalibrate: () => void;
     onStart: () => void;
     onStop: () => void;
 }) {
@@ -64,11 +61,7 @@ function PumpTest({
                 >▶ ON</button>
                 <button onClick={onStop} className="btn btn-d flex-1">⏹ OFF</button>
             </div>
-            {/* Always offered. A stored rate can be wrong as easily as missing —
-                and a wrong one is worse, because it sizes the TPA timeouts. */}
-            <button onClick={onCalibrate} className="btn btn-w mt-2 w-full">
-                {flow > 0 ? t('tpa.recalibrateFlow') : t('tpa.calibrateFlow')}
-            </button>
+
             <p className={`hint ${over || (hasGoal && !trackable) ? 'text-danger' : ''}`}>
                 {!hasGoal
                     ? t('tpa.goalFree')
@@ -113,13 +106,6 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
     const sensorTrackable = aqVolume > 0 && (status?.litersPerCm ?? 0) > 0 && (status?.waterLevel ?? 0) > 0;
     const drainTrackable = sensorTrackable || (status?.drainFlowRate ?? 0) > 0;
     const refillTrackable = sensorTrackable || (status?.refillFlowRate ?? 0) > 0;
-
-    const handleCalibrate = async (pump: 'drain' | 'refill') => {
-        const label = t(pump === 'drain' ? 'tpa.testDrain' : 'tpa.testRefill');
-        if (await ask(t('confirm.calibrateFlow', { pump: label }))) {
-            api('POST', '/api/tpa/calibrate-pump', { pump });
-        }
-    };
 
     const handleCalibrateBoth = async () => {
         if (await ask(t('confirm.calibrateBoth', { pct: CALIBRATION_STEP_PCT }))) {
@@ -264,7 +250,6 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                             label={t('tpa.testDrain')} tone="btn-a"
                             pct={drainGoal} onPct={setDrainGoal}
                             maxPct={maxPct} litersPerPct={litersPerPct} trackable={drainTrackable}
-                            flow={status?.drainFlowRate ?? 0} onCalibrate={() => handleCalibrate('drain')}
                             onStart={() => handlePump('drain', 1, pctToLiters(drainGoal))}
                             onStop={() => handlePump('drain', 0)}
                         />
@@ -272,7 +257,6 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                             label={t('tpa.testRefill')} tone="btn-a2"
                             pct={refillGoal} onPct={setRefillGoal}
                             maxPct={maxPct} litersPerPct={litersPerPct} trackable={refillTrackable}
-                            flow={status?.refillFlowRate ?? 0} onCalibrate={() => handleCalibrate('refill')}
                             onStart={() => handlePump('refill', 1, pctToLiters(refillGoal))}
                             onStop={() => handlePump('refill', 0)}
                         />
@@ -437,11 +421,12 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                     </div>
                 </div>
                 <button onClick={handleCalibrateBoth} className="btn btn-p2 mt-3 w-full">
-                    {t('tpa.calibrateBoth')}
+                    {(status?.drainFlowRate && status?.refillFlowRate)
+                        ? t('tpa.recalibrateBoth')
+                        : t('tpa.calibrateBoth')}
                 </button>
                 <p className="hint">{t('tpa.calibrateBothHint')}</p>
-
-                <p className="hint mt-3">{t('tpa.autoCalibrated')}</p>
+                <p className="hint mt-2">{t('tpa.autoCalibrated')}</p>
             </section>
 
             {/* PRIME (CH5) CONFIGURATION */}
