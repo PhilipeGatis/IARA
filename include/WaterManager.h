@@ -53,6 +53,13 @@ public:
   /// flow rate exists, and a flow rate cannot be measured without running.
   void startPumpCalibration(const String &pump);
 
+  /// Calibrate both pumps back to back: drain until the level has moved enough
+  /// to measure, then refill the same amount. Neither can be calibrated alone
+  /// on a full tank — the drain needs water to remove and the refill needs
+  /// headroom to add — so running them as a pair leaves the level where it
+  /// started and measures both.
+  void startPairedCalibration();
+
   void stopManual();
 
   /// Pump Progress Tracking (used for UI/Display during Auto and Manual TPA)
@@ -171,6 +178,11 @@ private:
   /// Switch the canister off for a manual run and start the settle wait.
   void _stopCanisterForManualRun();
 
+  /// Enter a calibration run. Shared by the single and paired entry points;
+  /// unlike them it does not re-check isRunning(), so the paired sequence can
+  /// chain its second leg directly out of the first.
+  void _beginPumpCalibration(const String &pump);
+
   /// Stop all TPA actuators (DRY helper)
   void _stopAllTpaActuators(PumpReason reason);
 
@@ -200,6 +212,9 @@ private:
   /// True while the refill is paused, waiting for the surface to settle before
   /// accepting that the setpoint was really reached.
   bool _refillConfirming = false;
+  /// True while the drain leg of a paired calibration is running, so its
+  /// completion chains straight into the refill leg.
+  bool _pairedCalibration = false;
   /// When non-zero, the manual run stops cleanly after this long to calibrate.
   unsigned long _calibrationRunMs = 0;
   /// Ultrasonic level (cm) that satisfies the manual goal. -1 = track by flow only.

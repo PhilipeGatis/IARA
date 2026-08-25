@@ -137,18 +137,7 @@ void WaterManager::startManualPump(const String &pump, float goalLiters) {
   }
 }
 
-void WaterManager::startPumpCalibration(const String &pump) {
-  if (isRunning()) {
-    Serial.println("[TPA] Already running, ignoring startPumpCalibration().");
-    return;
-  }
-  if (_litersPerCm <= 0) {
-    Serial.println("[TPA] Calibration refused: aquarium dimensions unknown, "
-                   "so a level change cannot be converted to litres.");
-    _lastErrorMsg = "Set the aquarium dimensions before calibrating";
-    return;
-  }
-
+void WaterManager::_beginPumpCalibration(const String &pump) {
   _manualPumpTarget = pump;
   _manualPumpGoalLiters = 0; // no goal: the level change ends this run
   _calibrationRunMs = PUMP_CALIBRATION_MAX_MS;
@@ -166,9 +155,41 @@ void WaterManager::startPumpCalibration(const String &pump) {
   }
 }
 
+void WaterManager::startPumpCalibration(const String &pump) {
+  if (isRunning()) {
+    Serial.println("[TPA] Already running, ignoring startPumpCalibration().");
+    return;
+  }
+  if (_litersPerCm <= 0) {
+    Serial.println("[TPA] Calibration refused: aquarium dimensions unknown, "
+                   "so a level change cannot be converted to litres.");
+    _lastErrorMsg = "Set the aquarium dimensions before calibrating";
+    return;
+  }
+  _pairedCalibration = false;
+  _beginPumpCalibration(pump);
+}
+
+void WaterManager::startPairedCalibration() {
+  if (isRunning()) {
+    Serial.println("[TPA] Already running, ignoring startPairedCalibration().");
+    return;
+  }
+  if (_litersPerCm <= 0) {
+    Serial.println("[TPA] Calibration refused: aquarium dimensions unknown.");
+    _lastErrorMsg = "Set the aquarium dimensions before calibrating";
+    return;
+  }
+
+  Serial.println("[TPA] ====== PAIRED CALIBRATION: drain, then refill ======");
+  _pairedCalibration = true;
+  _beginPumpCalibration("drain");
+}
+
 void WaterManager::stopManual() {
   Serial.println("[TPA] Manual operation stopped.");
   _calibrationRunMs = 0;
+  _pairedCalibration = false;
   if (_state == TPAState::MANUAL_PUMP_DRAIN) {
     _captureDrainCalibration();
     saveCalibration(); // a manual run is how the flow rate gets measured in
@@ -614,6 +635,16 @@ void WaterManager::_handleManualPump(uint8_t pin, float flowLPM) {
     if (isDrain) _captureDrainCalibration();
     else _captureRefillCalibration();
     pumpOff(pin, PumpReason::TPA_TARGET_REACHED);
+
+    // Second leg of a paired run: put the water back, measuring the refill on
+    // the way. The canister stays off across both legs.
+    if (_pairedCalibration && isDrain) {
+      Serial.println("[TPA] Drain leg done. Refilling the same amount...");
+      _beginPumpCalibration("refill");
+      return;
+    }
+    _pairedCalibration = false;
+
     if (_canisterOffForManual) {
       _canisterOffForManual = false;
       restoreCanisterIfSafe(PumpReason::MANUAL_PUMP);
@@ -736,6 +767,7 @@ void WaterManager::_error(const char *msg) {
     _lastErrorMsg += " | Canister: OFF (nivel baixo)";
   }
   _canisterOffForManual = false;
+  _pairedCalibration = false;
 
   _state = TPAState::ERROR;
 }

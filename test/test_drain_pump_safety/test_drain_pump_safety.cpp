@@ -332,6 +332,40 @@ void test_manual_drain_stops_on_sensor_before_flow_estimate() {
   assertDrainOff("manual drain stopped by sensor");
 }
 
+void test_paired_calibration_chains_drain_into_refill() {
+  WaterManager wm = makeWM();
+  wm.setLitersPerCm(2.0f);
+  wm.setAqEffectiveHeightCm(40.0f); // 5% floor = 2cm of level change
+
+  setDistance(20.0f);
+  wm.startPairedCalibration();
+  mock_millis_value += 3001; // canister settle
+  wm.update();               // drain leg starts
+  TEST_ASSERT_EQUAL(TPAState::MANUAL_PUMP_DRAIN, wm.getState());
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_DRAIN]);
+
+  // Level drops past the 2cm floor: the drain leg is done.
+  mock_millis_value += 30000;
+  setDistance(23.0f);
+  wm.update();
+
+  // Instead of finishing, it moves straight on to putting the water back.
+  TEST_ASSERT_EQUAL(TPAState::MANUAL_PUMP_REFILL, wm.getState());
+  assertDrainOff("after the drain leg of a paired calibration");
+  TEST_ASSERT_TRUE(wm.getDrainFlowLPM() > 0);
+
+  mock_millis_value += 3001; // settle before the refill leg
+  wm.update();
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_REFILL]);
+
+  // And the refill leg ends the sequence once it has moved the same amount.
+  mock_millis_value += 30000;
+  setDistance(20.0f);
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::COMPLETE, wm.getState());
+  TEST_ASSERT_TRUE(wm.getRefillFlowLPM() > 0);
+}
+
 void test_canister_stays_off_when_level_too_low() {
   WaterManager wm = makeWM();
   wm.setAqEffectiveHeightCm(40.0f);
@@ -717,6 +751,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_manual_drain_timeout_scales_with_goal);
   RUN_TEST(test_manual_drain_stops_on_sensor_before_flow_estimate);
   RUN_TEST(test_manual_pump_refused_without_sensor_or_calibration);
+  RUN_TEST(test_paired_calibration_chains_drain_into_refill);
   RUN_TEST(test_canister_stays_off_when_level_too_low);
   RUN_TEST(test_canister_restored_when_level_is_safe);
   RUN_TEST(test_manual_refill_stops_on_goal);

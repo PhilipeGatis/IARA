@@ -7,6 +7,9 @@ import FertConfigModal from './FertConfigModal';
 import { useT } from '../i18n';
 import { useConfirm } from '../Confirm';
 
+/** Mirrors CALIBRATION_MIN_DELTA_PCT in Config.h. */
+const CALIBRATION_STEP_PCT = 5;
+
 /* ── Manual pump test row: goal + ON/OFF, all 44px tall ───────── */
 /**
  * Manual pump row. The goal is entered as a percentage of the aquarium, which is
@@ -115,6 +118,12 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
         const label = t(pump === 'drain' ? 'tpa.testDrain' : 'tpa.testRefill');
         if (await ask(t('confirm.calibrateFlow', { pump: label }))) {
             api('POST', '/api/tpa/calibrate-pump', { pump });
+        }
+    };
+
+    const handleCalibrateBoth = async () => {
+        if (await ask(t('confirm.calibrateBoth', { pct: CALIBRATION_STEP_PCT }))) {
+            api('POST', '/api/tpa/calibrate-pumps');
         }
     };
 
@@ -421,6 +430,15 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                         </span>
                     </div>
                 </div>
+                {(!(status?.drainFlowRate) || !(status?.refillFlowRate)) && (
+                    <>
+                        <button onClick={handleCalibrateBoth} className="btn btn-p2 mt-3 w-full">
+                            {t('tpa.calibrateBoth')}
+                        </button>
+                        <p className="hint">{t('tpa.calibrateBothHint')}</p>
+                    </>
+                )}
+
                 <p className="hint mt-3">{t('tpa.autoCalibrated')}</p>
             </section>
 

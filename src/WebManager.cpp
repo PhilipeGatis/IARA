@@ -440,6 +440,31 @@ void WebManager::_setupRoutes() {
         request->send(200, "application/json", "{\"ok\":true}");
       });
 
+  // ---- POST /api/tpa/calibrate-pumps (drain then refill, net zero water) ----
+  _server.on("/api/tpa/calibrate-pumps", HTTP_POST,
+             [this](AsyncWebServerRequest *request) {
+               if (!_water) {
+                 request->send(500, "application/json",
+                               "{\"error\":\"WaterManager not available\"}");
+                 return;
+               }
+               if (_water->isRunning()) {
+                 request->send(400, "application/json",
+                               "{\"error\":\"TPA is running\"}");
+                 return;
+               }
+               _water->startPairedCalibration();
+               if (!_water->isRunning()) {
+                 String err = _water->getLastErrorMsg();
+                 if (err.length() == 0)
+                   err = "Calibration could not start";
+                 request->send(400, "application/json",
+                               "{\"error\":\"" + err + "\"}");
+                 return;
+               }
+               request->send(200, "application/json", "{\"ok\":true}");
+             });
+
   // ---- POST /api/config/aquarium (JSON body) ----
   _server.on(
       "/api/config/aquarium", HTTP_POST, [](AsyncWebServerRequest *request) {},
