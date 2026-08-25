@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { type AQStatus } from '../App';
 import { api } from '../api';
 import { useT } from '../i18n';
+import { useConfirm } from '../Confirm';
 
 type Props = {
     index: number;
@@ -11,6 +12,7 @@ type Props = {
 
 export default function FertConfigModal({ index, s, onClose }: Props) {
     const { t } = useT();
+    const { ask, dialog } = useConfirm();
 
     // Schedule States — per day
     const [doses, setDoses] = useState<string[]>(Array(7).fill('0'));
@@ -60,8 +62,8 @@ export default function FertConfigModal({ index, s, onClose }: Props) {
     const handlePwm = () => api('POST', '/api/fert/pwm', { channel: index, pwm });
     const handlePump = (st: number) => api('POST', '/api/fert/pump', { channel: index, state: st });
 
-    const handleRun3s = () => {
-        if (confirm(t('fert.confirmRun3s', { ch: index + 1 }))) {
+    const handleRun3s = async () => {
+        if (await ask(t('fert.confirmRun3s', { ch: index + 1 }))) {
             api('POST', '/api/fert/run3s', { channel: index });
         }
     };
@@ -72,9 +74,9 @@ export default function FertConfigModal({ index, s, onClose }: Props) {
         api('POST', '/api/fert/enable', { channel: index, enabled: nextState ? 1 : 0 });
     };
 
-    const handleSaveCalib = () => {
+    const handleSaveCalib = async () => {
         if (+calibMl > 0) {
-            if (confirm(t('fert.confirmCalib', { ml: calibMl, ch: index + 1 }))) {
+            if (await ask(t('fert.confirmCalib', { ml: calibMl, ch: index + 1 }))) {
                 api('POST', '/api/fert/calibrate', { channel: index, ml: +calibMl });
                 setCalibMl('');
             }
@@ -88,6 +90,7 @@ export default function FertConfigModal({ index, s, onClose }: Props) {
             className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
             onClick={(e) => e.target === e.currentTarget && onClose()}
         >
+            {dialog}
             {/* Overlay */}
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
 

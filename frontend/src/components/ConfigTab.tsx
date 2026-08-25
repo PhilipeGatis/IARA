@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { type AQStatus } from '../App';
 import { api } from '../api';
 import { useT, type Lang } from '../i18n';
+import { useConfirm } from '../Confirm';
 
 type NotifyStatus = {
     enabled: boolean;
@@ -38,6 +39,7 @@ const LANGS: { code: Lang; flag: string; label: string }[] = [
 
 export default function ConfigTab({ status }: { status: AQStatus | null }) {
     const { t, lang, setLang } = useT();
+    const { ask, dialog } = useConfirm();
     const [height, setHeight] = useState('');
     const [margin, setMargin] = useState('');
     const [length, setLength] = useState('');
@@ -267,6 +269,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
 
     return (
         <div className="flex flex-col gap-3">
+            {dialog}
             {/* LANGUAGE — compact segmented control */}
             <section className="card">
                 <div className="card-h">
@@ -582,9 +585,9 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
 
                 <div className="sub" />
                 <button
-                    onClick={() => {
+                    onClick={async () => {
                         const msg = status?.emergency ? t('confirm.emergencyClear') : t('confirm.emergency');
-                        if (confirm(msg)) api('POST', '/api/emergency/stop');
+                        if (await ask(msg)) api('POST', '/api/emergency/stop');
                     }}
                     className={`btn w-full ${status?.emergency ? 'btn-g' : 'btn-dd'}`}
                 >

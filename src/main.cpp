@@ -65,6 +65,9 @@ bool tpaDoneThisMinute = false;
 uint8_t lastTPAMinute = 255;
 bool emergencyNotified = false;   // Prevent repeated emergency notifications
 bool tpaCompleteNotified = false; // Prevent repeated TPA complete notifications
+// COMPLETE holds for many loop iterations, so persisting and propagating the
+// calibration must happen once per cycle — not at 20 Hz against the flash.
+bool calibrationSettled = false;
 bool tpaErrorNotified = false;    // Prevent repeated TPA error notifications
 
 // ---- WiFi Retry State ----
@@ -471,9 +474,16 @@ void loop() {
   if (waterMgr.getState() == TPAState::COMPLETE) {
     waterMgr.setLastTPATime(timeMgr.getFormattedTime());
 
-    // Save calibrated flow rates for next TPA
-    if (waterMgr.getDrainFlowLPM() > 0 || waterMgr.getRefillFlowLPM() > 0) {
-      waterMgr.saveCalibration();
+    // Persist and publish the calibration once. A timed calibration run ends
+    // here rather than through stopManual(), so this is the only place that
+    // sees it — without the sync the measured rate stays inside WaterManager
+    // and never reaches /api/status or isTpaConfigReady().
+    if (!calibrationSettled) {
+      calibrationSettled = true;
+      if (waterMgr.getDrainFlowLPM() > 0 || waterMgr.getRefillFlowLPM() > 0) {
+        waterMgr.saveCalibration();
+        webMgr.syncFlowRatesFromWater();
+      }
     }
 
     if (!tpaCompleteNotified) {
@@ -493,6 +503,7 @@ void loop() {
     // Reset flags while TPA is actively running
     tpaCompleteNotified = false;
     tpaErrorNotified = false;
+    calibrationSettled = false;
   }
 
   // ---- 5b. CANISTER AUTO-ON TIMER ----

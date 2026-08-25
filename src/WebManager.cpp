@@ -40,6 +40,21 @@ WebManager::WebManager()
 // BEGIN
 // ============================================================================
 
+void WebManager::syncAquariumGeometryToWater() {
+  if (!_water)
+    return;
+
+  const float lPerCm = getLitersPerCm();
+  if (lPerCm <= 0)
+    return; // dimensions not set yet
+
+  _water->setLitersPerCm(lPerCm);
+
+  const float effH = (float)getAquariumVolume() / lPerCm;
+  _water->setAqEffectiveHeightCm(effH);
+  _water->setCanisterSafeLevelCm(effH * (100.0f - getCanisterSafePct()) / 100.0f);
+}
+
 void WebManager::syncFlowRatesFromWater() {
   if (!_water)
     return;
@@ -78,6 +93,7 @@ void WebManager::begin(TimeManager *time, WaterManager *water,
     _water->setPrimeEnabled(_primeEnabled);
 
     syncFlowRatesFromWater();
+    syncAquariumGeometryToWater();
 
     Serial.println("[Config] ====== WebManager <-> WaterManager SYNC ======");
     Serial.printf("[Config]   WaterMgr drain: %.2f LPM, refill: %.2f LPM\n",
@@ -410,6 +426,17 @@ void WebManager::_setupRoutes() {
           return;
         }
         _water->startPumpCalibration(pStr);
+        // startPumpCalibration() refuses when it cannot measure. Reporting 200
+        // regardless is how this failure stayed invisible: the dashboard saw
+        // success while nothing ran.
+        if (!_water->isRunning()) {
+          String err = _water->getLastErrorMsg();
+          if (err.length() == 0)
+            err = "Calibration could not start";
+          request->send(400, "application/json",
+                        "{\"error\":\"" + err + "\"}");
+          return;
+        }
         request->send(200, "application/json", "{\"ok\":true}");
       });
 
@@ -472,6 +499,7 @@ void WebManager::_setupRoutes() {
               _water->setPrimeML(_primeML);
           }
           _saveParams();
+          syncAquariumGeometryToWater();
           if (_safety) {
             _safety->setOverflowThresholdCm(getOverflowThresholdCm());
           }

@@ -1,6 +1,7 @@
 import { type AQStatus } from '../App';
 import { api } from '../api';
 import { useT } from '../i18n';
+import { useConfirm } from '../Confirm';
 
 /* ── Small label / status row ─────────────────────────────────── */
 function Badge({ label, on, texts }: { label: string; on?: boolean; texts: [string, string] }) {
@@ -65,6 +66,7 @@ const STOCK_COLORS = ['#00E5FF', '#FF4FD8', '#FFE45C', '#FFA726', '#66E06A'];
 
 export default function HomeTab({ status }: { status: AQStatus | null }) {
     const { t, lang } = useT();
+    const { ask, dialog } = useConfirm();
     const shortDays = t('home.shortDays').split(',');
     const dateLocale = lang === 'ja' ? 'ja-JP' : lang === 'en' ? 'en-US' : 'pt-BR';
 
@@ -135,6 +137,7 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
 
     return (
         <div className="flex flex-col gap-3">
+            {dialog}
             {/* 1 — Anything blocking the TPA comes first */}
             <ConfigChecklist status={status} />
 
@@ -233,8 +236,8 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                 <div className="mt-4">
                     {status?.tpaState === 'IDLE' ? (
                         <button
-                            onClick={() => {
-                                if (confirm(t('confirm.tpaStart', { pct: status.tpaPercent }))) {
+                            onClick={async () => {
+                                if (await ask(t('confirm.tpaStart', { pct: status.tpaPercent }))) {
                                     api('POST', '/api/tpa/start');
                                 }
                             }}
@@ -245,8 +248,8 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                         </button>
                     ) : (
                         <button
-                            onClick={() => {
-                                if (confirm(t('confirm.tpaAbort'))) api('POST', '/api/tpa/abort');
+                            onClick={async () => {
+                                if (await ask(t('confirm.tpaAbort'))) api('POST', '/api/tpa/abort');
                             }}
                             className="btn btn-dd w-full"
                         >

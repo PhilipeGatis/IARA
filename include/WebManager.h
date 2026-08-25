@@ -69,6 +69,13 @@ public:
   /// until the next boot.
   void syncFlowRatesFromWater();
 
+  /// Push the aquarium geometry into WaterManager. It used to happen only
+  /// inside triggerTPA(), which left litersPerCm at zero until a water change
+  /// actually started — and flow calibration needs it to convert a level change
+  /// into litres. That made calibration impossible outside a TPA, and a TPA
+  /// impossible without calibration.
+  void syncAquariumGeometryToWater();
+
   bool isTpaConfigReady() const {
     return _aqHeight > 0 && _aqLength > 0 && _aqWidth > 0 &&
            _sensorFullDistanceMm > 0 && _drainFlowRate > 0 && _refillFlowRate > 0 &&

@@ -5,6 +5,7 @@ import { FertCard } from './FertsTab';
 import { ConfigChecklist } from './HomeTab';
 import FertConfigModal from './FertConfigModal';
 import { useT } from '../i18n';
+import { useConfirm } from '../Confirm';
 
 /* ── Manual pump test row: goal + ON/OFF, all 44px tall ───────── */
 /**
@@ -80,6 +81,7 @@ function PumpTest({
 
 export default function TPATab({ status }: { status: AQStatus | null }) {
     const { t } = useT();
+    const { ask, dialog } = useConfirm();
     // Schedule Builder States
     const [interval, setInterval] = useState('');
     const [autoEnabled, setAutoEnabled] = useState(false);
@@ -109,8 +111,9 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
     const drainTrackable = sensorTrackable || (status?.drainFlowRate ?? 0) > 0;
     const refillTrackable = sensorTrackable || (status?.refillFlowRate ?? 0) > 0;
 
-    const handleCalibrate = (pump: 'drain' | 'refill') => {
-        if (confirm(t('confirm.calibrateFlow', { pump: t(pump === 'drain' ? 'tpa.testDrain' : 'tpa.testRefill') }))) {
+    const handleCalibrate = async (pump: 'drain' | 'refill') => {
+        const label = t(pump === 'drain' ? 'tpa.testDrain' : 'tpa.testRefill');
+        if (await ask(t('confirm.calibrateFlow', { pump: label }))) {
             api('POST', '/api/tpa/calibrate-pump', { pump });
         }
     };
@@ -155,21 +158,21 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
         });
     };
 
-    const handlePump = (pump: 'drain' | 'refill' | 'solenoid', state: number, liters?: number) => {
+    const handlePump = async (pump: 'drain' | 'refill' | 'solenoid', state: number, liters?: number) => {
         // Only turning something ON needs a confirmation: stopping is always safe.
         if (state === 1) {
             const key =
                 pump === 'drain' ? 'confirm.pumpDrain'
                     : pump === 'refill' ? 'confirm.pumpRefill'
                         : 'confirm.solenoid';
-            if (!confirm(t(key))) return;
+            if (!(await ask(t(key)))) return;
         }
         api('POST', '/api/tpa/pump', { pump, state, liters });
     };
 
-    const handleCanisterToggle = () => {
+    const handleCanisterToggle = async () => {
         // status.canister is true while the filter is running.
-        if (status?.canister && !confirm(t('confirm.canisterOff'))) return;
+        if (status?.canister && !(await ask(t('confirm.canisterOff')))) return;
         api('POST', '/api/canister/toggle');
     };
 
@@ -177,6 +180,7 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
 
     return (
         <div className="flex flex-col gap-3">
+            {dialog}
             {/* LIVE PUMP PROGRESS */}
             {status && status.pumpGoalLiters !== undefined && status.pumpGoalLiters > 0 && (
                 <section className="card border-l-4 border-accent">
@@ -232,7 +236,7 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
 
                     {busy && (
                         <button
-                            onClick={() => { if (confirm(t('confirm.tpaAbort'))) api('POST', '/api/tpa/abort'); }}
+                            onClick={async () => { if (await ask(t('confirm.tpaAbort'))) api('POST', '/api/tpa/abort'); }}
                             className="btn btn-dd w-full"
                         >
                             {t('tpa.abort')}
