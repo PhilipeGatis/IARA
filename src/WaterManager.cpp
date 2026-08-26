@@ -147,6 +147,14 @@ void WaterManager::startManualPump(const String &pump, float goalLiters) {
     }
   }
 
+  // Starting is the only moment guaranteed to happen. Clearing per-run state
+  // only when a run *ends* misses the run that ends in COMPLETE, which goes
+  // through neither stopManual() nor abortTPA() nor _error() — so a paired
+  // calibration that finished normally left _pairedRefillTargetCm behind, and
+  // the next plain manual refill stopped on the previous run's setpoint, in
+  // under a second, reporting its goal as reached.
+  _resetCycleState();
+
   _manualPumpTarget = pump;
   _manualPumpGoalLiters = goalLiters;
   _calibrationRunMs = 0;
@@ -206,6 +214,7 @@ void WaterManager::startPairedCalibration() {
   }
 
   Serial.println("[TPA] ====== PAIRED CALIBRATION: drain, then refill ======");
+  _resetCycleState();
   _pairedCalibration = true;
   _beginPumpCalibration("drain");
 }
@@ -678,8 +687,8 @@ void WaterManager::_handleManualPump(uint8_t pin, float flowLPM) {
 
   // Second leg of a pair: stop at the level the drain leg started from, not
   // after an independent 5% move.
-  if (!reached && _pairedRefillTargetCm > 0 && !isDrain && _safety &&
-      _safety->areSensorsConnected()) {
+  if (!reached && _pairedCalibration && _pairedRefillTargetCm > 0 && !isDrain &&
+      _safety && _safety->areSensorsConnected()) {
     const float dist = _safety->readUltrasonic();
     if (dist > 0 && dist <= _pairedRefillTargetCm) {
       Serial.printf("[TPA] Paired refill back to start level: %.1f cm\n", dist);

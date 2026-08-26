@@ -52,6 +52,18 @@ void setDistance(float dist) {
   }
 }
 
+// Helper: move the clock forward while the ultrasonic keeps streaming.
+//
+// setDistance() injects frames but does not advance time, so a bare
+// `mock_millis_value += n` leaves the last valid frame n milliseconds in the
+// past. Past 2000 ms SafetyWatchdog declares the sensor disconnected, and every
+// branch guarded by areSensorsConnected() is then silently skipped — tests that
+// jump the clock and then assert on those branches pass without executing them.
+void advance(unsigned long ms, float dist) {
+  mock_millis_value += ms;
+  setDistance(dist);
+}
+
 // Helper: assert PIN_DRAIN is LOW (OFF)
 void assertDrainOff(const char *ctx) {
   char msg[80];
@@ -412,6 +424,51 @@ void test_paired_refill_stops_where_the_drain_leg_started() {
 
   mock_millis_value += 20000;
   setDistance(20.0f); // back to the drain leg's start level
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::COMPLETE, wm.getState());
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_REFILL]);
+}
+
+void test_completed_pair_does_not_leave_its_setpoint_behind() {
+  WaterManager wm = makeWM();
+  wm.setLitersPerCm(2.0f);
+  wm.setAqEffectiveHeightCm(40.0f);
+  wm.setRefillFlowLPM(6.0f);
+
+  // Run a pair to completion: drain 4cm, refill back to the start level.
+  setDistance(20.0f);
+  wm.startPairedCalibration();
+  mock_millis_value += 3001;
+  wm.update();
+  mock_millis_value += 30000;
+  setDistance(24.0f);
+  wm.update(); // drain leg done, refill leg armed at 20.0
+  mock_millis_value += 3001;
+  wm.update();
+  mock_millis_value += 20000;
+  setDistance(20.0f);
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::COMPLETE, wm.getState());
+
+  // A run that ends in COMPLETE passes through neither stopManual() nor
+  // abortTPA() nor _error(), so nothing on the ending side clears the pair's
+  // setpoint. An ordinary manual refill starting at that same level would then
+  // meet it on its first tick and stop in under a second, reporting a goal it
+  // had not moved a millimetre toward.
+  setDistance(20.0f);
+  wm.startManualPump("refill", 4.0f);
+  advance(3001, 20.0f); // canister settle, sensor still streaming
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::MANUAL_PUMP_REFILL, wm.getState());
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_REFILL]);
+
+  advance(1000, 20.0f);
+  wm.update();
+  TEST_ASSERT_EQUAL_MESSAGE(HIGH, mock_pin_state[PIN_REFILL],
+                            "refill stopped on the finished pair's setpoint");
+
+  // It ends on its own goal: 4 L at 2 L/cm is 2cm, so 20.0 -> 18.0.
+  advance(1000, 18.0f);
   wm.update();
   TEST_ASSERT_EQUAL(TPAState::COMPLETE, wm.getState());
   TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_REFILL]);
@@ -900,6 +957,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_paired_calibration_chains_drain_into_refill);
   RUN_TEST(test_abort_does_not_start_canister_with_low_water);
   RUN_TEST(test_paired_refill_stops_where_the_drain_leg_started);
+  RUN_TEST(test_completed_pair_does_not_leave_its_setpoint_behind);
   RUN_TEST(test_aborted_paired_calibration_does_not_chain_a_later_refill);
   RUN_TEST(test_stale_wait_does_not_skip_switching_the_canister_off);
   RUN_TEST(test_canister_stays_off_when_level_too_low);
