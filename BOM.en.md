@@ -47,6 +47,7 @@ Complete component list for the IARA system.
 | 16 | 12V Submersible Pump | Drain / sewage (CH6) | 1 |
 | 17 | 12V Submersible Pump | Refill / top-up (CH7) | 1 |
 | 18 | 12V Solenoid Valve | Normally closed (CH8) | 1 |
+| 18b| Mechanical float valve | Physically shuts the reservoir inlet — independent of any electronics | 1 |
 | 19 | Canister Filter | Controlled via AC relay | 1 |
 
 ---

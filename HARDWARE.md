@@ -177,6 +177,19 @@ Sensor ultrassônico à prova d'água que envia a distância por **UART**. Não 
 
 ### Esquema de Ligação — Trava de Nível Máximo (Reed Switch)
 
+#### Por que a trava fica no recalque, e não na solenoide
+
+À primeira vista a solenoide parece o alvo óbvio: ela é alimentada pela rede de água e, sozinha, encheria a casa. Mas ela **já tem uma boia mecânica** no reservatório — uma válvula que fecha o fluxo fisicamente quando a água sobe, sem passar por eletrônica nenhuma. É a mesma ideia da boia de caixa d'água.
+
+A bomba de recalque não tem esse recurso e não pode ter: ela empurra água *para dentro* do aquário, e não existe válvula mecânica que interrompa uma bomba do lado da descarga. Se ela não parar, a água vai ao chão. Por isso o reed protege o canal que não tinha nada.
+
+Resumo das travas de água, do mais forte para o mais fraco:
+
+| Atuador | Trava física | Trava elétrica | Firmware |
+|---|---|---|---|
+| Solenoide (CH8) | **Boia mecânica no reservatório** | — | Boia elétrica no GPIO19 + timeout de 8 min |
+| Bomba de recalque (CH7) | — (impossível) | **Reed em série com o sinal IN7** | Ultrassônico + timeout dimensionado pela vazão |
+
 O corte de nível máximo **não passa pelo firmware**. É um reed switch em série com o fio de sinal entre o **GPIO33** e a entrada **IN7** do módulo MOSFET (canal da bomba de recalque). Se a água atingir o nível máximo, o contato abre, o comando se rompe e a bomba para — mesmo com o ESP32 travado, reiniciando ou com o ultrassônico mudo.
 
 Montagem: reed **NA** (normalmente aberto) com um ímã mantido próximo por uma boia de EVA, fora da água. No nível normal o ímã está presente e o contato fechado. Quando a água sobe, a boia afasta o ímã e o contato abre.

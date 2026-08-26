@@ -177,6 +177,19 @@ Waterproof ultrasonic sensor that reports distance over **UART**. No TRIG/ECHO, 
 
 ### Wiring Diagram — Max-Level Interlock (Reed Switch)
 
+#### Why the interlock is on the refill pump, not the solenoid
+
+At first glance the solenoid looks like the obvious target: it is fed from the water mains and on its own would flood the house. But it **already has a mechanical float valve** in the reservoir — a valve that physically shuts the flow when the water rises, with no electronics involved. Same idea as a cistern ballcock.
+
+The refill pump has no such thing and cannot have one: it pushes water *into* the aquarium, and no mechanical valve on the discharge side stops a pump. If it does not stop, the water goes on the floor. So the reed protects the channel that had nothing.
+
+Water interlocks, strongest first:
+
+| Actuator | Physical stop | Electrical stop | Firmware |
+|---|---|---|---|
+| Solenoid (CH8) | **Mechanical float valve in the reservoir** | — | Float switch on GPIO19 + 8-minute timeout |
+| Refill pump (CH7) | — (not possible) | **Reed in series with the IN7 signal** | Ultrasonic + flow-sized timeout |
+
 The max-level cutoff **does not go through the firmware**. It is a reed switch in series with the signal wire between **GPIO33** and input **IN7** of the MOSFET module (refill pump channel). If the water reaches max level the contact opens, the control signal is broken and the pump stops — even with the ESP32 hung, rebooting, or the ultrasonic silent.
 
 Assembly: **NO** (normally open) reed with a magnet held nearby by an EVA float, out of the water. At normal level the magnet is present and the contact closed. As the water rises, the float carries the magnet away and the contact opens.
