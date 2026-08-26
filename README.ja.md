@@ -271,7 +271,7 @@ IARAは[ntfy.sh](https://ntfy.sh/)を通じてリアルタイムのプッシュ�
 ```bash
 curl -X POST http://<ESP32_IP>/api/config/aquarium \
   -H "Content-Type: application/json" \
-  -d '{"aqHeight":45, "aqLength":90, "aqWidth":40, "aqMarginMm":30, "reservoirVolume":20, "primeRatio":0.5}'
+  -d '{"aqHeight":45, "aqLength":90, "aqWidth":40, "aqMarginMm":30, "reservoirVolume":20, "primeRatio":0.025}'
 ```
 
 **TPAスケジュール + キャニスター安全設定：**

@@ -271,7 +271,7 @@ Before the first TPA can run, the system requires all safety-critical parameters
 ```bash
 curl -X POST http://<ESP32_IP>/api/config/aquarium \
   -H "Content-Type: application/json" \
-  -d '{"aqHeight":45, "aqLength":90, "aqWidth":40, "aqMarginMm":30, "reservoirVolume":20, "primeRatio":0.5}'
+  -d '{"aqHeight":45, "aqLength":90, "aqWidth":40, "aqMarginMm":30, "reservoirVolume":20, "primeRatio":0.025}'
 ```
 
 **TPA schedule + canister safety:**

@@ -128,7 +128,20 @@ constexpr unsigned long MAINTENANCE_DURATION_MS = 30UL * 60 * 1000; // 30 min
 
 // Volumes and flow
 constexpr float DEFAULT_DOSE_ML = 5.0f;      // Default dose per fertilizer
-constexpr float DEFAULT_PRIME_ML = 10.0f;    // Default Prime dose
+// Seachem Prime's label rate is 5 mL per 200 L, i.e. 0.025 mL/L. Everything
+// here is expressed against that.
+constexpr float PRIME_LABEL_ML_PER_L = 0.025f;
+
+// Ceiling accepted from the API. Prime is forgiving — the label itself allows
+// 5x for emergency use — but it is not free: an overdose transiently depresses
+// dissolved oxygen, and this lands in a small, warm, densely planted tank over
+// the minutes of a refill. 6x is the outer edge of defensible.
+constexpr float PRIME_MAX_ML_PER_L = 0.15f;
+
+// Default dose for an 18 L reservoir at the label rate. The old 10 mL default
+// was 0.55 mL/L — about 22x the label — and the README's example primeRatio of
+// 0.5 was 20x.
+constexpr float DEFAULT_PRIME_ML = 0.45f;
 constexpr float DEFAULT_STOCK_ML = 500.0f;   // Default bottle size
 constexpr float FLOW_RATE_ML_PER_SEC = 1.5f; // Peristaltic pump flow rate
 constexpr float DEFAULT_DRAIN_PCT = 30.0f;   // Drain 30% of tank

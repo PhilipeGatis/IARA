@@ -522,6 +522,13 @@ void WebManager::_setupRoutes() {
         }
         float ratio = _extractFloat(body, "primeRatio");
         if (ratio >= 0) {
+          if (ratio > PRIME_MAX_ML_PER_L) {
+            Serial.printf("[Web] primeRatio %.4f mL/L capped to %.4f (%.0fx the "
+                          "label rate)\n",
+                          ratio, PRIME_MAX_ML_PER_L,
+                          PRIME_MAX_ML_PER_L / PRIME_LABEL_ML_PER_L);
+            ratio = PRIME_MAX_ML_PER_L;
+          }
           _primeRatio = ratio;
           changed = true;
         }
@@ -1280,7 +1287,7 @@ void WebManager::_loadParams() {
   _sensorFullDistanceMm = _prefs.getUShort("aqMg", 0);
   _drainFlowRate = _prefs.getFloat("drFR", 0);
   _refillFlowRate = _prefs.getFloat("rfFR", 0);
-  _primeRatio = _prefs.getFloat("pRat", 0);
+  _primeRatio = _prefs.getFloat("pRat", PRIME_LABEL_ML_PER_L);
   _primeEnabled = _prefs.getBool("pEn", true);
   _reservoirVolume = _prefs.getUShort("rVol", 0);
   _reservoirSafetyML = _prefs.getFloat("resSf", 0);
@@ -1585,6 +1592,17 @@ bool WebManager::triggerTPA(bool manual) {
   // What the cycle will actually deliver, which is not necessarily what was
   // configured. Reported so a silently-capped change stops being silent.
   _tpaPlannedLiters = drainLiters;
+
+  // Dose against the water actually being changed, not the reservoir's nominal
+  // capacity. At a 20% change only about 13 of 18 L are drawn, so the old basis
+  // over-dosed by the difference — and the residue carries its Prime into the
+  // next cycle, which then gets a full dose again on top.
+  if (_water && _primeRatio > 0 && drainLiters > 0) {
+    const float cycleML = drainLiters * _primeRatio;
+    _water->setPrimeML(cycleML);
+    Serial.printf("[Web] Prime for this cycle: %.2f mL for %.1f L (%.4f mL/L)\n",
+                  cycleML, drainLiters, _primeRatio);
+  }
 
   const float cmToDrain = (lPerCm > 0) ? drainLiters / lPerCm : 0;
   _water->setDrainTargetCm(currentLevel + cmToDrain);
