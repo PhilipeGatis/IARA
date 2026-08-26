@@ -96,6 +96,10 @@ function AppContent() {
   const [tab, setTab] = useState<'home' | 'tpa' | 'ferts' | 'logs' | 'config'>('home');
   const [status, setStatus] = useState<AQStatus | null>(null);
   const [wifiDot, setWifiDot] = useState(false);
+  // Stamped into the LittleFS image at buildfs time, so it names the commit the
+  // bundled assets actually belong to. __APP_VERSION__ is the dev-server value
+  // and only shows when the file is absent.
+  const [uiVersion, setUiVersion] = useState(__APP_VERSION__);
 
   useEffect(() => {
     setNetErrorMsg(t('net.error'));
@@ -114,6 +118,13 @@ function AppContent() {
         }
       })
       .catch(() => setWifiDot(false));
+
+    // Absent on the dev server and on any image built before this existed;
+    // the compile-time fallback already in state covers both.
+    fetch('/version.json')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.ui) setUiVersion(d.ui); })
+      .catch(() => { /* keep the fallback */ });
 
     // SSE Real-time Updates.
     //
@@ -179,7 +190,7 @@ function AppContent() {
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-[15px] font-medium leading-tight tracking-wide">IARA</h1>
             <p className="truncate font-mono text-[10px] leading-tight text-muted/80">
-              FW {status?.firmwareVersion || '?'} · UI {__APP_VERSION__}
+              FW {status?.firmwareVersion || '?'} · UI {uiVersion}
               {status?.resetReason ? ` · ${status.resetReason}` : ''}
               {status?.uptimeMs ? ` · ${formatUptime(status.uptimeMs)}` : ''}
             </p>

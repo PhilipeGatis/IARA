@@ -5,11 +5,19 @@ import pkg from './package.json'
 
 import { execSync } from 'child_process'
 
-function getFullVersion() {
+/**
+ * Fallback version for the dev server only.
+ *
+ * This cannot identify a shipped build. The natural order is compile, then
+ * commit, so at compile time HEAD is still the previous commit and the tree is
+ * dirty with the changes being compiled — every image reported its own parent.
+ * The version the dashboard displays comes from /version.json, stamped into the
+ * LittleFS image at buildfs time by scripts/fs_version.py.
+ */
+function getDevVersion() {
   try {
     const gitHash = execSync('git rev-parse --short HEAD').toString().trim()
-    const isDirty = execSync('git status --porcelain').toString().trim().length > 0
-    return `${pkg.version}-${gitHash}${isDirty ? '-dirty' : ''}`
+    return `${pkg.version}-${gitHash}-dev`
   } catch (e) {
     return pkg.version
   }
@@ -18,7 +26,7 @@ function getFullVersion() {
 // https://vite.dev/config/
 export default defineConfig({
   define: {
-    __APP_VERSION__: JSON.stringify(getFullVersion()),
+    __APP_VERSION__: JSON.stringify(getDevVersion()),
   },
   plugins: [
     react(),

@@ -10,3 +10,6 @@ pio_test.log
 
 # Local secrets — see secrets.ini.example
 secrets.ini
+
+# Stamped into the LittleFS image at buildfs time by scripts/fs_version.py
+data/version.json
