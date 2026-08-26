@@ -227,6 +227,21 @@ const translations = {
     'config.missing.reservoirVolume': { pt: 'Reservatório: Volume (L)', en: 'Reservoir: Volume (L)', ja: 'リザーバー: 容量（L）' },
     'config.missing.drainFlowRate': { pt: 'TPA: Vazão Drenagem (Calibrar)', en: 'TPA: Drain Flow (Calibrate)', ja: 'TPA: 排水流量（キャリブレーション）' },
     'config.missing.refillFlowRate': { pt: 'TPA: Vazão Recalque (Calibrar)', en: 'TPA: Refill Flow (Calibrate)', ja: 'TPA: 給水流量（キャリブレーション）' },
+    // The TPA state machine's own names. Rendered raw before this, so every
+    // user saw FILLING_RESERVOIR and MANUAL_PUMP_DRAIN regardless of language.
+    'tpaState.IDLE': { pt: 'Parado', en: 'Idle', ja: '待機中' },
+    'tpaState.CANISTER_OFF': { pt: 'Desligando filtro', en: 'Stopping filter', ja: 'フィルター停止中' },
+    'tpaState.DRAINING': { pt: 'Drenando', en: 'Draining', ja: '排水中' },
+    'tpaState.FILLING_RESERVOIR': { pt: 'Enchendo reservatório', en: 'Filling reservoir', ja: 'リザーバー給水中' },
+    'tpaState.DOSING_PRIME': { pt: 'Dosando Prime', en: 'Dosing Prime', ja: 'プライム投与中' },
+    'tpaState.REFILLING': { pt: 'Repondo água', en: 'Refilling', ja: '給水中' },
+    'tpaState.CANISTER_ON': { pt: 'Religando filtro', en: 'Restarting filter', ja: 'フィルター再起動中' },
+    'tpaState.COMPLETE': { pt: 'Concluída', en: 'Complete', ja: '完了' },
+    'tpaState.ERROR': { pt: 'Erro', en: 'Error', ja: 'エラー' },
+    'tpaState.MANUAL_RESERVOIR_FILL': { pt: 'Enchendo reservatório (manual)', en: 'Filling reservoir (manual)', ja: 'リザーバー給水中（手動）' },
+    'tpaState.MANUAL_PUMP_DRAIN': { pt: 'Drenagem manual', en: 'Manual drain', ja: '手動排水' },
+    'tpaState.MANUAL_PUMP_REFILL': { pt: 'Recalque manual', en: 'Manual refill', ja: '手動給水' },
+    'home.sensorDown': { pt: 'Sensor sem resposta — o nível mostrado pode estar velho', en: 'Sensor not responding — the level shown may be stale', ja: 'センサー応答なし — 表示中の水位は古い可能性があります' },
     'common.cancel': { pt: 'Cancelar', en: 'Cancel', ja: 'キャンセル' },
     'common.confirm': { pt: 'Confirmar', en: 'Confirm', ja: '実行' },
     'config.missing.reservoirSafetyML': { pt: 'TPA: Margem de Segurança do Reservatório (mL)', en: 'TPA: Reservoir Safety Margin (mL)', ja: 'TPA: リザーバー安全マージン（mL）' },
@@ -246,6 +261,19 @@ const translations = {
 } as const;
 
 type TranslationKey = keyof typeof translations;
+
+/**
+ * Narrows a TPA state name coming off the wire into a translation key.
+ *
+ * The firmware's enum is not part of this file's key union, and a state it
+ * gains later would otherwise be a compile error here or an untranslated
+ * string in the UI. Returns null for anything unrecognised so the caller can
+ * fall back to showing the raw name — which is still better than nothing.
+ */
+export function tpaStateKey(state: string): TranslationKey | null {
+    const key = `tpaState.${state}`;
+    return key in translations ? (key as TranslationKey) : null;
+}
 
 type I18nContextType = {
     lang: Lang;

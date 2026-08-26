@@ -28,6 +28,9 @@ export type AQStatus = {
   tpaLastRun: number;
   tpaPercent: number;
   tpaConfigReady: boolean;
+  tpaPlannedLiters?: number;
+  tpaBlockedReason?: string;
+  sensorsOk?: boolean;
   primeML: number;
   primeEnabled: boolean;
   aqHeight: number;
@@ -112,24 +115,55 @@ function AppContent() {
       })
       .catch(() => setWifiDot(false));
 
-    // SSE Real-time Updates
-    const evtSource = new EventSource('/events');
-    evtSource.addEventListener('status', (e) => {
-      try {
-        const d = JSON.parse(e.data);
-        setStatus(d);
-        setWifiDot(true);
-        if (d.wifiConnected !== undefined) {
-          document.body.className = d.wifiConnected ? '' : 'ap-mode';
+    // SSE Real-time Updates.
+    //
+    // EventSource retries a transient drop by itself, but once it reaches
+    // CLOSED — the firmware rebooting, an OTA, a non-200 — it stays closed for
+    // good. The page then sits there showing the last values it happened to
+    // receive, indistinguishable from live ones. Reopen it instead.
+    let evtSource: EventSource | null = null;
+    let retry: ReturnType<typeof setTimeout> | null = null;
+    let stopped = false;
+
+    const connect = () => {
+      if (stopped) return;
+      evtSource = new EventSource('/events');
+
+      evtSource.addEventListener('status', (e) => {
+        try {
+          const d = JSON.parse((e as MessageEvent).data);
+          setStatus(d);
+          setWifiDot(true);
+          if (d.wifiConnected !== undefined) {
+            document.body.className = d.wifiConnected ? '' : 'ap-mode';
+          }
+        } catch (err) {
+          console.error(err);
         }
-      } catch (err) {
-        console.error(err);
-      }
-    });
+      });
 
-    evtSource.onerror = () => setWifiDot(false);
+      evtSource.onerror = () => {
+        setWifiDot(false);
+        if (evtSource?.readyState === EventSource.CLOSED) {
+          evtSource.close();
+          evtSource = null;
+          if (!stopped && retry === null) {
+            retry = setTimeout(() => {
+              retry = null;
+              connect();
+            }, 3000);
+          }
+        }
+      };
+    };
 
-    return () => evtSource.close();
+    connect();
+
+    return () => {
+      stopped = true;
+      if (retry !== null) clearTimeout(retry);
+      evtSource?.close();
+    };
   }, []);
 
   return (

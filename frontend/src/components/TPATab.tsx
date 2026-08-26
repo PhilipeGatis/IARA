@@ -4,7 +4,7 @@ import { api } from '../api';
 import { FertCard } from './FertsTab';
 import { ConfigChecklist } from './HomeTab';
 import FertConfigModal from './FertConfigModal';
-import { useT } from '../i18n';
+import { useT, tpaStateKey } from '../i18n';
 import { useConfirm } from '../Confirm';
 
 /** Mirrors CALIBRATION_MIN_DELTA_PCT in Config.h. */
@@ -171,7 +171,9 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
         api('POST', '/api/canister/toggle');
     };
 
-    const busy = !!status && status.tpaState !== 'IDLE' && status.tpaState !== 'COMPLETE';
+    // ERROR is terminal too — it belongs with IDLE and COMPLETE, not with a
+    // cycle still in flight.
+    const busy = !!status && !['IDLE', 'COMPLETE', 'ERROR'].includes(status.tpaState);
 
     return (
         <div className="flex flex-col gap-3">
@@ -212,7 +214,10 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                 <div className="card-h">
                     <h2 className="card-t">{t('tpa.manual')}</h2>
                     <span className={`pill ${busy ? 'bg-accent/20 text-accent' : 'bg-white/5 text-muted'}`}>
-                        {status ? status.tpaState : '--'}
+                        {(() => {
+                            const k = status ? tpaStateKey(status.tpaState) : null;
+                            return k ? t(k) : (status?.tpaState ?? '--');
+                        })()}
                     </span>
                 </div>
 

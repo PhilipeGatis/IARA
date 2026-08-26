@@ -5,7 +5,7 @@ import type { AQStatus } from './App';
  * sensor was calibrated against, so readings above it mean the tank is over
  * its normal line — which is what the overflow guard watches for.
  */
-function levelPercent(status: AQStatus | null): number | null {
+export function levelPercent(status: AQStatus | null): number | null {
     if (!status) return null;
     const wl = status.waterLevel;
     const sensorFull = (status.sensorFullDistanceMm || 0) / 10;

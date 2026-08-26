@@ -1,7 +1,8 @@
 import { type AQStatus } from '../App';
 import { api } from '../api';
-import { useT } from '../i18n';
+import { useT, tpaStateKey } from '../i18n';
 import { useConfirm } from '../Confirm';
+import { levelPercent } from '../LevelBadge';
 
 /* ── Shared "what is still missing" checklist ─────────────────── */
 export function ConfigChecklist({ status }: { status: AQStatus | null }) {
@@ -58,15 +59,22 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
     const dateLocale = lang === 'ja' ? 'ja-JP' : lang === 'en' ? 'en-US' : 'pt-BR';
 
     /* ── Water level ─────────────────────────────────────────── */
-    const wl = status?.waterLevel ?? 0;
-    const refCm = (status?.aqHeight || 20) - ((status?.aqMarginMm || 0) / 10);
-    const sensorFull = (status?.sensorFullDistanceMm || 0) / 10;
-    const levelValid = wl >= 0;
-    const pct = levelValid ? Math.max(0, Math.min(100, Math.round(100 - ((wl - sensorFull) / refCm) * 100))) : 0;
+    // One formula, shared with the header badge. They used to differ by the
+    // border margin, so the same tank read two different percentages on the
+    // same screen.
+    const rawPct = levelPercent(status);
+    const levelValid = rawPct !== null;
+    const pct = levelValid ? Math.max(0, Math.min(100, Math.round(rawPct))) : 0;
     const levelTone = !levelValid ? 'text-muted' : pct < 25 ? 'text-danger' : pct < 50 ? 'text-warn' : 'text-accent2';
     const levelBar = !levelValid ? 'bg-muted' : pct < 25 ? 'bg-danger' : pct < 50 ? 'bg-warn' : 'bg-accent2';
 
-    const running = !!status && status.tpaState !== 'IDLE';
+    // COMPLETE and ERROR are terminal, not running. Gating on `!== 'IDLE'`
+    // left the abort button up permanently after the first cycle, with no way
+    // back to "start".
+    const TERMINAL = ['IDLE', 'COMPLETE', 'ERROR'];
+    const running = !!status && !TERMINAL.includes(status.tpaState);
+    const stateKey = status ? tpaStateKey(status.tpaState) : null;
+    const stateLabel = stateKey ? t(stateKey) : (status?.tpaState ?? '--');
 
     /* ── Weekly fertilizer table ─────────────────────────────── */
     const renderFertTable = () => {
@@ -133,7 +141,7 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                 <div className="card-h">
                     <h2 className="card-t">{t('home.waterLevel')}</h2>
                     <span className={`pill ${running ? 'bg-accent/20 text-accent' : 'bg-white/5 text-muted'}`}>
-                        {status ? status.tpaState : '--'}
+                        {stateLabel}
                     </span>
                 </div>
 
@@ -155,6 +163,14 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                 <div className="mt-3 h-3 w-full overflow-hidden rounded-full bg-white/10">
                     <div className={`h-full transition-all duration-500 ease-out ${levelBar}`} style={{ width: `${pct}%` }} />
                 </div>
+
+                {/* A dead sensor and a live one produced identical screens: the
+                    last median just stopped changing. Say so. */}
+                {status && status.sensorsOk === false ? (
+                    <p className="mt-3 rounded-lg bg-warn/15 px-3 py-2 text-xs text-warn">
+                        {t('home.sensorDown')}
+                    </p>
+                ) : null}
 
                 {/* Float, canister and maintenance moved to the header, where they
                     are visible from every tab instead of only this one. */}
@@ -209,15 +225,15 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
 
                 {/* Primary action */}
                 <div className="mt-4">
-                    {status?.tpaState === 'IDLE' ? (
+                    {!running ? (
                         <button
                             onClick={async () => {
-                                if (await ask(t('confirm.tpaStart', { pct: status.tpaPercent }))) {
+                                if (await ask(t('confirm.tpaStart', { pct: status?.tpaPercent ?? 0 }))) {
                                     api('POST', '/api/tpa/start');
                                 }
                             }}
                             className="btn btn-p2 w-full"
-                            disabled={!status.tpaConfigReady}
+                            disabled={!status?.tpaConfigReady}
                         >
                             {t('tpa.start')}
                         </button>
