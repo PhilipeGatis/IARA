@@ -242,6 +242,17 @@ String WebManager::_buildStatusJSON() {
   json += "\"tpaConfigReady\":";
   json += (isTpaConfigReady() ? "true" : "false");
   json += ",";
+  // What the last trigger actually planned to move. The reservoir and the 50%
+  // ceiling can both cap it well below aqVolume x tpaPercent, and until now
+  // that happened silently — the UI showed the configured percentage and the
+  // cycle delivered something else.
+  json += "\"tpaPlannedLiters\":" + String(_tpaPlannedLiters, 2) + ",";
+  json += "\"tpaBlockedReason\":\"" + _tpaBlockedReason + "\",";
+  // Without this the UI cannot tell a dead sensor from a live one: a stale
+  // level and a current level look identical once they are both just numbers.
+  json += "\"sensorsOk\":";
+  json += (_safety && _safety->areSensorsConnected() ? "true" : "false");
+  json += ",";
   json += "\"language\":" + String(_language) + ",";
   if (_water) {
     json += "\"pumpGoalLiters\":" + String(_water->getPumpGoalLiters(), 2) + ",";
@@ -349,7 +360,9 @@ void WebManager::_setupRoutes() {
       "/api/tpa/config", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
       [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
              size_t index, size_t total) {
-        String body = String((char *)data).substring(0, len);
+        String body;
+        if (!_collectBody(request, data, len, index, total, body))
+          return;
         bool changed = false;
 
         float s = _extractFloat(body, "reservoirSafetyML");
@@ -371,7 +384,9 @@ void WebManager::_setupRoutes() {
       "/api/tpa/pump", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
       [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
              size_t index, size_t total) {
-        String body = String((char *)data).substring(0, len);
+        String body;
+        if (!_collectBody(request, data, len, index, total, body))
+          return;
         int st = _extractInt(body, "state");
         
         // Only block STARTING a pump if TPA is running. We must always allow STOPPING (st == 0)
@@ -415,7 +430,9 @@ void WebManager::_setupRoutes() {
       [](AsyncWebServerRequest *request) {}, NULL,
       [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
              size_t index, size_t total) {
-        String body = String((char *)data).substring(0, len);
+        String body;
+        if (!_collectBody(request, data, len, index, total, body))
+          return;
         String pStr = _extractString(body, "pump");
         if (!_water || (pStr != "drain" && pStr != "refill")) {
           request->send(400, "application/json",
@@ -472,7 +489,9 @@ void WebManager::_setupRoutes() {
       NULL,
       [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
              size_t index, size_t total) {
-        String body = String((char *)data).substring(0, len);
+        String body;
+        if (!_collectBody(request, data, len, index, total, body))
+          return;
         bool changed = false;
 
         int h = _extractInt(body, "aqHeight");
@@ -516,6 +535,15 @@ void WebManager::_setupRoutes() {
           _sensorFullDistanceMm = mg;
           changed = true;
         }
+        // The config form posts this alongside the dimensions, which is where a
+        // user would expect it to live. It was only ever parsed by
+        // /api/tpa/schedule, so saving the form silently discarded it and the
+        // canister dry-run guard stayed at whatever it was.
+        int csp = _extractInt(body, "canisterSafePct");
+        if (csp >= 0 && csp <= 100) {
+          _canisterSafePct = csp;
+          changed = true;
+        }
 
         if (changed) {
           // Auto-calculate primeML from reservoirVolume × ratio
@@ -541,14 +569,33 @@ void WebManager::_setupRoutes() {
   _server.on("/api/config/calibrate-sensor-full", HTTP_POST,
              [this](AsyncWebServerRequest *request) {
                if (_safety) {
-                 float dist = _safety->readUltrasonic();
-                 if (dist > 0) {
+                 const float dist = _safety->readUltrasonic();
+                 // The A02YYUW's usable range; anything outside it is a bad
+                 // frame, not a measurement. Storing one here is expensive:
+                 // this reading defines where 100% is, so every level, every
+                 // percentage and the overflow threshold inherit the error.
+                 if (dist >= ULTRASONIC_MIN_DISTANCE_CM &&
+                     dist <= ULTRASONIC_MAX_DISTANCE_CM) {
                    _sensorFullDistanceMm = (uint16_t)round(dist * 10.0f); // mm
-                   _prefs.putUShort("aqMg", _sensorFullDistanceMm);
+
+                   // _prefs is opened and closed inside _loadParams/_saveParams,
+                   // so the handle is closed here and putUShort() went nowhere:
+                   // the calibration survived until the next reboot and no
+                   // further. Go through _saveParams() like every other write.
+                   _saveParams();
+
+                   // Both of these are derived from the 100% mark. Without the
+                   // push, overflow detection keeps comparing against the old
+                   // reference and the canister safe level stays where it was.
+                   if (_safety)
+                     _safety->setOverflowThresholdCm(getOverflowThresholdCm());
+                   syncAquariumGeometryToWater();
+
                    Serial.printf("[Web] Sensor 100%% calibrated to %d mm\n", _sensorFullDistanceMm);
                    request->send(200, "application/json", "{\"ok\":true}");
                    return;
                  }
+                 Serial.printf("[Web] Sensor calibration rejected: %.1f cm out of range\n", dist);
                }
                request->send(500, "application/json", "{\"error\":\"Sensor error\"}");
              });
@@ -657,7 +704,9 @@ void WebManager::_setupRoutes() {
       "/api/schedule", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
       [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
              size_t index, size_t total) {
-        String body = String((char *)data).substring(0, len);
+        String body;
+        if (!_collectBody(request, data, len, index, total, body))
+          return;
         bool changed = false;
 
         int inv = _extractInt(body, "tpaInterval");
@@ -686,8 +735,11 @@ void WebManager::_setupRoutes() {
           changed = true;
         }
         int csp = _extractInt(body, "canisterSafePct");
-        if (csp > 0 && csp <= 100) {
+        if (csp >= 0 && csp <= 100) {
           _canisterSafePct = csp;
+          // canisterSafeLevelCm is derived from this percentage, so WaterManager
+          // keeps using the old one until the geometry is pushed down again.
+          syncAquariumGeometryToWater();
           changed = true;
         }
         int lang = _extractInt(body, "language");
@@ -713,7 +765,9 @@ void WebManager::_setupRoutes() {
       NULL,
       [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
              size_t index, size_t total) {
-        String body = String((char *)data).substring(0, len);
+        String body;
+        if (!_collectBody(request, data, len, index, total, body))
+          return;
         int ch = _extractInt(body, "channel");
         float doses[7] = {0};
         bool hasDoses = _extractFloatArray(body, "doses", doses, 7);
@@ -766,7 +820,9 @@ void WebManager::_setupRoutes() {
       "/api/fert/pump", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
       [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
              size_t index, size_t total) {
-        String body = String((char *)data).substring(0, len);
+        String body;
+        if (!_collectBody(request, data, len, index, total, body))
+          return;
         int ch = _extractInt(body, "channel");
         int st = _extractInt(body, "state");
 
@@ -781,7 +837,9 @@ void WebManager::_setupRoutes() {
       "/api/fert/run3s", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
       [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
              size_t index, size_t total) {
-        String body = String((char *)data).substring(0, len);
+        String body;
+        if (!_collectBody(request, data, len, index, total, body))
+          return;
         int ch = _extractInt(body, "channel");
 
         if (ch >= 0 && ch <= 4 && _fert) {
@@ -842,7 +900,9 @@ void WebManager::_setupRoutes() {
       NULL,
       [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
              size_t index, size_t total) {
-        String body = String((char *)data).substring(0, len);
+        String body;
+        if (!_collectBody(request, data, len, index, total, body))
+          return;
         int ch = _extractInt(body, "channel");
         float ml = _extractFloat(body, "ml");
         if (ch >= 0 && ch <= 4 && ml > 0 && _fert) {
@@ -858,7 +918,9 @@ void WebManager::_setupRoutes() {
       "/api/fert/name", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
       [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
              size_t index, size_t total) {
-        String body = String((char *)data).substring(0, len);
+        String body;
+        if (!_collectBody(request, data, len, index, total, body))
+          return;
         int ch = _extractInt(body, "channel");
         String nameStr = _extractString(body, "name");
 
@@ -873,7 +935,9 @@ void WebManager::_setupRoutes() {
       "/api/fert/pwm", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
       [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
              size_t index, size_t total) {
-        String body = String((char *)data).substring(0, len);
+        String body;
+        if (!_collectBody(request, data, len, index, total, body))
+          return;
         int ch = _extractInt(body, "channel");
         int pwmValue = _extractInt(body, "pwm");
 
@@ -889,7 +953,9 @@ void WebManager::_setupRoutes() {
       "/api/fert/enable", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
       [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
              size_t index, size_t total) {
-        String body = String((char *)data).substring(0, len);
+        String body;
+        if (!_collectBody(request, data, len, index, total, body))
+          return;
         int ch = _extractInt(body, "channel");
         int enabled = _extractInt(body, "enabled");
 
@@ -921,7 +987,9 @@ void WebManager::_setupRoutes() {
       "/api/notify/key", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
       [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
              size_t index, size_t total) {
-        String body = String((char *)data).substring(0, len);
+        String body;
+        if (!_collectBody(request, data, len, index, total, body))
+          return;
         String topic = _extractString(body, "topic");
         if (_notify) {
           _notify->setTopic(topic);
@@ -939,7 +1007,9 @@ void WebManager::_setupRoutes() {
           request->send(200, "application/json", "{\"ok\":true}");
           return;
         }
-        String body = String((char *)data).substring(0, len);
+        String body;
+        if (!_collectBody(request, data, len, index, total, body))
+          return;
 
         // Per-type toggles
         const char *typeKeys[] = {"tpaComplete", "tpaError",     "fertLowStock",
@@ -1014,6 +1084,36 @@ void WebManager::_setupRoutes() {
 // ============================================================================
 // SIMPLE JSON EXTRACTORS (avoid ArduinoJson dependency)
 // ============================================================================
+
+bool WebManager::_collectBody(AsyncWebServerRequest *request, uint8_t *data,
+                              size_t len, size_t index, size_t total,
+                              String &out) {
+  // Every body this server accepts is a small JSON object. Anything claiming to
+  // be larger is either a bug or someone trying to exhaust the heap, and the
+  // ESP32 has ~200 KB of it.
+  static const size_t MAX_BODY_BYTES = 4096;
+  if (total > MAX_BODY_BYTES || index + len > total) {
+    _bodyBuf = String();
+    _bodyOwner = nullptr;
+    request->send(413, "application/json", "{\"error\":\"body too large\"}");
+    return false;
+  }
+
+  if (index == 0 || _bodyOwner != request) {
+    _bodyBuf = String();
+    _bodyBuf.reserve(total + 1);
+    _bodyOwner = request;
+  }
+  _bodyBuf.concat((const char *)data, len);
+
+  if (index + len < total)
+    return false; // more chunks still coming
+
+  out = _bodyBuf;
+  _bodyBuf = String();
+  _bodyOwner = nullptr;
+  return true;
+}
 
 int WebManager::_extractInt(const String &json, const char *key) {
   String search = String("\"") + key + "\":";
@@ -1388,41 +1488,102 @@ bool WebManager::triggerTPA(bool manual) {
     return false;
   }
 
-  float currentLevel = _safety->readUltrasonic();
-  float lPerCm = getLitersPerCm();
-  float aqVol = (float)getAquariumVolume();
+  const float currentLevel = _safety->readUltrasonic();
+  const float fullCm = (float)_sensorFullDistanceMm / 10.0f;
+
+  // Every setpoint below is measured from this one reading, so a bad frame here
+  // does not produce a slightly-off cycle — it produces a drain target derived
+  // from nonsense.
+  if (currentLevel < ULTRASONIC_MIN_DISTANCE_CM ||
+      currentLevel > ULTRASONIC_MAX_DISTANCE_CM) {
+    Serial.printf("[Web] TPA refused: implausible level reading %.1f cm\n",
+                  currentLevel);
+    return false;
+  }
+
+  // Distance grows as the water drops, so a level far *above* the calibrated
+  // full mark means the tank is already short. Draining from there and refilling
+  // back to there locks the deficit in, and it compounds every cycle.
+  if (currentLevel - fullCm > TPA_MAX_START_DEVIATION_CM) {
+    Serial.printf("[Web] TPA refused: level is %.1f cm below the 100%% mark "
+                  "(limit %.1f). Top the tank up first.\n",
+                  currentLevel - fullCm, TPA_MAX_START_DEVIATION_CM);
+    _tpaBlockedReason = F("level below the calibrated full mark");
+    return false;
+  }
+
+  const float lPerCm = getLitersPerCm();
+  const float aqVol = (float)getAquariumVolume();
   float drainLiters = aqVol * getTpaPercent() / 100.0f;
 
-  float resAvail = (float)getReservoirVolume() - getReservoirSafetyML() / 1000.0f;
-  if (resAvail > 0 && drainLiters > resAvail) {
+  const float hardCap = aqVol * TPA_MAX_DRAIN_PCT / 100.0f;
+  if (drainLiters > hardCap) {
+    drainLiters = hardCap;
+    Serial.printf("[Web] TPA capped to %.1f L (%.0f%% ceiling)\n", drainLiters,
+                  TPA_MAX_DRAIN_PCT);
+  }
+
+  // The reservoir cannot give more than it holds, minus the margin that keeps
+  // the refill pump from running dry. If the margin is larger than the
+  // reservoir there is nothing to draw and the old code fell through the cap
+  // entirely, draining the full percentage against an empty tank.
+  const float resAvail =
+      (float)getReservoirVolume() - getReservoirSafetyML() / 1000.0f;
+  if (resAvail <= 0) {
+    Serial.printf("[Web] TPA refused: safety margin (%.0f mL) leaves no usable "
+                  "water in a %d L reservoir\n",
+                  getReservoirSafetyML(), getReservoirVolume());
+    _tpaBlockedReason = F("reservoir safety margin exceeds its volume");
+    return false;
+  }
+  if (drainLiters > resAvail) {
     drainLiters = resAvail;
     Serial.printf("[Web] TPA capped to %.1f L (reservoir limit)\n", drainLiters);
   }
+  _tpaBlockedReason = String();
 
-  float cmToDrain = (lPerCm > 0) ? drainLiters / lPerCm : 0;
+  // What the cycle will actually deliver, which is not necessarily what was
+  // configured. Reported so a silently-capped change stops being silent.
+  _tpaPlannedLiters = drainLiters;
+
+  const float cmToDrain = (lPerCm > 0) ? drainLiters / lPerCm : 0;
   _water->setDrainTargetCm(currentLevel + cmToDrain);
   _water->setRefillTargetCm(currentLevel);
   _water->setLitersPerCm(lPerCm);
 
-  float effH = aqVol / lPerCm;
-  float canisterSafeCm = effH * (100.0f - getCanisterSafePct()) / 100.0f;
+  const float effH = aqVol / lPerCm;
+  const float canisterSafeCm = effH * (100.0f - getCanisterSafePct()) / 100.0f;
   _water->setCanisterSafeLevelCm(canisterSafeCm);
   _water->setAqEffectiveHeightCm(effH);
 
-  float drainLPM = _water->getDrainFlowLPM();
-  float refillLPM = _water->getRefillFlowLPM();
-  if (drainLPM > 0) {
-    unsigned long t = (unsigned long)((drainLiters / drainLPM) * 1.5f * 60000.0f);
-    _water->setTimeoutDrainMs(t);
-  }
-  if (refillLPM > 0) {
-    unsigned long t = (unsigned long)((drainLiters / refillLPM) * 1.5f * 60000.0f);
-    _water->setTimeoutRefillMs(t);
-  }
+  // A measured rate near zero makes this quotient enormous; assigning it to an
+  // unsigned long is undefined behaviour, and the value that lands there is a
+  // timeout that will never fire. Clamp before the conversion, not after.
+  const float drainLPM = _water->getDrainFlowLPM();
+  const float refillLPM = _water->getRefillFlowLPM();
+  if (drainLPM > 0)
+    _water->setTimeoutDrainMs(_clampTimeoutMs(drainLiters / drainLPM));
+  if (refillLPM > 0)
+    _water->setTimeoutRefillMs(_clampTimeoutMs(drainLiters / refillLPM));
 
   _water->startTPA(manual);
-  if (_time) {
-    setTpaLastRun(_time->now().unixtime());
-  }
+  // _tpaLastRun is deliberately NOT stamped here. It gates the schedule, so
+  // stamping it at the start spends the whole interval on an attempt: a cycle
+  // that errors at 10:02 would not be retried for another seven days, and a
+  // failure during the refill would leave the tank low for that entire week.
+  // main.cpp stamps it on the COMPLETE transition instead, which leaves
+  // isTPADay latched and lets the next day's scheduled minute retry.
   return true;
+}
+
+/// Converts a run time in minutes into a timeout, with margin and bounds.
+unsigned long WebManager::_clampTimeoutMs(float minutes) {
+  constexpr float MARGIN = 1.5f;
+  constexpr float MAX_MINUTES = 60.0f;
+  if (!(minutes > 0))
+    return TIMEOUT_DRAIN_MS; // fall back to the compiled-in default
+  float withMargin = minutes * MARGIN;
+  if (withMargin > MAX_MINUTES)
+    withMargin = MAX_MINUTES;
+  return (unsigned long)(withMargin * 60000.0f);
 }

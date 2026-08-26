@@ -49,7 +49,8 @@ float SafetyWatchdog::readUltrasonic() {
       
       if (((header + dataH + dataL) & 0xFF) == sum) {
         float distance = ((dataH << 8) | dataL) / 10.0f; // mm to cm
-        if (distance > 0 && distance <= ULTRASONIC_MAX_DISTANCE_CM) {
+        if (distance >= ULTRASONIC_MIN_DISTANCE_CM &&
+            distance <= ULTRASONIC_MAX_DISTANCE_CM) {
           // Store in median buffer (circular)
           _medianBuffer[_medianIndex] = distance;
           _medianIndex = (_medianIndex + 1) % MEDIAN_BUFFER_SIZE;

@@ -74,6 +74,11 @@ public:
   /// Is the current TPA manually triggered?
   bool isManualTPA() const { return _isManualTPA; }
 
+  /// True when the run that just ended was a full TPA cycle rather than a
+  /// manual pump run or a calibration. Both land in COMPLETE, but only the
+  /// first one should consume the schedule interval.
+  bool wasFullCycle() const { return _wasFullCycle; }
+
   /// Is a TPA cycle currently running?
   bool isRunning() const {
     return _state != TPAState::IDLE && _state != TPAState::COMPLETE &&
@@ -132,6 +137,7 @@ private:
   SafetyWatchdog *_safety;
   FertManager *_fert;
   bool _isManualTPA;
+  bool _wasFullCycle = false;
 
   // State timing
   unsigned long _stateStartMs;

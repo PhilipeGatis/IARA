@@ -472,14 +472,29 @@ void loop() {
 
   // If TPA just completed, record timestamp, save calibration, and notify
   if (waterMgr.getState() == TPAState::COMPLETE) {
-    waterMgr.setLastTPATime(timeMgr.getFormattedTime());
-
-    // Persist and publish the calibration once. A timed calibration run ends
-    // here rather than through stopManual(), so this is the only place that
-    // sees it — without the sync the measured rate stays inside WaterManager
-    // and never reaches /api/status or isTpaConfigReady().
+    // COMPLETE holds until the next run starts, so everything here has to be
+    // once-per-cycle. setLastTPATime() in particular formats a timestamp and
+    // rebuilds a String, and it used to do that on every one of the ~20 loop
+    // iterations per second, forever, for a value that stopped changing the
+    // moment the cycle ended.
     if (!calibrationSettled) {
       calibrationSettled = true;
+      waterMgr.setLastTPATime(timeMgr.getFormattedTime());
+
+      // The schedule interval is spent here rather than at trigger time. A
+      // cycle that errors must not consume the whole week: leaving _tpaLastRun
+      // alone keeps isTPADay latched, so the next day's scheduled minute
+      // retries instead of the tank sitting low until the interval elapses.
+      // Manual pump runs and calibrations also end in COMPLETE, and those are
+      // not water changes — only a full cycle counts.
+      if (waterMgr.wasFullCycle()) {
+        webMgr.setTpaLastRun(timeMgr.now().unixtime());
+      }
+
+      // Persist and publish the calibration once. A timed calibration run ends
+      // here rather than through stopManual(), so this is the only place that
+      // sees it — without the sync the measured rate stays inside WaterManager
+      // and never reaches /api/status or isTpaConfigReady().
       if (waterMgr.getDrainFlowLPM() > 0 || waterMgr.getRefillFlowLPM() > 0) {
         waterMgr.saveCalibration();
         webMgr.syncFlowRatesFromWater();

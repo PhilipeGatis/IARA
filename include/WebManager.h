@@ -79,7 +79,13 @@ public:
   bool isTpaConfigReady() const {
     return _aqHeight > 0 && _aqLength > 0 && _aqWidth > 0 &&
            _sensorFullDistanceMm > 0 && _drainFlowRate > 0 && _refillFlowRate > 0 &&
-           _reservoirVolume > 0 && _reservoirSafetyML > 0;
+           _reservoirVolume > 0 && _reservoirSafetyML > 0 &&
+           // Without this, canisterSafeLevelCm equals the full tank height and
+           // restoreCanisterIfSafe() waves every level through — so a scheduled,
+           // unattended TPA would run with the one guard that keeps the canister
+           // from running dry switched off. The README already called it
+           // mandatory; now it is.
+           _canisterSafePct > 0;
   }
   bool getPrimeEnabled() const { return _primeEnabled; }
 
@@ -147,6 +153,19 @@ private:
   void _printHelp();
 
   // JSON helpers
+  /// Reassembles a POST body from the async body handler's chunks.
+  ///
+  /// Two hazards it exists to close. The `data` buffer is NOT NUL-terminated,
+  /// so `String((char*)data)` reads past its end until it happens to find a
+  /// zero: a heap overread that pulls whatever follows in memory into the JSON
+  /// parse, and can fault outright. And a body arrives in TCP-sized chunks, so
+  /// parsing the first one alone silently acts on a truncated request.
+  ///
+  /// Returns true (and fills `out`) only once the whole body has arrived.
+  /// Answers oversized requests itself, so callers just return on false.
+  bool _collectBody(AsyncWebServerRequest *request, uint8_t *data, size_t len,
+                    size_t index, size_t total, String &out);
+
   static int _extractInt(const String &json, const char *key);
   static float _extractFloat(const String &json, const char *key);
   static String _extractString(const String &json, const char *key);
@@ -155,6 +174,21 @@ private:
 
   /// Build notify status JSON fragment (DRY #5)
   String _buildNotifyJSON() const;
+
+  static unsigned long _clampTimeoutMs(float minutes);
+
+  // Reassembly buffer for _collectBody(). One is enough: the async server runs
+  // handlers on a single task, and _bodyOwner catches the case where a second
+  // request interleaves anyway by discarding the abandoned partial body.
+  String _bodyBuf;
+  const AsyncWebServerRequest *_bodyOwner = nullptr;
+
+  // Litres the last triggerTPA() actually planned to move, which is not
+  // necessarily aqVolume x tpaPercent: the reservoir and the 50% ceiling both
+  // cap it. Surfaced so a capped cycle is visible rather than silent.
+  float _tpaPlannedLiters = 0;
+  // Why the last trigger was refused, for the UI to show instead of nothing.
+  String _tpaBlockedReason;
 
 #ifdef USE_WEBSERVER
   AsyncWebServer _server;

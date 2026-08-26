@@ -117,14 +117,30 @@ constexpr float DEFAULT_STOCK_ML = 500.0f;   // Default bottle size
 constexpr float FLOW_RATE_ML_PER_SEC = 1.5f; // Peristaltic pump flow rate
 constexpr float DEFAULT_DRAIN_PCT = 30.0f;   // Drain 30% of tank
 
+// Hard ceiling on a single cycle, independent of what tpaPercent says. The only
+// thing standing between a typo in reservoirVolume and a drain target below the
+// livestock line is this clamp.
+constexpr float TPA_MAX_DRAIN_PCT = 50.0f;
+
+// How far the level may sit from the calibrated 100% mark and still be treated
+// as "the tank is where the last cycle left it". Past this, something already
+// went wrong — evaporation left unattended, or a cycle that errored during the
+// refill — and draining from that level would bank the deficit permanently.
+constexpr float TPA_MAX_START_DEVIATION_CM = 3.0f;
+
 // -- NTP sync interval --
 constexpr unsigned long NTP_SYNC_INTERVAL_MS = 24UL * 3600 * 1000; // 24 h
 
 // -- Ultrasonic --
+// The A02YYUW's specified range. Below the blind zone the sensor does not
+// return a distance, it returns whatever ring-down it is still hearing — and a
+// 1 cm reading means "tank is overflowing" to everything downstream, so a
+// single bad frame must not reach the median buffer.
+constexpr float ULTRASONIC_MIN_DISTANCE_CM = 3.0f;
 constexpr float ULTRASONIC_MAX_DISTANCE_CM = 400.0f;
-constexpr uint8_t ULTRASONIC_SAMPLES = 5; // Median filter samples
-constexpr unsigned long ULTRASONIC_PULSE_TIMEOUT_US =
-    30000; // 30 ms echo timeout
+// Median window length lives in SafetyWatchdog::MEDIAN_BUFFER_SIZE, next to the
+// buffer it sizes. ULTRASONIC_SAMPLES and ULTRASONIC_PULSE_TIMEOUT_US were left
+// over from the HC-SR04/pulseIn driver and described nothing the A02YYUW does.
 
 // -- Water levels (distance from sensor in cm — lower distance = higher water)
 constexpr float LEVEL_DRAIN_TARGET_CM = 20.0f;  // Default TPA drain target

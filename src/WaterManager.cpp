@@ -69,6 +69,7 @@ void WaterManager::_resetCycleState() {
   _canisterOffForManual = false;
   _refillConfirming = false;
   _manualTargetLevelCm = -1;
+  _wasFullCycle = false;
 }
 
 void WaterManager::startTPA(bool manual) {
@@ -88,6 +89,7 @@ void WaterManager::startTPA(bool manual) {
   Serial.println("[Water] === TPA CYCLE STARTED ===");
   _resetCycleState();
   _isManualTPA = manual;
+  _wasFullCycle = true;
   // The reservoir comes first on purpose. Everything that can fail here — no
   // mains pressure, a stuck float, a dead solenoid — fails while the aquarium
   // is still full and the canister still running. Draining first would leave a
