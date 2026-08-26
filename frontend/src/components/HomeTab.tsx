@@ -19,6 +19,11 @@ export function ConfigChecklist({ status }: { status: AQStatus | null }) {
     if (!status.drainFlowRate || status.drainFlowRate <= 0) missing.push(t('config.missing.drainFlowRate'));
     if (!status.refillFlowRate || status.refillFlowRate <= 0) missing.push(t('config.missing.refillFlowRate'));
     if (!status.reservoirSafetyML || status.reservoirSafetyML <= 0) missing.push(t('config.missing.reservoirSafetyML'));
+    // Mandatory in the firmware since it gates restoreCanisterIfSafe(); at 0 the
+    // safe level equals the whole tank height and every level passes. It was
+    // missing from this list, so the banner said configuration was incomplete
+    // and then listed nothing that was.
+    if (!status.canisterSafePct || status.canisterSafePct <= 0) missing.push(t('config.missing.canisterSafePct'));
 
     return (
         <div className="note note-w">

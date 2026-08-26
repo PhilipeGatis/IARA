@@ -246,6 +246,7 @@ const translations = {
     'home.sensorDown': { pt: 'Sensor sem resposta — o nível mostrado pode estar velho', en: 'Sensor not responding — the level shown may be stale', ja: 'センサー応答なし — 表示中の水位は古い可能性があります' },
     'common.cancel': { pt: 'Cancelar', en: 'Cancel', ja: 'キャンセル' },
     'common.confirm': { pt: 'Confirmar', en: 'Confirm', ja: '実行' },
+    'config.missing.canisterSafePct': { pt: 'Canister: Nível Seguro (%)', en: 'Canister: Safe Level (%)', ja: 'キャニスター: 安全水位（%）' },
     'config.missing.reservoirSafetyML': { pt: 'TPA: Margem de Segurança do Reservatório (mL)', en: 'TPA: Reservoir Safety Margin (mL)', ja: 'TPA: リザーバー安全マージン（mL）' },
 
     'notify.dailyLevel': { pt: 'Nível Diário', en: 'Daily Level', ja: '日次水位' },
