@@ -103,6 +103,20 @@ public:
   void setLitersPerCm(float lpc) { _litersPerCm = lpc; }
   void setAqEffectiveHeightCm(float h) { _aqEffectiveHeightCm = h; }
   void setPrimeEnabled(bool enabled) { _primeEnabled = enabled; }
+
+  /// Declares that a mechanical float valve closes the reservoir's inlet at the
+  /// full level, independently of any electronics.
+  ///
+  /// With it, running out the fill timeout stops being a failure: the water has
+  /// been held back by the valve, so the reservoir is full whether or not the
+  /// electrical float said so. Without it, the timeout is the only thing
+  /// standing between a stuck valve and an unbounded mains feed, and it errors.
+  ///
+  /// The cost is real and worth stating: the electrical float is the only way
+  /// to tell a full reservoir from an empty one, so in this mode a fill that
+  /// failed for want of mains pressure looks exactly like one that succeeded,
+  /// and the cycle will drain the aquarium before discovering it.
+  void setReservoirHasMechanicalFloat(bool has) { _reservoirMechFloat = has; }
   void setDrainFlowLPM(float lpm) { _drainFlowLPM = lpm; }
   void setRefillFlowLPM(float lpm) { _refillFlowLPM = lpm; }
   float getDrainFlowLPM() const { return _drainFlowLPM; }
@@ -240,6 +254,7 @@ private:
   /// Timeout for the current manual run, sized from the goal and flow rate.
   unsigned long _manualTimeoutMs = MANUAL_PUMP_MAX_MS;
   bool _primeEnabled = true;
+  bool _reservoirMechFloat = false;
 
   // Float sensor debounce (requires N consecutive "full" reads to confirm)
   static constexpr uint8_t FLOAT_DEBOUNCE_COUNT = 5; // 5 × 50ms loop = 250ms

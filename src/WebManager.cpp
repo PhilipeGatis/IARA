@@ -31,7 +31,7 @@ WebManager::WebManager()
       _tpaPercent(20), _canisterSafePct(0), _language(0),
       _primeML(DEFAULT_PRIME_ML), _aqHeight(0), _aqLength(0), _aqWidth(0),
       _sensorFullDistanceMm(0), _drainFlowRate(0), _refillFlowRate(0),
-      _primeEnabled(true),
+      _primeEnabled(true), _reservoirMechFloat(false),
       _reservoirVolume(0), _reservoirSafetyML(0), _lastTelemetryMs(0),
       _lastSSEMs(0), _lastSSECleanupMs(0), _rebootPending(false), _rebootMs(0) {
 }
@@ -91,6 +91,7 @@ void WebManager::begin(TimeManager *time, WaterManager *water,
   if (_water) {
     _water->setPrimeML(_primeML);
     _water->setPrimeEnabled(_primeEnabled);
+    _water->setReservoirHasMechanicalFloat(_reservoirMechFloat);
 
     syncFlowRatesFromWater();
     syncAquariumGeometryToWater();
@@ -240,6 +241,7 @@ String WebManager::_buildStatusJSON() {
   json += "\"refillFlowRate\":" + String(_refillFlowRate, 2) + ",";
   json += "\"primeRatio\":" + String(_primeRatio, 5) + ",";
   json += "\"primeEnabled\":" + String(_primeEnabled ? "true" : "false") + ",";
+  json += "\"reservoirMechFloat\":" + String(_reservoirMechFloat ? "true" : "false") + ",";
   json += "\"reservoirVolume\":" + String(_reservoirVolume) + ",";
   json += "\"reservoirSafetyML\":" + String(_reservoirSafetyML, 0) + ",";
   json += "\"tpaConfigReady\":";
@@ -546,6 +548,12 @@ void WebManager::_setupRoutes() {
         if (pe >= 0) {
           _primeEnabled = (pe == 1);
           if (_water) _water->setPrimeEnabled(_primeEnabled);
+          changed = true;
+        }
+        int mf = _extractInt(body, "reservoirMechFloat");
+        if (mf >= 0) {
+          _reservoirMechFloat = (mf == 1);
+          if (_water) _water->setReservoirHasMechanicalFloat(_reservoirMechFloat);
           changed = true;
         }
         int rv = _extractInt(body, "reservoirVolume");
@@ -1344,6 +1352,7 @@ void WebManager::_loadParams() {
   _refillFlowRate = _prefs.getFloat("rfFR", 0);
   _primeRatio = _prefs.getFloat("pRat", PRIME_LABEL_ML_PER_L);
   _primeEnabled = _prefs.getBool("pEn", true);
+  _reservoirMechFloat = _prefs.getBool("resMF", false);
   _reservoirVolume = _prefs.getUShort("rVol", 0);
   _reservoirSafetyML = _prefs.getFloat("resSf", 0);
   _prefs.end();
@@ -1392,6 +1401,7 @@ void WebManager::_saveParams() {
   _prefs.putFloat("rfFR", _refillFlowRate);
   _prefs.putFloat("pRat", _primeRatio);
   _prefs.putBool("pEn", _primeEnabled);
+  _prefs.putBool("resMF", _reservoirMechFloat);
   _prefs.putUShort("rVol", _reservoirVolume);
   _prefs.putFloat("resSf", _reservoirSafetyML);
   _prefs.end();

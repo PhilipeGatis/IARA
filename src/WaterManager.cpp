@@ -442,6 +442,18 @@ void WaterManager::_handleFillingReservoir() {
   }
 
   if (_stateElapsed() >= TIMEOUT_RESERVOIR_FILL_MS) {
+    if (_reservoirMechFloat) {
+      // The inlet has a mechanical float valve, so the water stopped on its own
+      // at the full level and the timeout is simply how long that took. The
+      // electrical float sitting at the same height as the valve's shutoff is
+      // marginal by construction — it may never close — so waiting on it is not
+      // a condition this cycle can meet.
+      pumpOff(PIN_SOLENOID, PumpReason::TPA_TARGET_REACHED);
+      Serial.println("[TPA] Reservoir fill window elapsed; mechanical float "
+                     "declared, so treating the reservoir as full.");
+      _enterState(TPAState::DOSING_PRIME);
+      return;
+    }
     pumpOff(PIN_SOLENOID, PumpReason::ERROR_STOP);
     _error("Reservoir fill timeout exceeded!");
     return;
@@ -594,6 +606,13 @@ void WaterManager::_handleManualReservoirFill() {
   }
 
   if (_stateElapsed() >= TIMEOUT_RESERVOIR_FILL_MS) {
+    if (_reservoirMechFloat) {
+      pumpOff(PIN_SOLENOID, PumpReason::TPA_TARGET_REACHED);
+      Serial.println("[TPA] Manual fill window elapsed; mechanical float "
+                     "declared, so the reservoir is full.");
+      _state = TPAState::COMPLETE;
+      return;
+    }
     pumpOff(PIN_SOLENOID, PumpReason::ERROR_STOP);
     _error("Manual reservoir fill timeout exceeded!");
     return;

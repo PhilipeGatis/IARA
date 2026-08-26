@@ -429,6 +429,46 @@ void test_paired_refill_stops_where_the_drain_leg_started() {
   TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_REFILL]);
 }
 
+void test_fill_timeout_errors_without_a_mechanical_float() {
+  WaterManager wm = makeWM();
+  mock_pin_read_value[PIN_FLOAT] = HIGH; // never reads full
+  setDistance(8.0f);
+
+  wm.startTPA();
+  wm.update(); // FILLING_RESERVOIR, solenoid opens
+  TEST_ASSERT_EQUAL(TPAState::FILLING_RESERVOIR, wm.getState());
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_SOLENOID]);
+
+  advance(TIMEOUT_RESERVOIR_FILL_MS + 1, 8.0f);
+  wm.update();
+
+  // Without a declared mechanical stop, the timeout is the only bound between a
+  // stuck valve and an unbounded mains feed. It must fail loudly.
+  TEST_ASSERT_EQUAL(TPAState::ERROR, wm.getState());
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_SOLENOID]);
+}
+
+void test_fill_timeout_proceeds_with_a_mechanical_float() {
+  WaterManager wm = makeWM();
+  wm.setReservoirHasMechanicalFloat(true);
+  wm.setPrimeEnabled(false); // DOSING_PRIME falls straight through
+  mock_pin_read_value[PIN_FLOAT] = HIGH; // electrical float never closes
+  setDistance(8.0f);
+
+  wm.startTPA();
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::FILLING_RESERVOIR, wm.getState());
+
+  advance(TIMEOUT_RESERVOIR_FILL_MS + 1, 8.0f);
+  wm.update();
+
+  // The valve held the water back at the full level, so the window elapsing is
+  // how long the fill took — not a failure. The cycle carries on, and the
+  // solenoid closes either way.
+  TEST_ASSERT_EQUAL(TPAState::DOSING_PRIME, wm.getState());
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_SOLENOID]);
+}
+
 void test_canister_log_reflects_the_filter_not_the_pad() {
   mock_reset_pins();
 
@@ -973,6 +1013,8 @@ int main(int argc, char **argv) {
   RUN_TEST(test_paired_calibration_chains_drain_into_refill);
   RUN_TEST(test_abort_does_not_start_canister_with_low_water);
   RUN_TEST(test_paired_refill_stops_where_the_drain_leg_started);
+  RUN_TEST(test_fill_timeout_errors_without_a_mechanical_float);
+  RUN_TEST(test_fill_timeout_proceeds_with_a_mechanical_float);
   RUN_TEST(test_canister_log_reflects_the_filter_not_the_pad);
   RUN_TEST(test_completed_pair_does_not_leave_its_setpoint_behind);
   RUN_TEST(test_aborted_paired_calibration_does_not_chain_a_later_refill);

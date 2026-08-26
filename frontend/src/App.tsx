@@ -34,6 +34,7 @@ export type AQStatus = {
   sensorsOk?: boolean;
   primeML: number;
   primeEnabled: boolean;
+  reservoirMechFloat?: boolean;
   aqHeight: number;
   aqMarginMm: number;
   aqLength: number;

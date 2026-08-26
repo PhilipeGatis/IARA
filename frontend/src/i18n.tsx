@@ -89,6 +89,8 @@ const translations = {
     'tpa.goalHintNoConfig': { pt: 'Configure o volume do aquário e do reservatório para liberar as metas.', en: 'Set the aquarium and reservoir volumes to enable goals.', ja: '目標を有効にするには、水槽とリザーバーの容量を設定してください。' },
     'tpa.pumpControl': { pt: 'Controle Manual (Ligar/Desligar)', en: 'Manual Control (On/Off)', ja: '手動制御 (オン/オフ)' },
     'tpa.primeDose': { pt: 'Dose de Prime no Reservatório', en: 'Prime Dose in Reservoir', ja: 'リザーバーのプライム投与量' },
+    'tpa.mechFloat': { pt: 'Reservatório tem boia mecânica', en: 'Reservoir has a mechanical float valve', ja: 'リザーバーに機械式ボールタップあり' },
+    'tpa.mechFloatHint': { pt: 'A válvula corta a água no nível cheio sozinha. Com isso, esgotar o tempo de enchimento deixa de ser erro — mas o sistema perde a capacidade de perceber um enchimento que falhou por falta de pressão.', en: 'The valve shuts the water at the full level on its own. Running out the fill window then stops being an error — but the system loses the ability to notice a fill that failed for want of mains pressure.', ja: 'バルブが満水位で自動的に給水を止めます。給水時間の超過はエラーではなくなりますが、水圧不足で給水が失敗した場合にそれを検知できなくなります。' },
     'tpa.primeEnabled': { pt: 'Habilitar Prime na TPA (Canal 5)', en: 'Enable Prime in TPA (Channel 5)', ja: 'TPAでプライムを有効にする（チャンネル5）' },
     'tpa.primeEnabledHint': { pt: 'Se desabilitado, o Canal 5 pode ser usado como um fertilizante genérico.', en: 'If disabled, Channel 5 can be used as a generic fertilizer.', ja: '無効にすると、チャンネル5は一般的な肥料として使用できます。' },
     'tpa.configInConfigTab': { pt: 'Configure na aba Config', en: 'Set in Config tab', ja: 'Configタブで設定' },

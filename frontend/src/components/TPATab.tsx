@@ -88,6 +88,7 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
     // Reservoir Safety
     const [safetyML, setSafetyML] = useState('');
     const [primeEnabled, setPrimeEnabled] = useState(true);
+    const [mechFloat, setMechFloat] = useState(false);
     const [drainGoal, setDrainGoal] = useState('');
     const [refillGoal, setRefillGoal] = useState('');
 
@@ -134,6 +135,7 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
             if (status.tpaPercent) setPct(status.tpaPercent.toString());
             if (status.reservoirSafetyML !== undefined) setSafetyML(status.reservoirSafetyML.toString());
             if (status.primeEnabled !== undefined) setPrimeEnabled(status.primeEnabled);
+            if (status.reservoirMechFloat !== undefined) setMechFloat(status.reservoirMechFloat);
         }
     }, [status]);
 
@@ -397,6 +399,22 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                         <span className="min-w-0">
                             <span className="block text-sm font-bold text-text">{t('tpa.primeEnabled')}</span>
                             <span className="hint block">{t('tpa.primeEnabledHint')}</span>
+                        </span>
+                    </label>
+
+                    <label className="flex min-h-[56px] cursor-pointer items-center gap-3 rounded-xl border border-border bg-white/5 px-3 py-2">
+                        <input
+                            type="checkbox"
+                            checked={mechFloat}
+                            onChange={(e) => {
+                                setMechFloat(e.target.checked);
+                                api('POST', '/api/config/aquarium', { reservoirMechFloat: e.target.checked ? 1 : 0 });
+                            }}
+                            className="h-5 w-5 flex-none accent-accent2"
+                        />
+                        <span className="min-w-0">
+                            <span className="block text-sm font-bold text-text">{t('tpa.mechFloat')}</span>
+                            <span className="hint block">{t('tpa.mechFloatHint')}</span>
                         </span>
                     </label>
 
