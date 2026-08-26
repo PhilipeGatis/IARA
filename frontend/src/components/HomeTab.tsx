@@ -223,6 +223,28 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                     <div className="hint italic">{t('home.noSchedule')}</div>
                 )}
 
+                {/* The configured percentage and the litres a cycle can actually
+                    move are not the same number once the reservoir caps it. That
+                    used to happen silently, at runtime, with only a serial line. */}
+                {(() => {
+                    const planned = status?.tpaPlannedLiters ?? 0;
+                    const wanted = status?.aquariumVolume && status?.tpaPercent
+                        ? (status.aquariumVolume * status.tpaPercent) / 100
+                        : 0;
+                    if (planned <= 0 || wanted <= 0 || planned >= wanted - 0.05) return null;
+                    return (
+                        <p className="mt-2 rounded-lg bg-warn/15 px-3 py-2 text-xs text-warn">
+                            {t('home.tpaCapped', { v: planned.toFixed(1) })}
+                        </p>
+                    );
+                })()}
+
+                {status?.tpaBlockedReason ? (
+                    <p className="mt-2 rounded-lg bg-danger/15 px-3 py-2 text-xs text-danger">
+                        {t('home.tpaBlocked', { r: status.tpaBlockedReason })}
+                    </p>
+                ) : null}
+
                 {/* Primary action */}
                 <div className="mt-4">
                     {!running ? (

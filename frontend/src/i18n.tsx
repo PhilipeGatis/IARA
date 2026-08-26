@@ -241,6 +241,8 @@ const translations = {
     'tpaState.MANUAL_RESERVOIR_FILL': { pt: 'Enchendo reservatório (manual)', en: 'Filling reservoir (manual)', ja: 'リザーバー給水中（手動）' },
     'tpaState.MANUAL_PUMP_DRAIN': { pt: 'Drenagem manual', en: 'Manual drain', ja: '手動排水' },
     'tpaState.MANUAL_PUMP_REFILL': { pt: 'Recalque manual', en: 'Manual refill', ja: '手動給水' },
+    'home.tpaCapped': { pt: 'Limitado a {v} L pelo reservatório', en: 'Capped to {v} L by the reservoir', ja: 'リザーバーにより{v} Lに制限' },
+    'home.tpaBlocked': { pt: 'Última tentativa recusada: {r}', en: 'Last attempt refused: {r}', ja: '前回の実行は拒否されました: {r}' },
     'home.sensorDown': { pt: 'Sensor sem resposta — o nível mostrado pode estar velho', en: 'Sensor not responding — the level shown may be stale', ja: 'センサー応答なし — 表示中の水位は古い可能性があります' },
     'common.cancel': { pt: 'Cancelar', en: 'Cancel', ja: 'キャンセル' },
     'common.confirm': { pt: 'Confirmar', en: 'Confirm', ja: '実行' },
