@@ -118,7 +118,7 @@ graph LR
     PSU -->|12V| LM2596[LM2596ステップダウン]
     LM2596 -->|5V| Cap[電解コンデンサ]
     Cap -->|5V| ESP32[ESP32 VIN]
-    Cap -->|5V VCC| SENS[センサー]
+    ESP32 -->|3.3V VCC| SENS[センサー]
   end
 
   subgraph Signals [🎮 ESP32信号]
