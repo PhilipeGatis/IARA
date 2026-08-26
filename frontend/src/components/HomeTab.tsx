@@ -244,6 +244,12 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                     );
                 })()}
 
+                {status?.tpaState === 'ERROR' && status?.lastError ? (
+                    <p className="mt-2 rounded-lg bg-danger/15 px-3 py-2 text-xs text-danger">
+                        {t('home.tpaError', { e: status.lastError })}
+                    </p>
+                ) : null}
+
                 {status?.tpaBlockedReason ? (
                     <p className="mt-2 rounded-lg bg-danger/15 px-3 py-2 text-xs text-danger">
                         {t('home.tpaBlocked', { r: status.tpaBlockedReason })}

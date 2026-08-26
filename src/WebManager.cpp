@@ -250,6 +250,16 @@ String WebManager::_buildStatusJSON() {
   // that happened silently — the UI showed the configured percentage and the
   // cycle delivered something else.
   json += "\"tpaPlannedLiters\":" + String(_tpaPlannedLiters, 2) + ",";
+  // The state machine has always known why it stopped; the dashboard just never
+  // asked. A cycle that failed showed "ERROR" and nothing else, leaving the one
+  // question worth answering — which step, and what was it waiting for — only
+  // in the serial log.
+  if (_water) {
+    String err = _water->getLastErrorMsg();
+    err.replace("\\", "\\\\");
+    err.replace("\"", "\\\"");
+    json += "\"lastError\":\"" + err + "\",";
+  }
   json += "\"tpaBlockedReason\":\"" + _tpaBlockedReason + "\",";
   // Without this the UI cannot tell a dead sensor from a live one: a stale
   // level and a current level look identical once they are both just numbers.

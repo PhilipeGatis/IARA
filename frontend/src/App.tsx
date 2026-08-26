@@ -30,6 +30,7 @@ export type AQStatus = {
   tpaConfigReady: boolean;
   tpaPlannedLiters?: number;
   tpaBlockedReason?: string;
+  lastError?: string;
   sensorsOk?: boolean;
   primeML: number;
   primeEnabled: boolean;
