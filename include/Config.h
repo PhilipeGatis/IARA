@@ -189,6 +189,13 @@ constexpr unsigned long CALIBRATION_PULSE_MS = 3000; // 3 seconds
 // discarded rather than allowed to overwrite a good calibration.
 constexpr float CALIBRATION_MIN_DELTA_PCT = 5.0f;
 
+// A calibration run stops at this multiple of the acceptance floor. The two used
+// to be the same number: the run ended the instant one noisy reading crossed the
+// line, and _calcFlowRate() then re-tested the same line with a second,
+// independent noisy reading — so roughly half of all runs were silently
+// discarded, leaving the old rate in place with nothing said about it.
+constexpr float CALIBRATION_STOP_MARGIN = 1.5f;
+
 // After the refill setpoint appears to be reached, stop the pump and let the
 // surface settle for this long before believing it. Water pouring in disturbs
 // the surface right under the sensor, which reads as a level higher than the

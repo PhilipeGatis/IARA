@@ -72,6 +72,7 @@ void WaterManager::_resetCycleState() {
   _wasFullCycle = false;
   _primeDoseStarted = false;
   _primeWaitStartedMs = 0;
+  _pairedRefillTargetCm = -1;
 }
 
 void WaterManager::startTPA(bool manual) {
@@ -647,9 +648,22 @@ void WaterManager::_handleManualPump(uint8_t pin, float flowLPM) {
   // producing a number dominated by sensor noise.
   if (_calibrationRunMs > 0 && _safety && _aqEffectiveHeightCm > 0 &&
       _calStartLevel > 0) {
-    const float moved = fabsf(_safety->readUltrasonic() - _calStartLevel);
-    const float target =
-        _aqEffectiveHeightCm * (CALIBRATION_MIN_DELTA_PCT / 100.0f);
+    const float level = _safety->readUltrasonic();
+    if (level <= 0) {
+      // A calibration is a measurement, and there is nothing to measure. A
+      // *stale* reading needs no special case: _calStartLevel came from the
+      // same frozen value, so `moved` stays at zero and the run ends on
+      // _calibrationRunMs with the sample discarded.
+      pumpOff(pin, PumpReason::ERROR_STOP);
+      _error("Sensor lost during calibration");
+      return;
+    }
+    const float moved = fabsf(level - _calStartLevel);
+    // Overshoot the acceptance floor deliberately, so the independent reading
+    // _calcFlowRate() takes clears it rather than landing either side of it.
+    const float target = _aqEffectiveHeightCm *
+                         (CALIBRATION_MIN_DELTA_PCT / 100.0f) *
+                         CALIBRATION_STOP_MARGIN;
     if (moved >= target) {
       Serial.printf("[TPA] Calibration: %s moved %.2f cm (>= %.2f). Done.\n",
                     pinName(pin), moved, target);
@@ -659,6 +673,17 @@ void WaterManager::_handleManualPump(uint8_t pin, float flowLPM) {
                     "time allowed. Discarding.\n",
                     pinName(pin), moved, target);
       reached = true; // stop the pump; _calcFlowRate() rejects the sample
+    }
+  }
+
+  // Second leg of a pair: stop at the level the drain leg started from, not
+  // after an independent 5% move.
+  if (!reached && _pairedRefillTargetCm > 0 && !isDrain && _safety &&
+      _safety->areSensorsConnected()) {
+    const float dist = _safety->readUltrasonic();
+    if (dist > 0 && dist <= _pairedRefillTargetCm) {
+      Serial.printf("[TPA] Paired refill back to start level: %.1f cm\n", dist);
+      reached = true;
     }
   }
 
@@ -698,7 +723,22 @@ void WaterManager::_handleManualPump(uint8_t pin, float flowLPM) {
     // Second leg of a paired run: put the water back, measuring the refill on
     // the way. The canister stays off across both legs.
     if (_pairedCalibration && isDrain) {
-      Serial.println("[TPA] Drain leg done. Refilling the same amount...");
+      if (_drainFlowLPM <= 0) {
+        // The drain sample was rejected, so there is nothing for the refill leg
+        // to be measured against, and running it would move the tank by an
+        // amount nobody chose.
+        _pairedCalibration = false;
+        _error("Drain calibration produced no usable rate");
+        return;
+      }
+      Serial.println("[TPA] Drain leg done. Refilling to where we started...");
+      // The pair exists so the tank ends where it began. The refill leg used to
+      // re-snapshot its own start level and run until the water moved another
+      // 5% from there — with no reference to the drain leg at all. An
+      // under-delivering drain then still got a full refill, ending the tank
+      // *above* where it started, which is a shorter distance to the overflow
+      // threshold than the tolerance allows for.
+      _pairedRefillTargetCm = _calStartLevel;
       _beginPumpCalibration("refill");
       return;
     }

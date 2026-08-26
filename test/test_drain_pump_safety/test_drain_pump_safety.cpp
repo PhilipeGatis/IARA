@@ -344,9 +344,9 @@ void test_paired_calibration_chains_drain_into_refill() {
   TEST_ASSERT_EQUAL(TPAState::MANUAL_PUMP_DRAIN, wm.getState());
   TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_DRAIN]);
 
-  // Level drops past the 2cm floor: the drain leg is done.
+  // Level drops clear of the stop threshold: the drain leg is done.
   mock_millis_value += 30000;
-  setDistance(23.0f);
+  setDistance(24.0f);
   wm.update();
 
   // Instead of finishing, it moves straight on to putting the water back.
@@ -382,6 +382,39 @@ void test_abort_does_not_start_canister_with_low_water() {
   // filter whose intake may be above the surface.
   TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_CANISTER]);
   TEST_ASSERT_EQUAL(TPAState::ERROR, wm.getState());
+}
+
+void test_paired_refill_stops_where_the_drain_leg_started() {
+  WaterManager wm = makeWM();
+  wm.setLitersPerCm(2.0f);
+  wm.setAqEffectiveHeightCm(40.0f);
+
+  setDistance(20.0f); // the level the pair must return to
+  wm.startPairedCalibration();
+  mock_millis_value += 3001;
+  wm.update();
+  mock_millis_value += 30000;
+  setDistance(24.0f); // drain leg delivered 4cm
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::MANUAL_PUMP_REFILL, wm.getState());
+
+  mock_millis_value += 3001;
+  wm.update(); // refill leg starts
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_REFILL]);
+
+  // 5% of 40cm is 2cm, so an independent-move refill would stop here — 2cm
+  // short of where the tank began. The pair only makes sense if it ends level.
+  mock_millis_value += 20000;
+  setDistance(22.0f);
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::MANUAL_PUMP_REFILL, wm.getState());
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_REFILL]);
+
+  mock_millis_value += 20000;
+  setDistance(20.0f); // back to the drain leg's start level
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::COMPLETE, wm.getState());
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_REFILL]);
 }
 
 void test_aborted_paired_calibration_does_not_chain_a_later_refill() {
@@ -866,6 +899,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_manual_pump_refused_without_sensor_or_calibration);
   RUN_TEST(test_paired_calibration_chains_drain_into_refill);
   RUN_TEST(test_abort_does_not_start_canister_with_low_water);
+  RUN_TEST(test_paired_refill_stops_where_the_drain_leg_started);
   RUN_TEST(test_aborted_paired_calibration_does_not_chain_a_later_refill);
   RUN_TEST(test_stale_wait_does_not_skip_switching_the_canister_off);
   RUN_TEST(test_canister_stays_off_when_level_too_low);

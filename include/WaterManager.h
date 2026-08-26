@@ -139,6 +139,9 @@ private:
   bool _isManualTPA;
   bool _wasFullCycle = false;
   bool _primeDoseStarted = false;
+  // Level the drain leg of a paired calibration started from; the refill leg
+  // stops there so the pair is level-neutral by construction.
+  float _pairedRefillTargetCm = -1;
   unsigned long _primeWaitStartedMs = 0;
 
   // State timing
