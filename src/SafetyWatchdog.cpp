@@ -97,15 +97,23 @@ bool SafetyWatchdog::isReservoirFull() {
 
 void SafetyWatchdog::emergencyShutdown() {
   Serial.println("[EMERGENCY] >>> SHUTDOWN: All outputs OFF <<<");
-  for (uint8_t i = 0; i < NUM_OUTPUT_PINS; i++) {
-    digitalWrite(OUTPUT_PINS[i], LOW);
-  }
+  // Goes through allPumpsOff() rather than writing LOW across every pin: the
+  // dosing channels are driven by the LEDC peripheral and ignore digitalWrite,
+  // and the canister's SSR is active-LOW, so a blanket LOW would leave five
+  // pumps running and switch the filter on.
+  allPumpsOff(PumpReason::EMERGENCY_SHUTDOWN);
   _emergency = true;
   _emergencyDraining = false;
 }
 
 void SafetyWatchdog::clearEmergency() {
   Serial.println("[EMERGENCY] Emergency state cleared manually.");
+  // Clearing _emergencyDraining disables _updateEmergencyDrain(), which is the
+  // only code that would ever stop the drain pump it started. Stop it here
+  // rather than relying on every caller to remember a second call.
+  if (_emergencyDraining) {
+    pumpOff(PIN_DRAIN, PumpReason::SAFETY_STOP);
+  }
   _emergency = false;
   _emergencyDraining = false;
 }

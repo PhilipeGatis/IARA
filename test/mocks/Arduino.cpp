@@ -55,7 +55,32 @@ void mock_inject_a02_distance(float distanceCm) {
 MockWiFiClass WiFi;
 
 // ---- LEDC (PWM) stubs ----
-void ledcSetup(uint8_t channel, double freq, uint8_t resolution) {}
-void ledcAttachPin(uint8_t pin, uint8_t channel) {}
-void ledcWrite(uint8_t channel, uint32_t duty) {}
-void ledcDetachPin(uint8_t pin) {}
+// Track which pin each LEDC channel drives, so ledcWrite() moves mock_pin_state
+// the way the real peripheral moves the pad. Without this the mock cannot tell
+// a stopped dosing pump from a running one — and stopping them is exactly what
+// the emergency paths have to prove.
+static int mock_ledc_pin[NUM_MOCK_PINS];
+static bool mock_ledc_init = false;
+
+void ledcSetup(uint8_t channel, double freq, uint8_t resolution) {
+  if (!mock_ledc_init) {
+    for (int i = 0; i < NUM_MOCK_PINS; i++) mock_ledc_pin[i] = -1;
+    mock_ledc_init = true;
+  }
+}
+
+void ledcAttachPin(uint8_t pin, uint8_t channel) {
+  if (channel < NUM_MOCK_PINS) mock_ledc_pin[channel] = pin;
+}
+
+void ledcWrite(uint8_t channel, uint32_t duty) {
+  if (channel < NUM_MOCK_PINS && mock_ledc_pin[channel] >= 0) {
+    mock_pin_state[mock_ledc_pin[channel]] = duty > 0 ? HIGH : LOW;
+  }
+}
+
+void ledcDetachPin(uint8_t pin) {
+  for (int i = 0; i < NUM_MOCK_PINS; i++) {
+    if (mock_ledc_pin[i] == pin) mock_ledc_pin[i] = -1;
+  }
+}

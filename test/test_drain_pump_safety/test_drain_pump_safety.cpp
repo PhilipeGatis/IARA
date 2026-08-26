@@ -366,6 +366,74 @@ void test_paired_calibration_chains_drain_into_refill() {
   TEST_ASSERT_TRUE(wm.getRefillFlowLPM() > 0);
 }
 
+void test_abort_does_not_start_canister_with_low_water() {
+  WaterManager wm = makeWM();
+  wm.setAqEffectiveHeightCm(40.0f);
+  wm.setCanisterSafeLevelCm(10.0f); // water must be within 10cm of the sensor
+  digitalWrite(PIN_CANISTER, HIGH); // filter already off for the cycle
+
+  goToDraining(wm);
+  setDistance(30.0f); // drained well below the safe mark
+  wm.update();
+
+  wm.abortTPA();
+
+  // Abort is usually pressed mid-drain, which is the worst moment to start a
+  // filter whose intake may be above the surface.
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_CANISTER]);
+  TEST_ASSERT_EQUAL(TPAState::ERROR, wm.getState());
+}
+
+void test_aborted_paired_calibration_does_not_chain_a_later_refill() {
+  WaterManager wm = makeWM();
+  wm.setLitersPerCm(2.0f);
+  wm.setAqEffectiveHeightCm(40.0f);
+
+  setDistance(20.0f);
+  wm.startPairedCalibration();
+  mock_millis_value += 3001;
+  wm.update(); // drain leg running
+  TEST_ASSERT_EQUAL(TPAState::MANUAL_PUMP_DRAIN, wm.getState());
+
+  wm.abortTPA();
+
+  // A later, ordinary manual drain must end when its goal is met — not chain
+  // into a refill left armed by the abandoned pair.
+  wm.setDrainFlowLPM(6.0f);
+  setDistance(20.0f);
+  wm.startManualPump("drain", 2.0f);
+  mock_millis_value += 3001;
+  wm.update();
+  setDistance(21.5f); // 1cm == 2 L, goal reached
+  mock_millis_value += 1000;
+  wm.update();
+
+  TEST_ASSERT_EQUAL(TPAState::COMPLETE, wm.getState());
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_REFILL]);
+}
+
+void test_stale_wait_does_not_skip_switching_the_canister_off() {
+  WaterManager wm = makeWM();
+  wm.setPrimeEnabled(false); // DOSING_PRIME passes straight through
+  digitalWrite(PIN_CANISTER, LOW); // filter running
+
+  // Leave a stale _waitUntilMs behind: start a manual run (which arms the
+  // canister settle) and stop it before the wait expires.
+  wm.startManualPump("drain", 0);
+  wm.stopManual();
+
+  // The next cycle must still switch the filter off before draining.
+  mock_pin_read_value[PIN_FLOAT] = HIGH;
+  setDistance(7.0f);
+  wm.startTPA();
+  wm.update();
+  simulateFloatFull(wm);       // → DOSING_PRIME
+  wm.update();                 // prime disabled → CANISTER_OFF
+  TEST_ASSERT_EQUAL(TPAState::CANISTER_OFF, wm.getState());
+  wm.update();                 // must issue the canister-off here
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_CANISTER]);
+}
+
 void test_canister_stays_off_when_level_too_low() {
   WaterManager wm = makeWM();
   wm.setAqEffectiveHeightCm(40.0f);
@@ -777,6 +845,9 @@ int main(int argc, char **argv) {
   RUN_TEST(test_overestimated_flow_cannot_end_a_run_early);
   RUN_TEST(test_manual_pump_refused_without_sensor_or_calibration);
   RUN_TEST(test_paired_calibration_chains_drain_into_refill);
+  RUN_TEST(test_abort_does_not_start_canister_with_low_water);
+  RUN_TEST(test_aborted_paired_calibration_does_not_chain_a_later_refill);
+  RUN_TEST(test_stale_wait_does_not_skip_switching_the_canister_off);
   RUN_TEST(test_canister_stays_off_when_level_too_low);
   RUN_TEST(test_canister_restored_when_level_is_safe);
   RUN_TEST(test_manual_refill_stops_on_goal);

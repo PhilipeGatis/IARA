@@ -222,7 +222,8 @@ String WebManager::_buildStatusJSON() {
   json += "\"tpaMinute\":" + String(_tpaMinute) + ",";
   json += "\"tpaPercent\":" + String(_tpaPercent) + ",";
   json += "\"canisterSafePct\":" + String(_canisterSafePct) + ",";
-  json += "\"primeMl\":" + String(_primeML, 1) + ",";
+  json += "\"tpaLastRun\":" + String(_tpaLastRun) + ",";
+  json += "\"primeML\":" + String(_primeML, 1) + ",";
   uint32_t aqVol = getAquariumVolume();
   float lPerCm = (float)_aqLength * _aqWidth / 1000.0;
   json += "\"aqHeight\":" + String(_aqHeight) + ",";

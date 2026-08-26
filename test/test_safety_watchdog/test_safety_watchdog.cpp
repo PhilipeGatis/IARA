@@ -64,11 +64,17 @@ void test_emergency_shutdown_all_pins_low() {
 
   sw.emergencyShutdown();
 
-  // All output pins must be LOW
+  // Every actuator must be in its INACTIVE state — which is not the same as
+  // LOW for all of them. The canister runs on an active-LOW SSR, so driving it
+  // LOW would start a mains pump at the moment of a shutdown.
   for (uint8_t i = 0; i < NUM_OUTPUT_PINS; i++) {
-    TEST_ASSERT_EQUAL_MESSAGE(LOW, mock_pin_state[OUTPUT_PINS[i]],
-                              "Pin not LOW after emergency shutdown");
+    const uint8_t pin = OUTPUT_PINS[i];
+    if (pin == PIN_CANISTER) continue;
+    TEST_ASSERT_EQUAL_MESSAGE(LOW, mock_pin_state[pin],
+                              "Pump pin not LOW after emergency shutdown");
   }
+  TEST_ASSERT_EQUAL_MESSAGE(HIGH, mock_pin_state[PIN_CANISTER],
+                            "Canister must be OFF (SSR HIGH) after shutdown");
   TEST_ASSERT_TRUE(sw.isEmergency());
 }
 
@@ -90,10 +96,11 @@ void test_emergency_drain_opens_drain_only() {
   // Only drain should be HIGH
   TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_DRAIN]);
 
-  // Everything else should be LOW
+  // Everything else off — and the canister OFF means SSR HIGH. Draining with
+  // the filter running is how its intake ends up above the water.
   TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_REFILL]);
   TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_SOLENOID]);
-  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_CANISTER]);
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_CANISTER]);
   TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_FERT1]);
   TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_PRIME]);
 

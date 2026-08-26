@@ -183,6 +183,9 @@ private:
   /// chain its second leg directly out of the first.
   void _beginPumpCalibration(const String &pump);
 
+  /// Clear every per-run flag. Called wherever a run begins or ends.
+  void _resetCycleState();
+
   /// Stop all TPA actuators (DRY helper)
   void _stopAllTpaActuators(PumpReason reason);
 

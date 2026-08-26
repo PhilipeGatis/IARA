@@ -56,6 +56,21 @@ void WaterManager::begin(SafetyWatchdog *safety, FertManager *fert) {
 // START / ABORT
 // ============================================================================
 
+void WaterManager::_resetCycleState() {
+  // Everything that is scoped to one run. Left stale, each of these silently
+  // changes what the next cycle does: a non-zero _waitUntilMs makes
+  // _handleCanisterOff() skip switching the filter off, _doseCompleted makes
+  // DOSING_PRIME believe it already dosed, and _pairedCalibration chains an
+  // unrequested refill onto the end of an ordinary manual drain.
+  _waitUntilMs = 0;
+  _doseCompleted = false;
+  _pairedCalibration = false;
+  _calibrationRunMs = 0;
+  _canisterOffForManual = false;
+  _refillConfirming = false;
+  _manualTargetLevelCm = -1;
+}
+
 void WaterManager::startTPA(bool manual) {
   if (isRunning()) {
     Serial.println("[Water] Cannot start TPA: already running.");
@@ -71,6 +86,7 @@ void WaterManager::startTPA(bool manual) {
   }
 
   Serial.println("[Water] === TPA CYCLE STARTED ===");
+  _resetCycleState();
   _isManualTPA = manual;
   // The reservoir comes first on purpose. Everything that can fail here — no
   // mains pressure, a stuck float, a dead solenoid — fails while the aquarium
@@ -87,8 +103,11 @@ void WaterManager::abortTPA() {
     _captureRefillCalibration();
   }
   _stopAllTpaActuators(PumpReason::ABORT);
-  // Canister back on for safety (SSR: LOW = ON)
-  pumpOff(PIN_CANISTER, PumpReason::ABORT);
+  // Abort is most likely pressed mid-drain, which is the worst moment to start
+  // the filter: its intake may be above the surface. Same rule as every other
+  // restore path.
+  restoreCanisterIfSafe(PumpReason::ABORT);
+  _resetCycleState();
   _state = TPAState::ERROR;
 }
 
@@ -200,9 +219,9 @@ void WaterManager::stopManual() {
   }
   _stopAllTpaActuators(PumpReason::MANUAL_PUMP);
   if (_canisterOffForManual) {
-    _canisterOffForManual = false;
     restoreCanisterIfSafe(PumpReason::MANUAL_PUMP);
   }
+  _resetCycleState();
   _state = TPAState::IDLE;
 }
 
@@ -526,9 +545,11 @@ void WaterManager::_handleRefilling() {
 }
 
 void WaterManager::_handleCanisterOn() {
-  // Step 6: Turn canister filter back on (SSR: LOW = ON)
-  pumpOff(PIN_CANISTER, PumpReason::TPA_CANISTER);
-  Serial.println("[TPA] Canister ON. TPA cycle COMPLETE.");
+  // Step 6: bring the filter back, subject to the same level check as every
+  // other restore. A refill confirmed on a bad reading would otherwise end the
+  // cycle by starting the canister below its safe mark.
+  restoreCanisterIfSafe(PumpReason::TPA_CANISTER);
+  Serial.println("[TPA] TPA cycle COMPLETE.");
 
   _state = TPAState::COMPLETE;
 }
@@ -788,8 +809,7 @@ void WaterManager::_error(const char *msg) {
   } else {
     _lastErrorMsg += " | Canister: OFF (nivel baixo)";
   }
-  _canisterOffForManual = false;
-  _pairedCalibration = false;
+  _resetCycleState();
 
   _state = TPAState::ERROR;
 }

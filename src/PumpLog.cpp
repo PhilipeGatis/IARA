@@ -236,19 +236,52 @@ static void _log(uint8_t pin, bool state, PumpReason reason) {
 // PUBLIC API
 // ============================================================================
 
+/// LEDC channel driving this pin, or -1 if it is a plain GPIO.
+/// FertManager routes CH1-CH4 and Prime through the LEDC peripheral, and once
+/// a pad is switched to LEDC in the GPIO matrix, digitalWrite() no longer
+/// controls it — the PWM peripheral keeps driving the pin. Without this the
+/// emergency stop silently fails to stop five of the nine outputs.
+static int _ledcChannelFor(uint8_t pin) {
+  for (uint8_t i = 0; i < NUM_FERTS; i++) {
+    if (FERT_PINS[i] == pin) return i;
+  }
+  if (pin == PIN_PRIME) return NUM_FERTS;
+  return -1;
+}
+
+/// Drive an actuator pin to its inactive state, whatever mechanism owns it.
+static void _driveOff(uint8_t pin) {
+  // Do both rather than choose. Whether a dosing pin is currently owned by LEDC
+  // depends on FertManager::begin() having run, and a shutdown must not depend
+  // on start-up ordering. Writing LOW to a LEDC-owned pad is ignored, and
+  // writing to an unattached channel is ignored — so both are always safe.
+  const int ch = _ledcChannelFor(pin);
+  if (ch >= 0) ledcWrite(ch, 0);
+
+  // The canister runs on an active-LOW SSR, so "off" is HIGH for that one pin.
+  // A blanket LOW across every output would switch the filter ON — the exact
+  // opposite of what a shutdown means, and at the worst possible moment.
+  digitalWrite(pin, pin == PIN_CANISTER ? HIGH : LOW);
+}
+
 void pumpOn(uint8_t pin, PumpReason reason) {
   digitalWrite(pin, HIGH);
   _log(pin, true, reason);
 }
 
 void pumpOff(uint8_t pin, PumpReason reason) {
+  // pumpOff(PIN_CANISTER) means "SSR LOW", which turns the filter ON — that is
+  // the existing convention and callers rely on it, so it is left alone here.
+  // _driveOff() is the one that knows about safe states.
+  const int ch = _ledcChannelFor(pin);
+  if (ch >= 0) ledcWrite(ch, 0);
   digitalWrite(pin, LOW);
   _log(pin, false, reason);
 }
 
 void allPumpsOff(PumpReason reason) {
   for (uint8_t i = 0; i < NUM_OUTPUT_PINS; i++) {
-    digitalWrite(OUTPUT_PINS[i], LOW);
+    _driveOff(OUTPUT_PINS[i]);
   }
   // Log each pin individually in the ring buffer for traceability
   for (uint8_t i = 0; i < NUM_OUTPUT_PINS; i++) {
