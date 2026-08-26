@@ -4,14 +4,20 @@ import type { AQStatus } from './App';
  * Level as a percentage of the calibrated 100% mark. 100% is the level the
  * sensor was calibrated against, so readings above it mean the tank is over
  * its normal line — which is what the overflow guard watches for.
+ *
+ * The denominator is the *usable* height, volume / litresPerCm, not aqHeight.
+ * The firmware measures percentages that way — it is the height the water
+ * actually occupies, with the border margin already taken out — and this used
+ * aqHeight, so the dashboard and the controller reported different percentages
+ * for the same water. Mirrors levelPercentFromDistance() in TpaPlan.h.
  */
 export function levelPercent(status: AQStatus | null): number | null {
     if (!status) return null;
     const wl = status.waterLevel;
     const sensorFull = (status.sensorFullDistanceMm || 0) / 10;
-    const refCm = status.aqHeight || 0;
-    if (wl === undefined || wl < 0 || !sensorFull || !refCm) return null;
-    return 100 - ((wl - sensorFull) / refCm) * 100;
+    const effH = status.litersPerCm ? status.aquariumVolume / status.litersPerCm : 0;
+    if (wl === undefined || wl < 0 || !sensorFull || !effH) return null;
+    return ((sensorFull + effH - wl) / effH) * 100;
 }
 
 /** Compact level readout for the header: percentage first, centimetres under. */
