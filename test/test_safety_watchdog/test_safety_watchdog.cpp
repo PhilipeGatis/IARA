@@ -266,6 +266,26 @@ void test_a_real_move_is_not_rejected_forever() {
   TEST_ASSERT_FLOAT_WITHIN(0.05f, 14.0f, sw.readUltrasonic());
 }
 
+void test_scattered_noise_never_becomes_the_level() {
+  SafetyWatchdog sw;
+  sw.begin();
+
+  for (int i = 0; i < 32; i++) { mock_inject_a02_distance(9.0f); sw.readUltrasonic(); }
+  TEST_ASSERT_FLOAT_WITHIN(0.05f, 9.0f, sw.readUltrasonic());
+
+  // A sensor losing the surface: persistent, but scattered across centimetres.
+  // Persistence alone would let this become the level — and did, reporting an
+  // eleven-centimetre jump the water could not have made.
+  const float junk[] = {20.2f, 14.0f, 22.5f, 11.0f, 19.0f, 25.0f,
+                        12.5f, 21.0f, 16.0f, 23.0f, 13.0f, 20.0f,
+                        24.0f, 15.5f, 18.0f, 22.0f, 11.5f, 19.5f};
+  for (int r = 0; r < 3; r++)
+    for (float d : junk) { mock_inject_a02_distance(d); sw.readUltrasonic(); }
+
+  TEST_ASSERT_FLOAT_WITHIN_MESSAGE(0.2f, 9.0f, sw.readUltrasonic(),
+                                   "scatter must never become the level");
+}
+
 void test_gradual_movement_passes_the_gate() {
   SafetyWatchdog sw;
   sw.begin();
@@ -288,6 +308,7 @@ int main(int argc, char **argv) {
   UNITY_BEGIN();
   RUN_TEST(test_outlier_does_not_move_the_median);
   RUN_TEST(test_a_real_move_is_not_rejected_forever);
+  RUN_TEST(test_scattered_noise_never_becomes_the_level);
   RUN_TEST(test_gradual_movement_passes_the_gate);
 
   // Initialization

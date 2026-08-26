@@ -149,15 +149,23 @@ constexpr float MAX_PLAUSIBLE_LEVEL_STEP_CM = 3.0f;
 // a drain early or hold a canister off.
 constexpr float MAX_LEVEL_STEP_CM = 1.0f;
 
-// Consecutive rejections after which the filter starts over.
+// Consecutive rejections after which the filter may start over.
 //
-// Without this, one bad estimate locks the gate forever: every correct reading
-// looks like an outlier against it and gets thrown away. When this many frames
-// in a row all disagree with the estimate, the estimate is what is wrong — the
-// level genuinely moved, someone topped the tank up by hand, or the sensor was
-// remounted. About a second of frames, deliberately shorter than the two-second
-// disconnect timeout so the filter heals before the sensor is declared dead.
+// Without an escape, one bad estimate locks the gate forever: every correct
+// reading looks like an outlier against it and gets thrown away, holding a
+// level the water left behind.
+//
+// But persistence alone is the wrong test, and assuming otherwise made things
+// worse on a noisy sensor: a burst of bad echoes is just as persistent as a
+// real move, so the filter adopted them and reported an eleven-centimetre jump
+// the water could not have made. What separates the two is *coherence* — water
+// that really moved gives readings clustered around one value, while a sensor
+// losing the surface gives scatter. Both tests must pass.
 constexpr uint8_t MAX_LEVEL_STEP_REJECTS = 10;
+
+// How tightly those rejected readings must agree with each other before the
+// filter is allowed to believe them. Roughly the sensor's calm-water spread.
+constexpr float LEVEL_RESYNC_SPREAD_CM = 0.6f;
 constexpr unsigned long MAINTENANCE_DURATION_MS = 30UL * 60 * 1000; // 30 min
 
 // Volumes and flow

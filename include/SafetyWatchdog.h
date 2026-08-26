@@ -90,6 +90,8 @@ private:
   float _medianBuffer[MEDIAN_BUFFER_SIZE] = {};
   uint8_t _slewRejects = 0;   ///< consecutive readings refused as implausible
   uint32_t _rejectedTotal = 0; ///< lifetime count, for diagnosing a noisy sensor
+  float _rejectMin = 0;       ///< spread of the refused run, to tell a real
+  float _rejectMax = 0;       ///< move from a burst of bad echoes
   uint8_t _medianIndex = 0;
   uint8_t _medianCount = 0;
 

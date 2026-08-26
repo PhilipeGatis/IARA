@@ -57,15 +57,34 @@ float SafetyWatchdog::readUltrasonic() {
           if (_lastDistance > 0 &&
               fabsf(distance - _lastDistance) > MAX_LEVEL_STEP_CM) {
             _rejectedTotal++;
-            if (++_slewRejects < MAX_LEVEL_STEP_REJECTS) {
-              continue; // outlier — do not let it into the median
+            if (_slewRejects == 0) {
+              _rejectMin = _rejectMax = distance;
+            } else {
+              if (distance < _rejectMin) _rejectMin = distance;
+              if (distance > _rejectMax) _rejectMax = distance;
             }
-            // This many in a row all disagreeing means the estimate is what is
-            // stale, not the readings. Start over rather than stay locked onto
-            // a value the water left behind.
-            Serial.printf("[Safety] Level moved beyond the step limit for %u "
-                          "frames — rebuilding the filter around %.1f cm\n",
-                          (unsigned)_slewRejects, distance);
+            _slewRejects++;
+
+            const bool persistent = _slewRejects >= MAX_LEVEL_STEP_REJECTS;
+            const bool coherent =
+                (_rejectMax - _rejectMin) <= LEVEL_RESYNC_SPREAD_CM;
+
+            if (!persistent || !coherent) {
+              // Either not yet convincing, or convincing but incoherent — a
+              // spread this wide is a sensor losing the surface, not water
+              // moving. Keep the estimate and keep refusing.
+              if (persistent && !coherent) {
+                _slewRejects = 0; // start the evidence over
+              }
+              continue;
+            }
+
+            // Persistent AND tightly clustered: the water really is somewhere
+            // else and the estimate is what is stale.
+            Serial.printf("[Safety] %u coherent readings around %.1f cm "
+                          "(spread %.2f) — rebuilding the filter there\n",
+                          (unsigned)_slewRejects, distance,
+                          _rejectMax - _rejectMin);
             _medianCount = 0;
             _medianIndex = 0;
             _lastDistance = -1;
