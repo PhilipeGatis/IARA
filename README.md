@@ -30,6 +30,24 @@ You can easily access the web interface on your local network by navigating to *
 
 ---
 
+## 📱 Interface
+
+The dashboard is served from the ESP32 itself over LittleFS — no cloud, no
+account, no external dependency. It is mobile-first, since the phone is what
+you have in your hand when you are standing at the tank.
+
+| | | |
+|---|---|---|
+| ![Home](docs/screenshots/01-home.png) | ![Water change](docs/screenshots/02-tpa.png) | ![Fertilizers](docs/screenshots/03-ferts.png) |
+| **Home** — level, next change, fertilizer stock | **Water change** — manual pumps, schedule, calibration | **Fertilizers** — per-channel weekly dosing |
+
+| | |
+|---|---|
+| ![Logs](docs/screenshots/04-logs.png) | ![Config](docs/screenshots/05-config.png) |
+| **Logs** — every pump activation with its reason | **Config** — geometry, sensor, network, notifications, OTA |
+
+---
+
 ## 📚 Additional Documentation
 
 The project includes detailed hardware documentation in the following files:
