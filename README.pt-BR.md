@@ -20,7 +20,7 @@
 
 O **IARA** é um sistema embarcado completo para automação de aquários plantados. Ele gerencia:
 
-- **TPA (Troca Parcial de Água)** — drenagem e reposição automática com máquina de estados.
+- **TPA (Troca Parcial de Água)** — drenagem e reposição automática com máquina de estados de 6 estados.
 - **Fertilização** — dosagem programada via bombas peristálticas com controle de estoque.
 - **Filtração** — controle liga/desliga do canister via relé SSR (corrente AC).
 - **Segurança** — monitoramento contínuo de sensores, watchdog e modo emergência.
@@ -37,7 +37,7 @@ O projeto possui documentação detalhada de hardware organizada nos seguintes a
 | Documento | Descrição |
 |---|---|
 | [`BOM.md`](BOM.md) | **Bill of Materials** — lista completa de todos os componentes necessários para montagem, organizada por camadas (AC, DC, atuadores, sensores, proteção e conectores), com especificações e quantidades. |
-| [`HARDWARE.md`](HARDWARE.md) | **Arquitetura de Hardware** — documentação técnica detalhada com diagramas de ligação de cada camada (entrada AC, barramento DC e periféricos), incluindo esquemas de proteção contra ruído, divisor de tensão para sensores e notas de segurança para implementação. |
+| [`HARDWARE.md`](HARDWARE.md) | **Arquitetura de Hardware** — documentação técnica detalhada com diagramas de ligação de cada camada (entrada AC, barramento DC e periféricos), incluindo esquemas de proteção contra ruído, o pull-up de 10 kΩ na linha UART do ultrassônico e notas de segurança para implementação. |
 | [`3d_models/`](3d_models/) | **Modelos 3D (OpenSCAD)** — caixa de eletrônica paramétrica (`electronics_enclosure.scad`) com layout de todos os módulos, suporte para bombas dosadoras (`dosing_pump_support.scad` / `dosing_pump_single.scad`), e placa de teste de furação. |
 
 ---
@@ -137,7 +137,7 @@ graph LR
   MOSFET -->|OUT 8| Solenoid[Solenoide]
 ```
 
-> Para diagramas de ligação detalhados, divisores de tensão e notas de proteção (flyback, GND estrela), consulte [`HARDWARE.md`](HARDWARE.md).
+> Para diagramas de ligação detalhados e notas de proteção (flyback, GND estrela), consulte [`HARDWARE.md`](HARDWARE.md).
 >
 > Para a lista completa de componentes e quantidades, consulte [`BOM.md`](BOM.md).
 
@@ -159,9 +159,9 @@ graph LR
 | **D22** | SCL | RTC DS3231 | Bidirecional | I2C |
 | **D23** | TFT SDA (Data) | Display ST7735 (SDA) | Saída | SPI (MOSI) |
 | **D25** | Bomba de drenagem | MOSFET canal 6 | Saída | Digital |
-| **D26** | Prime (desclorador) | MOSFET canal 5 | Saída | Digital |
+| **D26** | Prime (desclorificante) | MOSFET canal 5 | Saída | Digital |
 | **D27** | Fertilizante CH4 | MOSFET canal 4 | Saída | Digital |
-| **D32** | Válvula solenóide | MOSFET canal 8 | Saída | Digital |
+| **D32** | Válvula solenoide | MOSFET canal 8 | Saída | Digital |
 | **D33** | Bomba de recalque | MOSFET canal 7 | Saída | Digital |
 | **D34** | UART RX ultrassônico | A02YYUW | Entrada | Digital (Liga no TX do Sensor) |
 | **VIN** | Alimentação 5V | LM2596 step-down | — | Energia |
@@ -193,7 +193,7 @@ O sistema foi projetado com abordagem **safety-first** para prevenir alagamentos
 
 | Proteção | Descrição |
 |---|---|
-| **Boia de overflow** | Boia NC (normalmente fechada) no nível máximo de água, ligada em série com a alimentação da bomba de refill. Corta a bomba fisicamente se a água subir demais — independente do firmware. |
+| **Reed switch de nível máximo** | Reed NA (normalmente aberto) com ímã preso a uma boia de EVA no nível máximo de água, ligado em série com o fio de **sinal** entre o GPIO33 e a entrada IN7 do módulo MOSFET — nunca em série com a alimentação da bomba. Corta a bomba fisicamente se a água subir demais, independente do firmware. Ver [`HARDWARE.md`](HARDWARE.md). |
 | **Diodos flyback** | FR154 nas bombas, 1N5822 na solenoide — absorvem picos de tensão de cargas indutivas. |
 | **Capacitores de desacoplamento** | 1000µF perto do ESP32, 470µF perto do módulo MOSFET — absorvem transientes de brownout. |
 | **Ligação 3.3V Direta** | A02YYUW alimentado em 3.3V liga direto no ESP32 sem divisor de tensão. |
@@ -201,7 +201,7 @@ O sistema foi projetado com abordagem **safety-first** para prevenir alagamentos
 
 ---
 
-## � Notificações Push
+## 📲 Notificações Push
 
 IARA envia notificações push em tempo real para o celular via [ntfy.sh](https://ntfy.sh/). Cada tipo pode ser ativado ou desativado individualmente pelo dashboard.
 
@@ -229,9 +229,9 @@ IARA envia notificações push em tempo real para o celular via [ntfy.sh](https:
 1. Baixe o app **ntfy** na sua loja de aplicativos (iOS/Android)
 2. Clique em "+" para "Subscribe to topic" (Inscrever-se em um tópico)
 3. Digite o tópico gerado pelo IARA (exibido na tela do aquário ou no Dashboard) e pronto!
-3. Insira a chave pelo dashboard IARA (`Notificações → API Key`) ou via API:
+3. Ou defina o tópico pelo dashboard IARA (`Notificações → Tópico ntfy.sh`), ou via API:
    ```bash
-   curl -X POST http://<ESP32_IP>/api/notify/key -d '{"key":"SUA_CHAVE"}'
+   curl -X POST http://<ESP32_IP>/api/notify/key -d '{"topic":"SEU_TOPICO"}'
    ```
 4. Ative/desative tipos específicos pelo dashboard
 
@@ -259,8 +259,8 @@ Antes da primeira TPA, o sistema exige que todos os parâmetros críticos de seg
 
 | Parâmetro | Campo API | Descrição |
 |---|---|---|
-| **Margem da Água** | `aqMarginCm` | Distância da borda até a superfície (cm) |
-| **Razão do Prime** | `primeRatio` | mL de condicionador por litro de água |
+| **Margem da Água** | `aqMarginMm` | Distância da borda até o limite de transbordo (mm) |
+| **Razão do Prime** | `primeRatio` | mL de desclorificante por litro de água |
 | **Segurança Reservatório** | `reservoirSafetyML` | mL mínimo a manter no reservatório |
 | **Intervalo TPA** | `tpaInterval` | Dias entre TPAs automáticas (ex: 7) |
 | **Horário TPA** | `tpaHour`, `tpaMinute` | Horário da TPA automática |
@@ -271,7 +271,7 @@ Antes da primeira TPA, o sistema exige que todos os parâmetros críticos de seg
 ```bash
 curl -X POST http://<ESP32_IP>/api/config/aquarium \
   -H "Content-Type: application/json" \
-  -d '{"aqHeight":45, "aqLength":90, "aqWidth":40, "aqMarginCm":3, "reservoirVolume":20, "primeRatio":0.5}'
+  -d '{"aqHeight":45, "aqLength":90, "aqWidth":40, "aqMarginMm":30, "reservoirVolume":20, "primeRatio":0.5}'
 ```
 
 **Agenda TPA + segurança canister:**
@@ -404,7 +404,7 @@ cd frontend && npm install && npm run build
 | `abort` | Aborta TPA em andamento |
 | `maint` | Toggle modo manutenção (30 min) |
 | `fert_time HH MM` | Altera horário fertilização |
-| `tpa_time DOW HH MM` | Altera agendamento TPA |
+| `tpa_interval DIAS` | Define os dias entre TPAs automáticas (0 = desativado) |
 | `dose CH ML` | Seta dose do canal CH (1-5) |
 | `reset_stock CH ML` | Reset estoque canal CH |
 | `set_drain CM` | Seta alvo de drenagem |

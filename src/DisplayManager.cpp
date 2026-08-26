@@ -10,25 +10,25 @@
 // =============================================================================
 // I18N — Display strings indexed by language (0=PT, 1=EN, 2=JA)
 // =============================================================================
-static const char *STR_NETWORK[] = {"REDE", "NETWORK", "NETWORK"};
-static const char *STR_AQUARIUM[] = {"AQUARIO", "AQUARIUM", "AQUARIUM"};
-static const char *STR_STOCK[] = {"ESTOQUE", "STOCK", "STOCK"};
-static const char *STR_SCHEDULE[] = {"AGENDA", "SCHEDULE", "SCHEDULE"};
-static const char *STR_CONNECTED[] = {"CONECTADO", "CONNECTED", "CONNECTED"};
+static const char *STR_NETWORK[] = {"REDE", "NETWORK", "NETTOWAKU"};
+static const char *STR_AQUARIUM[] = {"AQUARIO", "AQUARIUM", "SUISOU"};
+static const char *STR_STOCK[] = {"ESTOQUE", "STOCK", "ZAIKO"};
+static const char *STR_SCHEDULE[] = {"AGENDA", "SCHEDULE", "SUKEJUURU"};
+static const char *STR_CONNECTED[] = {"CONECTADO", "CONNECTED", "SETSUZOKU OK"};
 static const char *STR_DISCONNECTED[] = {"DESCONECTADO", "DISCONNECTED",
-                                         "DISCONNECTED"};
+                                         "SETSUZOKU NASHI"};
 static const char *STR_WATER_LEVEL[] = {"NIVEL DA AGUA", "WATER LEVEL",
-                                        "WATER LEVEL"};
-static const char *STR_NEXT_TPA[] = {"PROXIMA TPA", "NEXT WC", "NEXT WC"};
-static const char *STR_DAYS[] = {"dias", "days", "days"};
+                                        "SUII"};
+static const char *STR_NEXT_TPA[] = {"PROXIMA TPA", "NEXT TPA", "TSUGI NO TPA"};
+static const char *STR_DAYS[] = {"dias", "days", "nichi"};
 
 // Menu strings
 static const char *STR_MENU[] = {"MENU", "MENU", "MENU"};
-static const char *STR_MENU_TPA[] = {"INICIAR TPA", "START WC", "START WC"};
+static const char *STR_MENU_TPA[] = {"INICIAR TPA", "START TPA", "TPA KAISHI"};
 static const char *STR_MENU_MAINT_ON[] = {"MANUTENCAO ON", "MAINT. ON",
-                                          "MAINT. ON"};
+                                          "MENTE ON"};
 static const char *STR_MENU_MAINT_OFF[] = {"MANUTENCAO OFF", "MAINT. OFF",
-                                           "MAINT. OFF"};
+                                           "MENTE OFF"};
 
 // =============================================================================
 // PER-CHANNEL BAR COLORS (unique hue per fertilizer + prime)

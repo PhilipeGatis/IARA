@@ -43,7 +43,7 @@ static const NotifyStrings NOTIFY_STRINGS[LANG_COUNT] = {
     // ---- LANG_EN (English) ----
     {
         "TPA Complete ✅", "TPA Error ❌", "Low Stock ⚠️",
-        "EMERGENCY 🚨", "Dosing OK 🧪", "Daily Level 📊", "IARA Test",
+        "EMERGENCY 🚨", "Fertilization OK 🧪", "Daily Level 📊", "IARA Test",
         "Partial water change completed successfully.",
         "TPA error: %s",
         "Channel %d: %.0f mL remaining (threshold: %.0f mL). Refill!",
@@ -54,8 +54,8 @@ static const NotifyStrings NOTIFY_STRINGS[LANG_COUNT] = {
     },
     // ---- LANG_JA (Japanese) ----
     {
-        "TPA完了 ✅", "TPAエラー ❌", "在庫不足 ⚠️",
-        "緊急事態 🚨", "投与OK 🧪", "日次水位 📊", "IARAテスト",
+        "TPA完了 ✅", "TPAエラー ❌", "在庫低下 ⚠️",
+        "緊急 🚨", "施肥完了 🧪", "日次水位 📊", "IARAテスト",
         "換水が正常に完了しました。",
         "TPAエラー: %s",
         "CH%d: %.0f mL残 (閾値: %.0f mL)。補充してください!",

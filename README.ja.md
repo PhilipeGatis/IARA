@@ -37,7 +37,7 @@ ESP32のIPアドレスを調べる必要はなく、ローカルネットワー�
 | ドキュメント | 説明 |
 |---|---|
 | [`BOM.md`](BOM.md) / [`BOM.ja.md`](BOM.ja.md) | **部品表** — AC、DC、アクチュエーター、センサー、保護、コネクタのレイヤー別全コンポーネントリスト。 |
-| [`HARDWARE.md`](HARDWARE.md) / [`HARDWARE.ja.md`](HARDWARE.ja.md) | **ハードウェアアーキテクチャ** — 各レイヤーの配線図、ノイズ保護、センサー用分圧回路、安全実装ノートを含む詳細技術資料。 |
+| [`HARDWARE.md`](HARDWARE.md) / [`HARDWARE.ja.md`](HARDWARE.ja.md) | **ハードウェアアーキテクチャ** — 各レイヤーの配線図、ノイズ保護、超音波UART線の10kΩプルアップ、安全実装ノートを含む詳細技術資料。 |
 | [`3d_models/`](3d_models/) | **3Dモデル (OpenSCAD)** — パラメトリック電子機器筐体 (`electronics_enclosure.scad`)、ドーシングポンプサポート (`dosing_pump_support.scad` / `dosing_pump_single.scad`)、ドリルテストプレート。 |
 
 ---
@@ -101,7 +101,7 @@ stateDiagram-v2
 
 **各ステップの安全性：**
 - 各ステートにはキャリブレーション済み流量から計算される**動的タイムアウト**あり（`容量 / 流量 × 1.5`）。初回TPAは安全なデフォルト値を使用：**排水30秒、給水15秒**。
-- GPIO33とMOSFETモジュールの入力IN7を結ぶ信号線に直列接続された**リードスイッチ**が、最大水位で給水ポンプを**ファームウェアとは独立して**遮断します。ESP32がハングしていても超音波センサーが沈黙していても機能します。[`HARDWARE.md`](HARDWARE.md) を参照。
+- GPIO33とMOSFETモジュールの入力IN7を結ぶ信号線に直列接続された**リードスイッチ**が、最大水位で給水ポンプを**ファームウェアとは独立して**遮断します。ESP32がハングしていても超音波センサーが沈黙していても機能します。[`HARDWARE.ja.md`](HARDWARE.ja.md) を参照。
 - **緊急中止**はどの時点でも全アクチュエーターをOFFにし、キャニスターフィルターを復元。
 - **エラー時**、超音波センサーで水位を確認してからキャニスターを再起動。水位が低すぎる場合（例：排水中のエラー）、キャニスターは**OFFのまま**維持し、空運転によるポンプ損傷を防止。
 
@@ -137,7 +137,7 @@ graph LR
   MOSFET -->|OUT 8| Solenoid[ソレノイドバルブ]
 ```
 
-> 詳細な配線図、分圧回路、保護ノート（フライバックダイオード、スターGND）は [`HARDWARE.ja.md`](HARDWARE.ja.md) を参照してください。
+> 詳細な配線図と保護ノート（フライバックダイオード、スターGND）は [`HARDWARE.ja.md`](HARDWARE.ja.md) を参照してください。
 >
 > 全コンポーネントリストと数量は [`BOM.ja.md`](BOM.ja.md) を参照してください。
 
@@ -193,7 +193,7 @@ graph LR
 
 | 保護機能 | 説明 |
 |---|---|
-| **オーバーフローフロートスイッチ** | 最大水位にNC（常閉）フロートスイッチを設置し、給水ポンプの電源に直列接続。水位が上がりすぎた場合にファームウェアに依存せず物理的にポンプを遮断。 |
+| **最大水位リードスイッチ** | 最大水位にEVAフロートで保持した磁石とNO（ノーマルオープン）リードスイッチを設置し、GPIO33とMOSFET入力IN7を結ぶ**信号線**に直列接続します（ポンプの電源に直列に入れてはいけません）。水位が上がりすぎた場合にファームウェアに依存せず物理的にポンプを遮断。[`HARDWARE.ja.md`](HARDWARE.ja.md) を参照。 |
 | **フライバックダイオード** | ポンプにFR154、ソレノイドに1N5822 — 誘導性負荷の電圧スパイクを吸収。 |
 | **デカップリングコンデンサ** | ESP32近傍に1000µF、MOSFETモジュール近傍に470µF — ブラウンアウト過渡現象を吸収。 |
 | **直接3.3V UART** | 3.3V電源のA02YYUWは分圧回路なしで直接ESP32に接続。 |
@@ -229,9 +229,9 @@ IARAは[ntfy.sh](https://ntfy.sh/)を通じてリアルタイムのプッシュ�
 1. スマートフォンに**ntfy**アプリをダウンロードします（iOS/Android）
 2. 「+」をタップして「トピックを購読」します
 3. IARAが生成したトピック（水槽のディスプレイまたはダッシュボードに表示されます）を入力すれば完了です！
-3. IARAダッシュボード（`通知 → API Key`）またはAPIでキーを入力：
+3. または、IARAダッシュボード（`通知 → ntfy.shトピック`）かAPIでトピックを設定します：
    ```bash
-   curl -X POST http://<ESP32_IP>/api/notify/key -d '{"key":"YOUR_KEY"}'
+   curl -X POST http://<ESP32_IP>/api/notify/key -d '{"topic":"YOUR_TOPIC"}'
    ```
 4. ダッシュボードで各通知タイプの有効/無効を設定
 
@@ -259,7 +259,7 @@ IARAは[ntfy.sh](https://ntfy.sh/)を通じてリアルタイムのプッシュ�
 
 | パラメータ | APIフィールド | 説明 |
 |---|---|---|
-| **水面マージン** | `aqMarginCm` | 上端から水面までの距離（cm） |
+| **水面マージン** | `aqMarginMm` | 上端から溢水限界までの距離（mm） |
 | **プライム比率** | `primeRatio` | 水1リットルあたりのカルキ抜き量（mL） |
 | **リザーバー安全量** | `reservoirSafetyML` | ポンプ安全のためのリザーバー最低量（mL） |
 | **TPA間隔** | `tpaInterval` | 自動TPA間の日数（例：7） |
@@ -271,7 +271,7 @@ IARAは[ntfy.sh](https://ntfy.sh/)を通じてリアルタイムのプッシュ�
 ```bash
 curl -X POST http://<ESP32_IP>/api/config/aquarium \
   -H "Content-Type: application/json" \
-  -d '{"aqHeight":45, "aqLength":90, "aqWidth":40, "aqMarginCm":3, "reservoirVolume":20, "primeRatio":0.5}'
+  -d '{"aqHeight":45, "aqLength":90, "aqWidth":40, "aqMarginMm":30, "reservoirVolume":20, "primeRatio":0.5}'
 ```
 
 **TPAスケジュール + キャニスター安全設定：**
@@ -375,7 +375,7 @@ pio device monitor
 `Makefile`でワークフロー全体を自動化：
 
 ```bash
-# 一括：React ビルド → LittlFS アップロード → ファームウェアフラッシュ
+# 一括：React ビルド → LittleFS アップロード → ファームウェアフラッシュ
 make all
 
 # または個別ステップ：
@@ -406,7 +406,7 @@ cd frontend && npm install && npm run build
 | `abort` | 実行中の換水を中止 |
 | `maint` | メンテナンスモード切替（30分） |
 | `fert_time HH MM` | 施肥時刻を設定 |
-| `tpa_time DOW HH MM` | 換水スケジュールを設定 |
+| `tpa_interval DAYS` | 自動換水の間隔日数を設定（0 = 無効） |
 | `dose CH ML` | チャンネルCH（1–5）の投与量を設定 |
 | `reset_stock CH ML` | チャンネルCHの在庫をリセット |
 | `set_drain CM` | 排水目標レベルを設定 |

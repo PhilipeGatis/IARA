@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import { useT } from './i18n';
 
 /**
  * In-page confirmation.
@@ -10,6 +11,7 @@ import { useCallback, useRef, useState } from 'react';
  * cannot be switched off that way.
  */
 export function useConfirm() {
+    const { t } = useT();
     const [message, setMessage] = useState<string | null>(null);
     const resolver = useRef<((ok: boolean) => void) | null>(null);
 
@@ -38,10 +40,10 @@ export function useConfirm() {
                 <p className="mb-4 text-sm leading-relaxed text-text">{message}</p>
                 <div className="flex gap-2">
                     <button className="btn btn-n flex-1" onClick={() => close(false)}>
-                        Cancelar
+                        {t('common.cancel')}
                     </button>
                     <button className="btn btn-p flex-1" onClick={() => close(true)}>
-                        Confirmar
+                        {t('common.confirm')}
                     </button>
                 </div>
             </div>

@@ -97,7 +97,7 @@ Responsible for converting power to logic levels and maintaining ESP32 stability
 >
 > The ESP32 measures every input relative to *its own* GND pin. A sensor referenced to the PSU terminal hands the GPIO the potential difference between those two points. During pump startup that difference exceeds **1 V negative** — far beyond the ESP32's −0.3 V absolute minimum — and the damage accumulates until the pin fails open.
 >
-> This is exactly how GPIO5 and GPIO19 burned out. See [`PROTECAO_ELETRICA.md`](PROTECAO_ELETRICA.md).
+> This is exactly how GPIO5 and GPIO19 burned out. See [`PROTECAO_ELETRICA.md`](PROTECAO_ELETRICA.md) (Portuguese only).
 
 ---
 
@@ -173,7 +173,7 @@ Waterproof ultrasonic sensor that reports distance over **UART**. No TRIG/ECHO, 
 > **Protocol:** 9600 baud, 8N1. 4-byte frame — `0xFF`, `DataH`, `DataL`, `Checksum`, where distance is in **millimeters** (`(DataH << 8) | DataL`) and the checksum is `(0xFF + DataH + DataL) & 0xFF`. The firmware discards frames with an invalid checksum and applies a 5-sample median filter.
 
 > [!CAUTION]
-> **Local decoupling.** At 3.3V the sensor runs at the bottom of its range, which makes it sensitive to the voltage sag when pumps start — the symptom is corrupted readings during exactly the drain and refill steps. Fit **100 µF + 100 nF at the sensor connector**, not on the board. See [`PROTECAO_ELETRICA.md`](PROTECAO_ELETRICA.md).
+> **Local decoupling.** At 3.3V the sensor runs at the bottom of its range, which makes it sensitive to the voltage sag when pumps start — the symptom is corrupted readings during exactly the drain and refill steps. Fit **100 µF + 100 nF at the sensor connector**, not on the board. See [`PROTECAO_ELETRICA.md`](PROTECAO_ELETRICA.md) (Portuguese only).
 
 ### Wiring Diagram — Max-Level Interlock (Reed Switch)
 
