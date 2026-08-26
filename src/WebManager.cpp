@@ -1117,14 +1117,52 @@ void WebManager::_setupRoutes() {
 // SIMPLE JSON EXTRACTORS (avoid ArduinoJson dependency)
 // ============================================================================
 
+/// Strips the scheme and any path from an Origin or Referer, leaving host:port.
+static String _authorityOf(const String &url) {
+  int start = url.indexOf("://");
+  start = (start < 0) ? 0 : start + 3;
+  int end = url.indexOf('/', start);
+  return (end < 0) ? url.substring(start) : url.substring(start, end);
+}
+
 bool WebManager::_rejectForgedRequest(AsyncWebServerRequest *request) {
+  // Preferred proof: the dashboard's own marker. A page on another site cannot
+  // attach a custom header without a CORS preflight, and we answer none.
   if (request->hasHeader("X-IARA-Request"))
     return false;
-  Serial.printf("[Web] Refused %s %s: missing X-IARA-Request\n",
-                request->methodToString(), request->url().c_str());
-  request->send(403, "application/json",
-                "{\"error\":\"request must come from the IARA dashboard\"}");
-  return true;
+
+  // Fallback: the browser's own account of where the request came from.
+  //
+  // Requiring only the custom header built a trap. Flashing firmware without
+  // the matching UI left a dashboard that sends no header, and the one way to
+  // upload the new UI is /api/ota — which the header requirement had just
+  // locked. The device refused the only request that could fix it.
+  //
+  // Browsers send Origin on every cross-origin POST, form submissions included,
+  // so checking it blocks the forgery just as well while letting an older
+  // dashboard served from this device through.
+  const String host = request->host();
+  const char *sources[] = {"Origin", "Referer"};
+  for (const char *name : sources) {
+    if (!request->hasHeader(name))
+      continue;
+    const String authority = _authorityOf(request->header(name));
+    if (authority.length() > 0 && authority == host)
+      return false; // same origin — served by us
+    Serial.printf("[Web] Refused %s %s: %s is %s, not %s\n",
+                  request->methodToString(), request->url().c_str(), name,
+                  authority.c_str(), host.c_str());
+    request->send(403, "application/json",
+                  "{\"error\":\"cross-origin request refused\"}");
+    return true;
+  }
+
+  // Neither header present. A browser always sends Origin on a cross-origin
+  // POST, so this is not a page acting on the owner's behalf — it is a direct
+  // client such as curl. Those are outside what this guard can address: anyone
+  // who can reach the device on the LAN can already craft any request. This is
+  // not authentication and does not pretend to be.
+  return false;
 }
 
 bool WebManager::_collectBody(AsyncWebServerRequest *request, uint8_t *data,
