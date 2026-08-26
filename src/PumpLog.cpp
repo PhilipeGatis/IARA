@@ -76,10 +76,16 @@ void pumpLogLoad() {
   Serial.printf("[PumpLog] Loaded %d events from flash.\n", _logCount);
 }
 
+// LittleFS writes were deadlocking the loop against the async web server's
+// task, so persistence is off: the pump log lives in RAM and does not survive a
+// reboot. This is a named constant rather than an early `return;` above a full
+// function body, because that reads as working code to anyone scanning the file
+// — and the whole point of a pump log is being able to trust it after the event
+// you wanted to investigate.
+static constexpr bool PUMP_LOG_PERSIST = false;
+
 void pumpLogFlush() {
-  // DISABLING FLUSH TEMPORARILY: LittleFS writes are deadlocking the loop.
-  // The system will only keep logs in RAM until we fix the file system issue.
-  return;
+  if (!PUMP_LOG_PERSIST) return;
   if (!_dirty) return;
 
   unsigned long now = millis();

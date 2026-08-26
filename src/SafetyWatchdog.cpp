@@ -241,9 +241,17 @@ void SafetyWatchdog::_updateEmergencyDrain() {
 
   unsigned long elapsed = millis() - _emergencyDrainStart;
 
-  // Hysteresis: only clear emergency drain if level falls 5cm below threshold
+  // Hysteresis: stand down only once the level is clearly below the threshold,
+  // not the moment it grazes it.
+  //
+  // An uncalibrated threshold is 0, and every real distance is above 0 plus the
+  // margin — so without this guard the drain would declare the tank safe on its
+  // first reading, whatever the water is actually doing. With no calibrated
+  // reference there is no level this can call safe, so it runs to the timeout
+  // and shuts down, which is the outcome that needs a human either way.
   float dist = _lastDistance;
-  if (dist > _overflowThresholdCm + 5.0f) {
+  if (_overflowThresholdCm > 0 &&
+      dist > _overflowThresholdCm + EMERGENCY_CLEAR_MARGIN_CM) {
     pumpOff(PIN_DRAIN, PumpReason::SAFETY_STOP);
     _emergencyDraining = false;
     _emergency = false;

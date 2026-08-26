@@ -86,11 +86,27 @@ constexpr unsigned long TIMEOUT_FILL_MS = 10UL * 60 * 1000;         // 10 min
 // is the real stop; this only bounds a stuck float. A ~18 L reservoir on a
 // typical ~5 L/min solenoid fills in about 4 minutes, so 20 minutes is generous
 // without leaving mains water running for hours.
-constexpr unsigned long TIMEOUT_RESERVOIR_FILL_MS = 20UL * 60 * 1000; // 20 min
+// The reservoir fills in about 4 minutes in practice. This is the only bound on
+// the solenoid, which is fed from the house mains — at ~5 L/min the old 20-minute
+// setting was ~100 L onto the floor before anything intervened, and there is no
+// hardware interlock on that channel. 8 minutes is 2x the measured fill.
+constexpr unsigned long TIMEOUT_RESERVOIR_FILL_MS = 8UL * 60 * 1000; // 8 min
 constexpr unsigned long TIMEOUT_REFILL_MS = 10UL * 60 * 1000;       // 10 min
 constexpr unsigned long TIMEOUT_PRIME_MS = 60UL * 1000;             // 1 min
 constexpr unsigned long TIMEOUT_FERT_MS = 30UL * 1000;              // 30 sec
 constexpr unsigned long TIMEOUT_EMERGENCY_MS = 3UL * 60 * 1000;     // 3 min
+
+// How far below the overflow threshold the level must fall before the emergency
+// drain stands down. At the measured 2.1 L/min the old 5 cm needed 4.3 minutes
+// of draining against a 3-minute timeout, so the recovery branch was
+// unreachable and every overflow ended in a latched shutdown. 2 cm is still
+// ~6x the calm-water noise floor and clears in well under the timeout.
+constexpr float EMERGENCY_CLEAR_MARGIN_CM = 2.0f;
+
+// Ceiling on a manual fertiliser pump run started from the API. Without it, a
+// closed tab, a dropped connection or a crashed browser between the ON and OFF
+// requests leaves the pump running until someone notices.
+constexpr unsigned long MANUAL_FERT_MAX_MS = 3UL * 60 * 1000;
 // Hard ceiling for a manual pump run. The real limit is dynamic — twice the
 // expected duration once a flow rate is known — this is only the fallback for
 // an uncalibrated pump.

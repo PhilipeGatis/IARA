@@ -228,6 +228,25 @@ void test_second_dose_refused_while_one_runs() {
   TEST_ASSERT_TRUE(fm.startDose(1, 5.0f));
 }
 
+void test_manual_pump_stops_at_its_ceiling() {
+  FertManager fm = createFM();
+  Preferences::mock_clearAll();
+  mock_reset_pins();
+
+  fm.manualPump(0, true);
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[13]);
+
+  // Still running well inside the ceiling.
+  mock_millis_value += MANUAL_FERT_MAX_MS - 1000;
+  fm.tickDose();
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[13]);
+
+  // The browser that turned it on never sent the OFF request.
+  mock_millis_value += 2000;
+  fm.tickDose();
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[13]);
+}
+
 void test_dose_channel_rejects_invalid() {
   FertManager fm = createFM();
 
@@ -270,6 +289,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_dose_channel_activates_correct_pin);
   RUN_TEST(test_dose_does_not_block_the_loop);
   RUN_TEST(test_second_dose_refused_while_one_runs);
+  RUN_TEST(test_manual_pump_stops_at_its_ceiling);
   RUN_TEST(test_dose_channel_rejects_invalid);
 
   UNITY_END();

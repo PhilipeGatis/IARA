@@ -339,11 +339,13 @@ void setup() {
   notifyMgr.setLanguage(webMgr.getLanguage());
 
   // --- Step 10: Disable Task Watchdog ---
-  // The Arduino framework's task WDT conflicts with our long-running loop
-  // (ultrasonic pulseIn blocks ~300ms, I2C transfers, etc). The system already
-  // has a comprehensive SafetyWatchdog (sensors, emergency shutdown, overflow
-  // detection) so the task WDT is redundant. Disable it to prevent false
-  // reboots.
+  // NOTE: the original justification was that ultrasonic pulseIn() blocked the
+  // loop for ~300 ms. That driver is gone — the A02YYUW streams over UART — and
+  // fertiliser dosing no longer blocks either, so the loop is now short. The
+  // task WDT is a genuine backstop against a hung loop, which SafetyWatchdog
+  // cannot catch because it runs *from* that loop. Re-enabling it is the right
+  // move, but it changes reboot behaviour mid-cycle and wants to be verified on
+  // the bench rather than flipped blind.
   disableLoopWDT();
   disableCore0WDT();
   Serial.println("[WDT] Task watchdog disabled (SafetyWatchdog active).");

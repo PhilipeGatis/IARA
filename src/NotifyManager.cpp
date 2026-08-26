@@ -154,13 +154,19 @@ bool NotifyManager::_canSend(NotifyType type) {
     return false;
   }
 
-  // Check cooldown
-  unsigned long now = millis();
+  // Check cooldown. Signed difference so this stays correct across the millis()
+  // rollover at ~49 days, which a board left running will reach.
   if (_lastNotifyMs[type] > 0 &&
-      (now - _lastNotifyMs[type]) < NOTIFY_COOLDOWN_MS) {
+      (long)(millis() - _lastNotifyMs[type]) < (long)NOTIFY_COOLDOWN_MS) {
     return false;
   }
 
+  // Armed here rather than after a successful send. The low-stock check runs
+  // for every channel on every loop iteration, so with the cooldown armed only
+  // on success, a down WiFi link or an ntfy error meant this opened a TCP
+  // connection roughly twenty times a second and blocked the loop on each one.
+  // An attempt that got this far counts, whatever the network does with it.
+  _lastNotifyMs[type] = millis();
   return true;
 }
 

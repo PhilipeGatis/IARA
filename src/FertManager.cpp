@@ -128,6 +128,15 @@ bool FertManager::startDose(uint8_t ch, float ml) {
 }
 
 void FertManager::tickDose() {
+  // Also ends a manual run that outlived its ceiling. Both live here because
+  // this is the one hook loop() calls unconditionally, above every early return.
+  if (_manualActive && (long)(millis() - _manualEndMs) >= 0) {
+    ledcWrite(_manualChannel, 0);
+    _manualActive = false;
+    Serial.printf("[Fert] CH%d manual run hit its %lu ms ceiling — stopped\n",
+                  _manualChannel + 1, MANUAL_FERT_MAX_MS);
+  }
+
   if (!_doseActive)
     return;
   // Signed difference so the comparison stays correct across the millis()
@@ -140,6 +149,10 @@ void FertManager::tickDose() {
 }
 
 void FertManager::abortDose() {
+  if (_manualActive) {
+    ledcWrite(_manualChannel, 0);
+    _manualActive = false;
+  }
   if (!_doseActive)
     return;
   ledcWrite(_doseChannel, 0);
@@ -150,6 +163,12 @@ void FertManager::abortDose() {
 void FertManager::manualPump(uint8_t ch, bool state) {
   if (!_isValidChannel(ch))
     return;
+  // The caller is a browser, and the OFF request is not guaranteed to arrive:
+  // a closed tab, a dropped link or a crashed page between ON and OFF used to
+  // leave the pump running indefinitely. tickDose() enforces the ceiling.
+  _manualActive = state;
+  _manualChannel = ch;
+  _manualEndMs = millis() + MANUAL_FERT_MAX_MS;
   ledcWrite(ch, state ? _pwm[ch] : 0);
   Serial.printf("[Fert] Manual pump CH%d set to %s (PWM: %d)\n", ch + 1,
                 state ? "ON" : "OFF", state ? _pwm[ch] : 0);

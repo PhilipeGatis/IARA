@@ -146,6 +146,11 @@ private:
   /// Check if a channel index is valid (0-NUM_FERTS inclusive) (DRY #7)
   bool _isValidChannel(uint8_t ch) const { return ch <= NUM_FERTS; }
 
+  // A manual run has no scheduled end, so it gets a hard ceiling instead.
+  bool _manualActive = false;
+  uint8_t _manualChannel = 0;
+  unsigned long _manualEndMs = 0;
+
   // In-progress dose. Only one at a time; see startDose().
   bool _doseActive = false;
   uint8_t _doseChannel = 0;

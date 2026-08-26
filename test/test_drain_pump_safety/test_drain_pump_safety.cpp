@@ -600,6 +600,7 @@ void test_emergency_drain_activates_drain_pump() {
 }
 
 void test_emergency_drain_stops_when_water_safe() {
+  safety.setOverflowThresholdCm(5.0f);
   setDistance(15.0f); // ~15cm (valid sensor)
 
   // Start emergency drain
@@ -616,6 +617,7 @@ void test_emergency_drain_stops_when_water_safe() {
 }
 
 void test_emergency_drain_timeout_causes_full_shutdown() {
+  safety.setOverflowThresholdCm(5.0f);
   setDistance(3.0f); // ~3cm — water still dangerously high
 
   safety.emergencyDrain();
@@ -629,6 +631,24 @@ void test_emergency_drain_timeout_causes_full_shutdown() {
 
   // Should have triggered full shutdown
   TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_DRAIN]);
+  TEST_ASSERT_TRUE(safety.isEmergency());
+}
+
+void test_uncalibrated_threshold_does_not_end_the_emergency_drain() {
+  safety.setOverflowThresholdCm(0.0f); // sensor never calibrated
+  setDistance(30.0f);                  // a perfectly ordinary reading
+
+  safety.emergencyDrain();
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_DRAIN]);
+
+  mock_millis_value += SAFETY_CHECK_INTERVAL_MS + 1;
+  setDistance(30.0f);
+  safety.update();
+
+  // Every real distance is above 0 plus the clear margin. Deciding "safe"
+  // against an uncalibrated reference would stand the drain down immediately,
+  // on a comparison that means nothing.
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_DRAIN]);
   TEST_ASSERT_TRUE(safety.isEmergency());
 }
 
@@ -865,6 +885,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_emergency_drain_activates_drain_pump);
   RUN_TEST(test_emergency_drain_stops_when_water_safe);
   RUN_TEST(test_emergency_drain_timeout_causes_full_shutdown);
+  RUN_TEST(test_uncalibrated_threshold_does_not_end_the_emergency_drain);
   RUN_TEST(test_emergency_shutdown_clears_drain);
 
   // Section 6: Edge cases — never spontaneous

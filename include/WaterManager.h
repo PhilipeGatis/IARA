@@ -209,7 +209,11 @@ private:
 
   /// Is waiting for a non-blocking delay to expire?
   bool _isWaiting() const {
-    return _waitUntilMs > 0 && millis() < _waitUntilMs;
+    // Signed difference, not `millis() < _waitUntilMs`. Around the ~49-day
+    // rollover the raw comparison flips, and a wait that should have ended
+    // instead lasts another 49 days — with the canister off and the state
+    // machine parked mid-cycle.
+    return _waitUntilMs > 0 && (long)(millis() - _waitUntilMs) < 0;
   }
 
   /// Abort with error message
