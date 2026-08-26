@@ -93,6 +93,23 @@ Com os dois fios na mesma referência, quando o sensor acionar, o GPIO vai ser l
 
 É trocar um fio de borne. Custo zero, e ataca a raiz. **Faça isso mesmo instalando o optoacoplador**: nos dois casos o lado do ESP32 continua precisando da referência certa.
 
+### Verifique também o GND do módulo MOSFET
+
+Existe um segundo caminho de retorno que costuma passar despercebido, e ele encaixa ainda melhor com o histórico de GPIO queimado.
+
+Os 8 canais chaveiam pelo **lado baixo**, então a corrente de retorno de *todas* as bombas passa por um único parafuso: o terminal GND do módulo. Se esse borne afrouxar ou oxidar, vários ampères vão procurar outro caminho de volta ao negativo da fonte — e o único disponível são os oito fios de sinal de 22 AWG, entrando direto nos GPIOs.
+
+Isso explica o padrão melhor do que ruído irradiado: é **conduzido**, é da ordem de ampères, e acontece exatamente no instante em que uma bomba parte.
+
+**A boa notícia:** o módulo em uso tem entradas **optoacopladas**. Se a barreira galvânica estiver íntegra, essa corrente simplesmente não tem caminho até o ESP32. Mas placas baratas frequentemente unem os dois GNDs por um jumper de solda ou uma trilha, e aí a barreira é decorativa.
+
+Meça com o ohmímetro, módulo totalmente desconectado, entre o **GND do lado de controle** e o **GND do lado de potência**:
+
+- **Aberto** — isolamento real. Mantenha assim: **não una esses dois GNDs em lugar nenhum**. Isso é mais valioso do que qualquer outra proteção nesta lista.
+- **~0 Ω** — GNDs compartilhados. Procure o jumper de solda; cortá-lo devolve a proteção de verdade.
+
+Independente do resultado, **reaperte o borne de GND do módulo** e todos os bornes de potência depois da primeira hora de operação. Foi um parafuso solto que causou o falso alarme diagnosticado neste projeto.
+
 ---
 
 ## Passo 2 — optoacoplador na boia (opcional)
