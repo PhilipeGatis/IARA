@@ -98,6 +98,12 @@ public:
   String getName(uint8_t ch) const;
   void setName(uint8_t ch, const String &name);
 
+  /// Wipe one channel's configuration back to factory defaults and persist it.
+  /// Clears doses, per-day times, stock, flow rate, PWM, name, threshold, the
+  /// enable flag and the "already dosed today" stamp, and drops any leftover
+  /// pre-blob NVS keys for the channel. Stops the channel's pump first.
+  void resetChannel(uint8_t ch);
+
   /// Save stock levels and names to NVS
   void saveState();
 
@@ -139,6 +145,12 @@ private:
 
   /// Load state from NVS
   void _loadState();
+
+  /// Put one channel's settings back to their factory values (RAM only).
+  void _applyDefaults(uint8_t ch);
+
+  /// Drop every pre-blob NVS key belonging to a channel.
+  void _removeLegacyKeys(uint8_t ch);
 
   /// Mark today as dosed for a channel in NVS
   void _markDosed(uint8_t ch, DateTime now);

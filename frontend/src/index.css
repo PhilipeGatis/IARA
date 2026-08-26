@@ -102,6 +102,40 @@ body.ap-mode .tab-pane {
   animation: slide-up 0.25s ease-out;
 }
 
+/* Bottom-sheet height.
+   100vh on a phone counts the address bar and the toolbar as visible space, so
+   the last rows of a vh-sized sheet sit underneath the browser chrome with no
+   way to scroll to them. dvh measures what is actually on screen. The vh rule
+   stays as the fallback for browsers without dvh. */
+.sheet {
+  max-height: 92vh;
+}
+
+@supports (max-height: 100dvh) {
+  .sheet {
+    max-height: 92dvh;
+  }
+}
+
+/* Clears the iPhone home indicator at the bottom of a sheet. */
+.safe-b {
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* iOS Safari zooms the page in whenever a focused input renders its text below
+   16px, and does not zoom back out on blur — the modal ends up half off-screen
+   and the user has to pinch their way back. Only the compact numeric fields
+   need this; at sm and up there is no mobile keyboard to trigger it. */
+.inp-num {
+  font-size: 16px;
+}
+
+@media (min-width: 640px) {
+  .inp-num {
+    font-size: 0.875rem;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.01ms !important;

@@ -259,6 +259,130 @@ void test_dose_channel_rejects_invalid() {
   TEST_ASSERT_FALSE(ok);
 }
 
+// ----------------------------------------------------------------------------
+// Legacy NVS Migration
+// ----------------------------------------------------------------------------
+
+// Every channel carried its own settings in the pre-blob key layout, so every
+// channel must come back after the upgrade — not just the first one.
+void test_legacy_settings_migrate_on_every_channel() {
+  // Seed the old per-key layout for CH2 (index 1): 7.5 mL every day at 14:30.
+  Preferences legacy;
+  legacy.begin("fert", false);
+  for (uint8_t d = 0; d < 7; d++) {
+    char key[16];
+    snprintf(key, sizeof(key), "d1_%d", d);
+    legacy.putFloat(key, 7.5f);
+    snprintf(key, sizeof(key), "sH1_%d", d);
+    legacy.putUChar(key, 14);
+    snprintf(key, sizeof(key), "sM1_%d", d);
+    legacy.putUChar(key, 30);
+  }
+  legacy.putFloat("stock1", 250.0f);
+  legacy.putFloat("fR1", 2.0f);
+  legacy.putUChar("pwm1", 200);
+
+  FertManager fm;
+  fm.begin(); // migrates the legacy keys into the per-channel blob
+
+  TEST_ASSERT_EQUAL_FLOAT(7.5f, fm.getDoseML(1, 3));
+  TEST_ASSERT_EQUAL_UINT8(14, fm.getSchedHour(1, 3));
+  TEST_ASSERT_EQUAL_UINT8(30, fm.getSchedMinute(1, 3));
+  TEST_ASSERT_EQUAL_FLOAT(250.0f, fm.getStockML(1));
+  TEST_ASSERT_EQUAL_FLOAT(2.0f, fm.getFlowRate(1));
+  TEST_ASSERT_EQUAL_UINT8(200, fm.getPWM(1));
+}
+
+// ----------------------------------------------------------------------------
+// Per-Channel Reset
+// ----------------------------------------------------------------------------
+
+void test_reset_channel_restores_defaults() {
+  FertManager fm = createFM(14, 30);
+  fm.setStockML(1, 42.0f);
+  fm.setFlowRate(1, 3.3f);
+  fm.setPWM(1, 90);
+  fm.setEnabled(1, false);
+  fm.setName(1, "Ferro");
+
+  fm.resetChannel(1);
+
+  TEST_ASSERT_EQUAL_FLOAT(0.0f, fm.getDoseML(1, 3));
+  TEST_ASSERT_EQUAL_UINT8(DEFAULT_FERT_HOUR, fm.getSchedHour(1, 3));
+  TEST_ASSERT_EQUAL_UINT8(DEFAULT_FERT_MINUTE, fm.getSchedMinute(1, 3));
+  TEST_ASSERT_EQUAL_FLOAT(DEFAULT_STOCK_ML, fm.getStockML(1));
+  TEST_ASSERT_EQUAL_FLOAT(FLOW_RATE_ML_PER_SEC, fm.getFlowRate(1));
+  TEST_ASSERT_EQUAL_UINT8(255, fm.getPWM(1));
+  TEST_ASSERT_TRUE(fm.isEnabled(1));
+  TEST_ASSERT_EQUAL_STRING("CH2", fm.getName(1).c_str());
+}
+
+// Resetting one channel must not disturb its neighbours.
+void test_reset_channel_leaves_others_alone() {
+  FertManager fm = createFM(14, 30);
+  fm.setStockML(0, 42.0f);
+  fm.setPWM(0, 90);
+
+  fm.resetChannel(1);
+
+  TEST_ASSERT_EQUAL_FLOAT(DEFAULT_DOSE_ML, fm.getDoseML(0, 3));
+  TEST_ASSERT_EQUAL_UINT8(14, fm.getSchedHour(0, 3));
+  TEST_ASSERT_EQUAL_FLOAT(42.0f, fm.getStockML(0));
+  TEST_ASSERT_EQUAL_UINT8(90, fm.getPWM(0));
+}
+
+void test_reset_channel_persists_across_reboot() {
+  {
+    FertManager fm = createFM(14, 30);
+    fm.saveState();
+    fm.resetChannel(1);
+  }
+  {
+    FertManager fm;
+    fm.begin(); // reload from NVS, no schedule re-applied
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, fm.getDoseML(1, 3));
+    TEST_ASSERT_EQUAL_UINT8(DEFAULT_FERT_HOUR, fm.getSchedHour(1, 3));
+    // Channel 0 kept what it had
+    TEST_ASSERT_EQUAL_UINT8(14, fm.getSchedHour(0, 3));
+  }
+}
+
+// A reset while the channel is pumping has to stop the pump: the volume being
+// delivered was just erased from the books.
+void test_reset_channel_stops_its_own_pump() {
+  FertManager fm = createFM();
+  TEST_ASSERT_TRUE(fm.startDose(1, 5.0f));
+  TEST_ASSERT_TRUE(fm.isDosing());
+
+  fm.resetChannel(1);
+
+  TEST_ASSERT_FALSE(fm.isDosing());
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_FERT2]);
+}
+
+// ...but not a dose running on a different channel.
+void test_reset_channel_does_not_stop_another_channels_dose() {
+  FertManager fm = createFM();
+  TEST_ASSERT_TRUE(fm.startDose(0, 5.0f));
+
+  fm.resetChannel(1);
+
+  TEST_ASSERT_TRUE(fm.isDosing());
+}
+
+// The stamp has to go too, otherwise a channel reset on a day it already dosed
+// stays blocked until tomorrow.
+void test_reset_channel_clears_dosed_today_stamp() {
+  FertManager fm = createFM();
+  DateTime dt(2026, 2, 24, 9, 0, 0);
+  fm.update(dt);
+  TEST_ASSERT_TRUE(fm.wasDosedToday(dt));
+
+  fm.resetChannel(0);
+
+  TEST_ASSERT_FALSE(fm.wasDosedToday(dt));
+}
+
 // ============================================================================
 // MAIN
 // ============================================================================
@@ -291,6 +415,17 @@ int main(int argc, char **argv) {
   RUN_TEST(test_second_dose_refused_while_one_runs);
   RUN_TEST(test_manual_pump_stops_at_its_ceiling);
   RUN_TEST(test_dose_channel_rejects_invalid);
+
+  // Legacy NVS migration
+  RUN_TEST(test_legacy_settings_migrate_on_every_channel);
+
+  // Per-channel reset
+  RUN_TEST(test_reset_channel_restores_defaults);
+  RUN_TEST(test_reset_channel_leaves_others_alone);
+  RUN_TEST(test_reset_channel_persists_across_reboot);
+  RUN_TEST(test_reset_channel_stops_its_own_pump);
+  RUN_TEST(test_reset_channel_does_not_stop_another_channels_dose);
+  RUN_TEST(test_reset_channel_clears_dosed_today_stamp);
 
   UNITY_END();
   return 0;

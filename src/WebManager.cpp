@@ -1012,6 +1012,30 @@ void WebManager::_setupRoutes() {
         request->send(200, "application/json", "{\"ok\":true}");
       });
 
+  // ---- POST /api/fert/reset (JSON body: {"channel": 0}) ----
+  // Wipes one channel back to factory defaults. Scoped to a single channel on
+  // purpose: it is the escape hatch for a channel whose stored settings are
+  // wrong, not a factory reset of the controller.
+  _server.on(
+      "/api/fert/reset", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
+      [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
+             size_t index, size_t total) {
+        String body;
+        if (!_collectBody(request, data, len, index, total, body))
+          return;
+        int ch = _extractInt(body, "channel");
+
+        if (ch >= 0 && ch <= NUM_FERTS && _fert) {
+          _fert->resetChannel(ch);
+          Serial.printf("[Web] CH%d configuration reset via dashboard\n",
+                        ch + 1);
+          request->send(200, "application/json", "{\"ok\":true}");
+        } else {
+          request->send(400, "application/json",
+                        "{\"error\":\"invalid channel\"}");
+        }
+      });
+
   // ---- POST /api/fert/enable (JSON body: {"channel": 0, "enabled": 1})
   _server.on(
       "/api/fert/enable", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,

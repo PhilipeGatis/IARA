@@ -155,6 +155,11 @@ const translations = {
     'fert.enterMl': { pt: 'Insira a quantidade de mL medida.', en: 'Enter the measured mL amount.', ja: '計測したmL量を入力してください。' },
     'fert.shortDays': { pt: 'D,S,T,Q,Q,S,S', en: 'S,M,T,W,T,F,S', ja: '日,月,火,水,木,金,土' },
     'fert.configure': { pt: 'Configurar', en: 'Configure', ja: '設定' },
+    'fert.dangerZone': { pt: 'ZONA DE RISCO', en: 'DANGER ZONE', ja: '危険操作' },
+    'fert.reset': { pt: 'Resetar este canal', en: 'Reset this channel', ja: 'このチャンネルをリセット' },
+    'fert.resetHint': { pt: 'Volta doses, horários, estoque, calibração, PWM e nome ao padrão de fábrica. Use quando a configuração salva estiver errada e o agendamento não disparar.', en: 'Puts doses, times, stock, calibration, PWM and name back to factory defaults. Use it when the stored configuration is wrong and the schedule will not fire.', ja: '投与量・時刻・在庫・キャリブレーション・PWM・名前を工場出荷時に戻します。保存された設定が壊れてスケジュールが動かない場合に使用します。' },
+    'fert.confirmReset': { pt: 'Apagar TODA a configuração do canal {ch}? Doses, horários, estoque, calibração, PWM e nome voltam ao padrão. Não dá para desfazer.', en: 'Erase ALL configuration for channel {ch}? Doses, times, stock, calibration, PWM and name go back to defaults. This cannot be undone.', ja: 'チャンネル{ch}の設定をすべて消去しますか？投与量・時刻・在庫・キャリブレーション・PWM・名前が既定値に戻ります。元に戻せません。' },
+    'fert.resetDone': { pt: 'Canal {ch} resetado. Configure a agenda novamente.', en: 'Channel {ch} reset. Set the schedule up again.', ja: 'チャンネル{ch}をリセットしました。スケジュールを再設定してください。' },
 
     // ---- ConfigTab ----
     'config.aquarium': { pt: 'Configuração do Aquário', en: 'Aquarium Configuration', ja: '水槽設定' },

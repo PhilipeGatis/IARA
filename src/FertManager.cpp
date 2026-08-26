@@ -2,19 +2,7 @@
 
 FertManager::FertManager() {
   for (uint8_t i = 0; i < NUM_FERTS + 1; i++) {
-    for (uint8_t d = 0; d < 7; d++) {
-      _doseML[i][d] =
-          0.0f; // Default 0 for all days to prevent accidental dosing
-      _schedHour[i][d] = DEFAULT_FERT_HOUR;
-      _schedMinute[i][d] = DEFAULT_FERT_MINUTE;
-    }
-    _stockML[i] = DEFAULT_STOCK_ML;
-    _names[i] = (i < NUM_FERTS) ? String("CH") + String(i + 1) : "Prime";
-    _lastDoseKey[i] = 0;
-    _flowRateMLps[i] = FLOW_RATE_ML_PER_SEC; // Default 1.5 mL/s
-    _pwm[i] = 255;
-    _lowStockThreshold[i] = 50.0f; // Default low stock warning at 50 mL
-    _enabled[i] = true;
+    _applyDefaults(i);
   }
 }
 
@@ -292,6 +280,33 @@ struct FertChannelData {
   bool enabled;
 };
 
+void FertManager::resetChannel(uint8_t ch) {
+  if (!_isValidChannel(ch))
+    return;
+
+  // Stop this channel's pump before the numbers behind it are erased. Only this
+  // channel: abortDose() would also cut a manual run on a different one, and a
+  // reset of CH2 has no business stopping CH3.
+  if (_doseActive && _doseChannel == ch) {
+    ledcWrite(ch, 0);
+    _doseActive = false;
+    Serial.printf("[Fert] CH%d dose stopped by config reset\n", ch + 1);
+  }
+  if (_manualActive && _manualChannel == ch) {
+    ledcWrite(ch, 0);
+    _manualActive = false;
+  }
+
+  _applyDefaults(ch);
+
+  // The pre-blob keys are what made a reset necessary in the first place, so a
+  // reset that left them behind would not be one.
+  _removeLegacyKeys(ch);
+
+  saveState();
+  Serial.printf("[Fert] CH%d configuration reset to defaults\n", ch + 1);
+}
+
 void FertManager::saveState() {
   for (uint8_t i = 0; i < NUM_FERTS + 1; i++) {
     char key[16];
@@ -332,7 +347,42 @@ uint32_t FertManager::_dateKey(DateTime dt) const {
          (uint32_t)dt.day();
 }
 
+void FertManager::_applyDefaults(uint8_t ch) {
+  for (uint8_t d = 0; d < 7; d++) {
+    _doseML[ch][d] = 0.0f; // Default 0 for all days to prevent accidental dosing
+    _schedHour[ch][d] = DEFAULT_FERT_HOUR;
+    _schedMinute[ch][d] = DEFAULT_FERT_MINUTE;
+  }
+  _stockML[ch] = DEFAULT_STOCK_ML;
+  _names[ch] = (ch < NUM_FERTS) ? String("CH") + String(ch + 1) : "Prime";
+  _lastDoseKey[ch] = 0;
+  _flowRateMLps[ch] = FLOW_RATE_ML_PER_SEC; // Default 1.5 mL/s
+  _pwm[ch] = 255;
+  _lowStockThreshold[ch] = 50.0f; // Default low stock warning at 50 mL
+  _enabled[ch] = true;
+}
+
+void FertManager::_removeLegacyKeys(uint8_t ch) {
+  char key[16];
+  const char *scalarKeys[] = {"dose%d", "sD%d",  "stock%d", "lk%d", "sH%d",
+                              "sM%d",   "fR%d",  "pwm%d",   "lt%d", "en%d"};
+  for (const char *fmt : scalarKeys) {
+    snprintf(key, sizeof(key), fmt, ch);
+    _prefs.remove(key);
+  }
+  for (uint8_t d = 0; d < 7; d++) {
+    snprintf(key, sizeof(key), "d%d_%d", ch, d);
+    _prefs.remove(key);
+    snprintf(key, sizeof(key), "sH%d_%d", ch, d);
+    _prefs.remove(key);
+    snprintf(key, sizeof(key), "sM%d_%d", ch, d);
+    _prefs.remove(key);
+  }
+}
+
 void FertManager::_loadState() {
+  bool migrated = false;
+
   for (uint8_t i = 0; i < NUM_FERTS + 1; i++) {
     char key[16];
     
@@ -355,67 +405,66 @@ void FertManager::_loadState() {
       _pwm[i] = data.pwm;
       _enabled[i] = data.enabled;
     } else {
-      // Backwards Compatibility: Read legacy keys and clear them to free NVS space
+      // Backwards Compatibility: read the pre-blob keys, then clear them in one
+      // pass at the end. Reading first matters — the per-day keys fall back on
+      // the single-value ones, which have to still be there when they do.
       snprintf(key, sizeof(key), "dose%d", i);
       float legacyDose = _prefs.getFloat(key, (i == NUM_FERTS) ? DEFAULT_PRIME_ML : DEFAULT_DOSE_ML);
-      _prefs.remove(key);
 
       snprintf(key, sizeof(key), "sD%d", i);
       uint8_t legacyMask = _prefs.getUChar(key, 127);
-      _prefs.remove(key);
 
       for (uint8_t d = 0; d < 7; d++) {
         snprintf(key, sizeof(key), "d%d_%d", i, d);
         float defaultDose = ((legacyMask & (1 << d)) != 0) ? legacyDose : 0.0f;
         _doseML[i][d] = _prefs.getFloat(key, defaultDose);
-        _prefs.remove(key);
       }
 
       snprintf(key, sizeof(key), "stock%d", i);
       _stockML[i] = _prefs.getFloat(key, DEFAULT_STOCK_ML);
-      _prefs.remove(key);
 
       snprintf(key, sizeof(key), "lk%d", i);
       _lastDoseKey[i] = _prefs.getUInt(key, 0);
-      _prefs.remove(key);
 
       snprintf(key, sizeof(key), "sH%d", i);
       uint8_t legacyHour = _prefs.getUChar(key, DEFAULT_FERT_HOUR);
-      _prefs.remove(key);
 
       snprintf(key, sizeof(key), "sM%d", i);
       uint8_t legacyMin = _prefs.getUChar(key, DEFAULT_FERT_MINUTE);
-      _prefs.remove(key);
 
       for (uint8_t d = 0; d < 7; d++) {
         snprintf(key, sizeof(key), "sH%d_%d", i, d);
         _schedHour[i][d] = _prefs.getUChar(key, legacyHour);
-        _prefs.remove(key);
         snprintf(key, sizeof(key), "sM%d_%d", i, d);
         _schedMinute[i][d] = _prefs.getUChar(key, legacyMin);
-        _prefs.remove(key);
       }
 
       snprintf(key, sizeof(key), "fR%d", i);
       _flowRateMLps[i] = _prefs.getFloat(key, FLOW_RATE_ML_PER_SEC);
-      _prefs.remove(key);
 
       snprintf(key, sizeof(key), "pwm%d", i);
       _pwm[i] = _prefs.getUChar(key, 255);
-      _prefs.remove(key);
 
       snprintf(key, sizeof(key), "lt%d", i);
       _lowStockThreshold[i] = _prefs.getFloat(key, 50.0f);
-      _prefs.remove(key);
 
       snprintf(key, sizeof(key), "en%d", i);
       _enabled[i] = _prefs.getBool(key, true);
-      _prefs.remove(key);
 
-      // Force save the new struct blob now that we've migrated and cleared keys
-      saveState();
+      _removeLegacyKeys(i);
+
+      // Saving here would write a blob for every channel, including the ones
+      // this loop has not read yet — their next getBytes() would then find that
+      // blob, take the constructor defaults as real settings and never look at
+      // the legacy keys. Only channel 0 would survive the upgrade. Flag it and
+      // save once, after every channel has been migrated.
+      migrated = true;
     }
   }
+
+  // Force save the new struct blobs now that we've migrated and cleared keys
+  if (migrated)
+    saveState();
 }
 
 void FertManager::_markDosed(uint8_t ch, DateTime now) {

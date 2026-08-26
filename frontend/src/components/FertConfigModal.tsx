@@ -16,13 +16,14 @@ export default function FertConfigModal({ index, s, onClose }: Props) {
 
     // Schedule States — per day
     const [doses, setDoses] = useState<string[]>(Array(7).fill('0'));
-    const [hours, setHours] = useState<string[]>(Array(7).fill('8'));
+    const [hours, setHours] = useState<string[]>(Array(7).fill('9'));
     const [mins, setMins] = useState<string[]>(Array(7).fill('0'));
 
     // Calibration States
     const [calibMl, setCalibMl] = useState('');
     const [pwm, setPwm] = useState(s.pwm !== undefined ? s.pwm : 255);
     const [enabled, setEnabled] = useState(s.en !== undefined ? s.en : true);
+    const [resetDone, setResetDone] = useState(false);
 
     const shortDays = t('fert.shortDays').split(',');
 
@@ -74,6 +75,22 @@ export default function FertConfigModal({ index, s, onClose }: Props) {
         api('POST', '/api/fert/enable', { channel: index, enabled: nextState ? 1 : 0 });
     };
 
+    const handleReset = async () => {
+        if (!(await ask(t('fert.confirmReset', { ch: index + 1 })))) return;
+        const r = await api('POST', '/api/fert/reset', { channel: index });
+        if (!r?.ok) return;
+        // The init effects below run once and then latch, so the form has to be
+        // put back by hand — otherwise the inputs go on showing the values that
+        // were just erased on the controller.
+        setDoses(Array(7).fill('0'));
+        setHours(Array(7).fill('9'));
+        setMins(Array(7).fill('0'));
+        setPwm(255);
+        setEnabled(true);
+        setCalibMl('');
+        setResetDone(true);
+    };
+
     const handleSaveCalib = async () => {
         if (+calibMl > 0) {
             if (await ask(t('fert.confirmCalib', { ml: calibMl, ch: index + 1 }))) {
@@ -95,7 +112,7 @@ export default function FertConfigModal({ index, s, onClose }: Props) {
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
 
             {/* Modal */}
-            <div className="animate-slide-up relative z-10 max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-card shadow-2xl sm:rounded-2xl">
+            <div className="animate-slide-up sheet relative z-10 w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-3xl bg-card shadow-2xl sm:rounded-2xl">
                 {/* Header */}
                 <div className="sticky top-0 z-10 flex items-center gap-3 rounded-t-3xl border-b border-border/60 bg-card px-4 py-3 sm:rounded-t-2xl">
                     <div className="min-w-0 flex-1">
@@ -122,7 +139,7 @@ export default function FertConfigModal({ index, s, onClose }: Props) {
                     </button>
                 </div>
 
-                <div className="flex flex-col gap-6 p-4">
+                <div className="safe-b flex flex-col gap-6 p-4">
                     {/* SCHEDULE — one row per day, thumb sized */}
                     <section>
                         <div className="card-h">
@@ -132,19 +149,31 @@ export default function FertConfigModal({ index, s, onClose }: Props) {
                             </span>
                         </div>
 
+                        {/* Four fixed columns. The old layout was a flex row of
+                            fixed-width boxes that added up to more than a 320 px
+                            phone has, so the last column fell off the edge. The
+                            time inputs take the free column and shrink instead. */}
                         <div className="mb-4 flex flex-col">
+                            <div className="grid grid-cols-[1.25rem_3.5rem_minmax(0,1fr)_2.5rem] items-center gap-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted">
+                                <span />
+                                <span className="text-center">mL</span>
+                                <span className="text-center">{t('fert.hour')}:{t('fert.min')}</span>
+                                <span className="text-right">s</span>
+                            </div>
+
                             {shortDays.map((day, i) => {
                                 const doseVal = Number(doses[i]);
                                 const estimatedSecs = s.fR > 0 ? (doseVal / s.fR).toFixed(1) : '0';
                                 const hasActiveDose = doseVal > 0;
                                 return (
-                                    <div key={i} className="flex items-center gap-2 border-b border-border/40 py-1.5 last:border-0">
-                                        <span className={`w-7 flex-none text-xs font-bold ${hasActiveDose ? 'text-accent' : 'text-muted'}`}>{day}</span>
+                                    <div key={i} className="grid grid-cols-[1.25rem_3.5rem_minmax(0,1fr)_2.5rem] items-center gap-2 border-b border-border/40 py-1.5 last:border-0">
+                                        <span className={`text-xs font-bold ${hasActiveDose ? 'text-accent' : 'text-muted'}`}>{day}</span>
 
                                         <input
                                             type="number" step="0.5" min="0" max="100"
+                                            inputMode="decimal"
                                             aria-label={`${day} mL`}
-                                            className="inp remove-arrow h-10 w-16 flex-none px-1 text-center"
+                                            className="inp inp-num remove-arrow h-10 w-full px-1 text-center"
                                             value={doses[i]}
                                             onChange={(e) => {
                                                 const nd = [...doses];
@@ -152,31 +181,32 @@ export default function FertConfigModal({ index, s, onClose }: Props) {
                                                 setDoses(nd);
                                             }}
                                         />
-                                        <span className="flex-none text-[10px] text-muted">mL</span>
 
                                         {hasActiveDose ? (
-                                            <div className="flex flex-none items-center gap-0.5">
+                                            <div className="flex min-w-0 items-center gap-1">
                                                 <input
                                                     type="number" min="0" max="23" placeholder="H"
+                                                    inputMode="numeric"
                                                     aria-label={`${day} ${t('fert.hour')}`}
-                                                    className="inp remove-arrow h-10 w-12 border-accent/40 bg-accent/5 px-1 text-center text-accent"
+                                                    className="inp inp-num remove-arrow h-10 w-full min-w-0 border-accent/40 bg-accent/5 px-1 text-center text-accent"
                                                     value={hours[i]}
                                                     onChange={(e) => { const nh = [...hours]; nh[i] = e.target.value; setHours(nh); }}
                                                 />
-                                                <span className="text-xs font-bold text-muted">:</span>
+                                                <span className="flex-none text-xs font-bold text-muted">:</span>
                                                 <input
                                                     type="number" min="0" max="59" placeholder="M"
+                                                    inputMode="numeric"
                                                     aria-label={`${day} ${t('fert.min')}`}
-                                                    className="inp remove-arrow h-10 w-12 border-accent/40 bg-accent/5 px-1 text-center text-accent"
+                                                    className="inp inp-num remove-arrow h-10 w-full min-w-0 border-accent/40 bg-accent/5 px-1 text-center text-accent"
                                                     value={mins[i]}
                                                     onChange={(e) => { const nm = [...mins]; nm[i] = e.target.value; setMins(nm); }}
                                                 />
                                             </div>
                                         ) : (
-                                            <span className="flex-1" />
+                                            <span />
                                         )}
 
-                                        <span className="ml-auto w-10 flex-none text-right text-[11px] font-bold tabular-nums text-accent">
+                                        <span className="text-right text-[11px] font-bold tabular-nums text-accent">
                                             {hasActiveDose ? `${estimatedSecs}s` : '–'}
                                         </span>
                                     </div>
@@ -228,7 +258,8 @@ export default function FertConfigModal({ index, s, onClose }: Props) {
                             <div className="flex gap-2">
                                 <input
                                     type="number" step="0.1" min="0" placeholder={t('fert.mlMeasured')}
-                                    className="inp remove-arrow flex-1"
+                                    inputMode="decimal"
+                                    className="inp inp-num remove-arrow min-w-0 flex-1"
                                     value={calibMl} onChange={(e) => setCalibMl(e.target.value)}
                                 />
                                 <button onClick={handleSaveCalib} className="btn btn-w flex-none">
@@ -236,6 +267,22 @@ export default function FertConfigModal({ index, s, onClose }: Props) {
                                 </button>
                             </div>
                         </div>
+                    </section>
+
+                    {/* DANGER ZONE — wipe this channel's stored configuration */}
+                    <section className="sub">
+                        <div className="card-h">
+                            <h3 className="card-t text-danger">{t('fert.dangerZone')}</h3>
+                        </div>
+                        <p className="hint mb-3">{t('fert.resetHint')}</p>
+                        <button onClick={handleReset} className="btn btn-d w-full">
+                            {t('fert.reset')}
+                        </button>
+                        {resetDone && (
+                            <p className="mt-2 text-[11px] font-bold leading-snug text-accent">
+                                {t('fert.resetDone', { ch: index + 1 })}
+                            </p>
+                        )}
                     </section>
                 </div>
             </div>
