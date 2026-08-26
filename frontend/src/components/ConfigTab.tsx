@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { type AQStatus } from '../App';
-import { api } from '../api';
+import { api, REQUEST_HEADER } from '../api';
 import { useT, type Lang } from '../i18n';
 import { useConfirm } from '../Confirm';
 
@@ -128,7 +128,10 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
         try {
             const res = await fetch('/api/wifi', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    [REQUEST_HEADER]: '1',
+                },
                 body: new URLSearchParams({ ssid, pass }).toString(),
             });
             const data = await res.json();
@@ -162,7 +165,10 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
 
     const handleCalibrateSensor = async () => {
         try {
-            const res = await fetch('/api/config/calibrate-sensor-full', { method: 'POST' });
+            const res = await fetch('/api/config/calibrate-sensor-full', {
+                method: 'POST',
+                headers: { [REQUEST_HEADER]: '1' },
+            });
             if (res.ok) {
                 alert(t('config.success'));
                 window.location.reload();
@@ -182,7 +188,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
         try {
             await fetch('/api/notify/key', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', [REQUEST_HEADER]: '1' },
                 body: JSON.stringify({ topic: topicInput.trim() }),
             });
             alert(t('notify.keySaved'));
@@ -198,7 +204,10 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
 
     const handleTestNotify = async () => {
         try {
-            await fetch('/api/notify/test', { method: 'POST' });
+            await fetch('/api/notify/test', {
+                method: 'POST',
+                headers: { [REQUEST_HEADER]: '1' },
+            });
             alert(t('notify.testSent'));
         } catch {
             alert(t('config.commError'));
@@ -216,7 +225,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
         try {
             await fetch('/api/notify/config', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', [REQUEST_HEADER]: '1' },
                 body: JSON.stringify(body),
             });
             // Refresh status
@@ -264,6 +273,9 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
         const formData = new FormData();
         formData.append('update', otaFile, otaFile.name);
         xhr.open('POST', '/api/ota', true);
+        // A multipart form POST is exactly what a hostile page can forge without
+        // a preflight, and this endpoint writes flash.
+        xhr.setRequestHeader(REQUEST_HEADER, '1');
         xhr.send(formData);
     };
 

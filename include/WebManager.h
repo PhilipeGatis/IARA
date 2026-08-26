@@ -153,6 +153,22 @@ private:
   void _printHelp();
 
   // JSON helpers
+  /// Rejects a mutating request that did not come from the dashboard.
+  ///
+  /// The controller has no authentication and sits on the home LAN. A browser
+  /// on that LAN, visiting any page anywhere, can be made to POST at
+  /// http://iara.local/api/tpa/start — a form submission or an <img> needs no
+  /// permission from us, and the response being unreadable does not matter when
+  /// the effect is starting a water change or writing flash.
+  ///
+  /// What a page cannot do is attach a custom header cross-origin without first
+  /// obtaining permission through a CORS preflight, and this firmware answers no
+  /// preflight. So requiring the header is enough to separate "the dashboard
+  /// asked" from "something else asked on the owner's behalf".
+  ///
+  /// Returns true and answers with 403 when the request should not proceed.
+  bool _rejectForgedRequest(AsyncWebServerRequest *request);
+
   /// Reassembles a POST body from the async body handler's chunks.
   ///
   /// Two hazards it exists to close. The `data` buffer is NOT NUL-terminated,
@@ -180,6 +196,10 @@ private:
   // Reassembly buffer for _collectBody(). One is enough: the async server runs
   // handlers on a single task, and _bodyOwner catches the case where a second
   // request interleaves anyway by discarding the abandoned partial body.
+  // Set when an OTA upload was refused on its first chunk, so the remaining
+  // chunks are discarded and the completion handler does not report success.
+  bool _otaForged = false;
+
   String _bodyBuf;
   const AsyncWebServerRequest *_bodyOwner = nullptr;
 

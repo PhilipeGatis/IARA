@@ -338,6 +338,7 @@ void WebManager::_setupRoutes() {
   // ---- POST /api/tpa/start ----
   _server.on("/api/tpa/start", HTTP_POST,
              [this](AsyncWebServerRequest *request) {
+               if (_rejectForgedRequest(request)) return;
                if (triggerTPA()) {
                  Serial.println("[Web] TPA started via dashboard");
                  request->send(200, "application/json", "{\"ok\":true}");
@@ -349,6 +350,7 @@ void WebManager::_setupRoutes() {
   // ---- POST /api/tpa/abort ----
   _server.on("/api/tpa/abort", HTTP_POST,
              [this](AsyncWebServerRequest *request) {
+               if (_rejectForgedRequest(request)) return;
                if (_water)
                  _water->abortTPA();
                Serial.println("[Web] TPA aborted via dashboard");
@@ -461,6 +463,7 @@ void WebManager::_setupRoutes() {
   // ---- POST /api/tpa/calibrate-pumps (drain then refill, net zero water) ----
   _server.on("/api/tpa/calibrate-pumps", HTTP_POST,
              [this](AsyncWebServerRequest *request) {
+               if (_rejectForgedRequest(request)) return;
                if (!_water) {
                  request->send(500, "application/json",
                                "{\"error\":\"WaterManager not available\"}");
@@ -568,6 +571,7 @@ void WebManager::_setupRoutes() {
   // ---- POST /api/config/calibrate-sensor-full ----
   _server.on("/api/config/calibrate-sensor-full", HTTP_POST,
              [this](AsyncWebServerRequest *request) {
+               if (_rejectForgedRequest(request)) return;
                if (_safety) {
                  const float dist = _safety->readUltrasonic();
                  // The A02YYUW's usable range; anything outside it is a bad
@@ -603,6 +607,7 @@ void WebManager::_setupRoutes() {
   // ---- POST /api/maintenance/toggle ----
   _server.on("/api/maintenance/toggle", HTTP_POST,
              [this](AsyncWebServerRequest *request) {
+               if (_rejectForgedRequest(request)) return;
                if (_safety) {
                  if (_safety->isMaintenanceMode()) {
                    _safety->exitMaintenance();
@@ -618,6 +623,7 @@ void WebManager::_setupRoutes() {
   // ---- POST /api/canister/toggle ----
    _server.on("/api/canister/toggle", HTTP_POST,
              [this](AsyncWebServerRequest *request) {
+               if (_rejectForgedRequest(request)) return;
                bool current = digitalRead(PIN_CANISTER) == LOW; // SSR LOW=ON
                if (current) {
                  pumpOn(PIN_CANISTER, PumpReason::MANUAL_PUMP); // HIGH = OFF
@@ -634,6 +640,7 @@ void WebManager::_setupRoutes() {
   // it, since main.cpp skips everything else while the flag is set.
   _server.on("/api/emergency/stop", HTTP_POST,
              [this](AsyncWebServerRequest *request) {
+               if (_rejectForgedRequest(request)) return;
                if (_safety) {
                  if (_safety->isEmergency()) {
                    _safety->clearEmergency();
@@ -677,6 +684,7 @@ void WebManager::_setupRoutes() {
 
   // ---- POST /api/wifi (Form Data: ssid, pass) ----
   _server.on("/api/wifi", HTTP_POST, [this](AsyncWebServerRequest *request) {
+    if (_rejectForgedRequest(request)) return;
     if (request->hasParam("ssid", true) && request->hasParam("pass", true)) {
       String ssid = request->getParam("ssid", true)->value();
       String pass = request->getParam("pass", true)->value();
@@ -854,6 +862,7 @@ void WebManager::_setupRoutes() {
   // ---- Pump Calibration: Save Flow Rate ----
   _server.on(
       "/api/fert/calibrate", HTTP_POST, [this](AsyncWebServerRequest *request) {
+        if (_rejectForgedRequest(request)) return;
         if (request->_tempObject) {
           String body = *(String *)request->_tempObject;
           int ch = _extractInt(body, "channel");
@@ -1034,6 +1043,7 @@ void WebManager::_setupRoutes() {
   // ---- POST /api/notify/test ----
   _server.on("/api/notify/test", HTTP_POST,
              [this](AsyncWebServerRequest *request) {
+               if (_rejectForgedRequest(request)) return;
                if (_notify)
                  _notify->sendTest();
                request->send(200, "application/json", "{\"ok\":true}");
@@ -1044,6 +1054,10 @@ void WebManager::_setupRoutes() {
       "/api/ota", HTTP_POST,
       [this](AsyncWebServerRequest *request) {
         // This handler is executed after the upload finishes
+        if (_otaForged) {
+          _otaForged = false;
+          return; // the upload handler already answered with 403
+        }
         bool shouldReboot = !Update.hasError();
         AsyncWebServerResponse *response = request->beginResponse(200, "application/json", shouldReboot ? "{\"ok\":true}" : "{\"error\":\"Update failed\"}");
         response->addHeader("Connection", "close");
@@ -1056,6 +1070,14 @@ void WebManager::_setupRoutes() {
       },
       [this](AsyncWebServerRequest *request, String filename, size_t index,
              uint8_t *data, size_t len, bool final) {
+        // Checked on the first chunk, before Update.begin(): a multipart form
+        // POST is exactly what a hostile page can forge without a preflight,
+        // and this endpoint writes flash.
+        if (!index && _rejectForgedRequest(request)) {
+          _otaForged = true;
+          return;
+        }
+        if (_otaForged) return;
         if (!index) {
           Serial.printf("[OTA] Update Start: %s\n", filename.c_str());
           // Start update. If it's littlefs.bin we should use U_SPIFFS, else U_FLASH
@@ -1085,9 +1107,24 @@ void WebManager::_setupRoutes() {
 // SIMPLE JSON EXTRACTORS (avoid ArduinoJson dependency)
 // ============================================================================
 
+bool WebManager::_rejectForgedRequest(AsyncWebServerRequest *request) {
+  if (request->hasHeader("X-IARA-Request"))
+    return false;
+  Serial.printf("[Web] Refused %s %s: missing X-IARA-Request\n",
+                request->methodToString(), request->url().c_str());
+  request->send(403, "application/json",
+                "{\"error\":\"request must come from the IARA dashboard\"}");
+  return true;
+}
+
 bool WebManager::_collectBody(AsyncWebServerRequest *request, uint8_t *data,
                               size_t len, size_t index, size_t total,
                               String &out) {
+  // Every body handler funnels through here, so this is the one place that has
+  // to hold for all of them.
+  if (index == 0 && _rejectForgedRequest(request))
+    return false;
+
   // Every body this server accepts is a small JSON object. Anything claiming to
   // be larger is either a bug or someone trying to exhaust the heap, and the
   // ESP32 has ~200 KB of it.
