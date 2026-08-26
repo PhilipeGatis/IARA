@@ -77,7 +77,7 @@ function FertCardCompact({
                                 const m = Array.isArray(s.sM) ? String(s.sM[i] ?? 0).padStart(2, '0') : '00';
                                 return (
                                     <tr key={i} className="border-b border-border/40 last:border-0">
-                                        <td className="w-8 py-1.5 pr-2 font-bold text-accent">{shortDays[i]}</td>
+                                        <td className="w-10 py-1.5 pr-2 font-bold text-accent">{shortDays[i]}</td>
                                         <td className="py-1.5 font-mono tabular-nums text-muted">{h}:{m}</td>
                                         <td className="py-1.5 text-right font-bold tabular-nums text-accent2">
                                             {dose}<span className="font-normal text-muted">mL</span>
@@ -172,6 +172,7 @@ export default function FertsTab({ status }: { status: AQStatus | null }) {
                 <FertConfigModal
                     index={configChannel}
                     s={status.stocks[configChannel]}
+                    time={status.time}
                     onClose={() => setConfigChannel(null)}
                 />
             )}

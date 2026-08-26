@@ -477,6 +477,7 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                 <FertConfigModal
                     index={4}
                     s={status.stocks[4]}
+                    time={status.time}
                     onClose={() => setShowPrimeConfig(false)}
                 />
             )}

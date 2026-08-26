@@ -153,7 +153,11 @@ const translations = {
     'fert.confirmRun3s': { pt: 'Ativar canal {ch} por exatamente 3 segundos? Tenha um recipiente pronto para medir a saída em mL.', en: 'Activate channel {ch} for exactly 3 seconds? Have a container ready to measure output in mL.', ja: 'チャンネル{ch}を3秒間作動させますか？mLを計測する容器を用意してください。' },
     'fert.confirmCalib': { pt: 'Usar {ml}mL como medida de calibração de 3 segundos no canal {ch}?', en: 'Use {ml}mL as 3-second calibration for channel {ch}?', ja: '{ml}mLをチャンネル{ch}の3秒キャリブレーション値として使用しますか？' },
     'fert.enterMl': { pt: 'Insira a quantidade de mL medida.', en: 'Enter the measured mL amount.', ja: '計測したmL量を入力してください。' },
-    'fert.shortDays': { pt: 'D,S,T,Q,Q,S,S', en: 'S,M,T,W,T,F,S', ja: '日,月,火,水,木,金,土' },
+    // Three letters, not one. 'D,S,T,Q,Q,S,S' has three S and two Q: nothing on
+    // the row says which day it is, and a dose typed one row off is silent —
+    // the controller reads 0 mL for today and never runs the pump.
+    'fert.shortDays': { pt: 'Dom,Seg,Ter,Qua,Qui,Sex,Sáb', en: 'Sun,Mon,Tue,Wed,Thu,Fri,Sat', ja: '日,月,火,水,木,金,土' },
+    'fert.today': { pt: 'hoje', en: 'today', ja: '今日' },
     'fert.configure': { pt: 'Configurar', en: 'Configure', ja: '設定' },
     'fert.dangerZone': { pt: 'ZONA DE RISCO', en: 'DANGER ZONE', ja: '危険操作' },
     'fert.reset': { pt: 'Resetar este canal', en: 'Reset this channel', ja: 'このチャンネルをリセット' },

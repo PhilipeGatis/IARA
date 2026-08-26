@@ -7,10 +7,24 @@ import { useConfirm } from '../Confirm';
 type Props = {
     index: number;
     s: AQStatus['stocks'][0];
+    /** The controller's own clock, "YYYY/MM/DD HH:MM:SS". Its day is what marks
+     *  the row, not the phone's: the two can disagree, and the row that matters
+     *  is the one the controller will read. */
+    time?: string;
     onClose: () => void;
 };
 
-export default function FertConfigModal({ index, s, onClose }: Props) {
+/** Day of week of the controller's clock, 0=Sun..6=Sat, -1 if unreadable.
+ *  Slashes rather than dashes, so it parses as local time instead of UTC and
+ *  the day does not shift for a browser in another timezone. */
+const dowOf = (time?: string): number => {
+    if (!time) return -1;
+    const d = new Date(time);
+    return isNaN(d.getTime()) ? -1 : d.getDay();
+};
+
+export default function FertConfigModal({ index, s, time, onClose }: Props) {
+    const today = dowOf(time);
     const { t } = useT();
     const { ask, dialog } = useConfirm();
 
@@ -154,7 +168,7 @@ export default function FertConfigModal({ index, s, onClose }: Props) {
                             phone has, so the last column fell off the edge. The
                             time inputs take the free column and shrink instead. */}
                         <div className="mb-4 flex flex-col">
-                            <div className="grid grid-cols-[1.25rem_3.5rem_minmax(0,1fr)_2.5rem] items-center gap-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted">
+                            <div className="grid grid-cols-[2.25rem_3.5rem_minmax(0,1fr)_2.5rem] items-center gap-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted">
                                 <span />
                                 <span className="text-center">mL</span>
                                 <span className="text-center">{t('fert.hour')}:{t('fert.min')}</span>
@@ -165,9 +179,16 @@ export default function FertConfigModal({ index, s, onClose }: Props) {
                                 const doseVal = Number(doses[i]);
                                 const estimatedSecs = s.fR > 0 ? (doseVal / s.fR).toFixed(1) : '0';
                                 const hasActiveDose = doseVal > 0;
+                                const isToday = i === today;
                                 return (
-                                    <div key={i} className="grid grid-cols-[1.25rem_3.5rem_minmax(0,1fr)_2.5rem] items-center gap-2 border-b border-border/40 py-1.5 last:border-0">
-                                        <span className={`text-xs font-bold ${hasActiveDose ? 'text-accent' : 'text-muted'}`}>{day}</span>
+                                    <div
+                                        key={i}
+                                        className={`grid grid-cols-[2.25rem_3.5rem_minmax(0,1fr)_2.5rem] items-center gap-2 border-b border-border/40 py-1.5 last:border-0 ${isToday ? 'rounded-md bg-accent/10' : ''}`}
+                                    >
+                                        <span className={`text-xs font-bold ${hasActiveDose ? 'text-accent' : 'text-muted'}`}>
+                                            {day}
+                                            {isToday && <span className="block text-[9px] font-bold uppercase leading-none text-accent2">{t('fert.today')}</span>}
+                                        </span>
 
                                         <input
                                             type="number" step="0.5" min="0" max="100"
