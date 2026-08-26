@@ -88,3 +88,9 @@ String pumpLogGetJSON();
 
 /// @brief Get the number of entries currently in the ring buffer.
 uint8_t pumpLogCount();
+
+/// @brief The newest entry, or a zeroed entry when the log is empty.
+///
+/// Exists so a test can assert on what was recorded rather than on what a pad
+/// reads — the two differ for the canister, whose SSR is active-LOW.
+PumpLogEntry pumpLogLast();

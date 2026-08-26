@@ -186,6 +186,13 @@ static void _addEntry(uint8_t pin, bool state, PumpReason reason) {
   _dirty = true;
 }
 
+PumpLogEntry pumpLogLast() {
+  if (_logCount == 0)
+    return PumpLogEntry{};
+  // _logHead is the next write position, so the newest entry is behind it.
+  return _logBuffer[(_logHead + PUMP_LOG_MAX - 1) % PUMP_LOG_MAX];
+}
+
 uint8_t pumpLogCount() { return _logCount; }
 
 String pumpLogGetJSON() {
@@ -272,7 +279,13 @@ static void _driveOff(uint8_t pin) {
 
 void pumpOn(uint8_t pin, PumpReason reason) {
   digitalWrite(pin, HIGH);
-  _log(pin, true, reason);
+  // The log records what the device is doing, not what the pad reads. For the
+  // canister those are opposite: its SSR is active-LOW, so driving the pad HIGH
+  // stops the filter. Logging the pad meant two code paths that both stop the
+  // filter wrote opposite entries — pumpOn() logged "CANISTER ON" and
+  // allPumpsOff() logged "CANISTER OFF" — which makes the one log you consult
+  // after an incident unreadable exactly when it matters.
+  _log(pin, pin == PIN_CANISTER ? false : true, reason);
 }
 
 void pumpOff(uint8_t pin, PumpReason reason) {
@@ -282,7 +295,9 @@ void pumpOff(uint8_t pin, PumpReason reason) {
   const int ch = _ledcChannelFor(pin);
   if (ch >= 0) ledcWrite(ch, 0);
   digitalWrite(pin, LOW);
-  _log(pin, false, reason);
+  // Same inversion as pumpOn(): LOW on the canister's active-LOW SSR starts the
+  // filter, so that is what the log says.
+  _log(pin, pin == PIN_CANISTER ? true : false, reason);
 }
 
 void allPumpsOff(PumpReason reason) {

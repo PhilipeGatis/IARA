@@ -654,8 +654,15 @@ void WebManager::_setupRoutes() {
                if (_safety) {
                  if (_safety->isEmergency()) {
                    _safety->clearEmergency();
-                   if (_water)
+                   if (_water) {
                      _water->stopManual(); // back to IDLE
+                     // The shutdown stopped the filter, and nothing owned
+                     // restarting it. A later manual run will not: it only
+                     // restores a filter *it* switched off, so an emergency
+                     // left the canister stopped until the hourly sweep — an
+                     // hour of no circulation nobody was told about.
+                     _water->restoreCanisterIfSafe(PumpReason::MANUAL_PUMP);
+                   }
                    Serial.println("[Web] Emergency CLEARED via dashboard.");
                  } else {
                    _safety->emergencyShutdown();
@@ -1466,7 +1473,10 @@ void WebManager::processSerialCommands() {
     if (_safety) {
       if (_safety->isEmergency()) {
         _safety->clearEmergency();
-        if (_water) _water->stopManual(); // Reset state to IDLE
+        if (_water) {
+          _water->stopManual(); // Reset state to IDLE
+          _water->restoreCanisterIfSafe(PumpReason::MANUAL_PUMP);
+        }
       } else {
         _safety->emergencyShutdown();
       }

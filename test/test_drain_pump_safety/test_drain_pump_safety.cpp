@@ -429,6 +429,22 @@ void test_paired_refill_stops_where_the_drain_leg_started() {
   TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_REFILL]);
 }
 
+void test_canister_log_reflects_the_filter_not_the_pad() {
+  mock_reset_pins();
+
+  // Two code paths that both STOP the filter. They used to write opposite
+  // entries, because one logged the pad and the pad is inverted for this SSR.
+  pumpOn(PIN_CANISTER, PumpReason::TPA_CANISTER); // pad HIGH = filter off
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_CANISTER]);
+  TEST_ASSERT_FALSE_MESSAGE(pumpLogLast().state,
+                            "pad HIGH stops the filter; log must say off");
+
+  pumpOff(PIN_CANISTER, PumpReason::TPA_CANISTER); // pad LOW = filter on
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_CANISTER]);
+  TEST_ASSERT_TRUE_MESSAGE(pumpLogLast().state,
+                           "pad LOW starts the filter; log must say on");
+}
+
 void test_completed_pair_does_not_leave_its_setpoint_behind() {
   WaterManager wm = makeWM();
   wm.setLitersPerCm(2.0f);
@@ -957,6 +973,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_paired_calibration_chains_drain_into_refill);
   RUN_TEST(test_abort_does_not_start_canister_with_low_water);
   RUN_TEST(test_paired_refill_stops_where_the_drain_leg_started);
+  RUN_TEST(test_canister_log_reflects_the_filter_not_the_pad);
   RUN_TEST(test_completed_pair_does_not_leave_its_setpoint_behind);
   RUN_TEST(test_aborted_paired_calibration_does_not_chain_a_later_refill);
   RUN_TEST(test_stale_wait_does_not_skip_switching_the_canister_off);
