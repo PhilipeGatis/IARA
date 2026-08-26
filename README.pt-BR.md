@@ -30,6 +30,24 @@ O acesso à interface web na rede local pode ser feito facilmente pelo endereço
 
 ---
 
+## 📱 Interface
+
+O painel é servido pelo próprio ESP32 a partir do LittleFS — sem nuvem, sem
+conta, sem dependência externa. É pensado primeiro para o celular, que é o que
+você tem na mão quando está em pé na frente do aquário.
+
+| | | |
+|---|---|---|
+| ![Início](docs/screenshots/01-home.png) | ![TPA](docs/screenshots/02-tpa.png) | ![Fertilizantes](docs/screenshots/03-ferts.png) |
+| **Início** — nível, próxima troca, estoque | **TPA** — bombas manuais, agendamento, calibração | **Fertilizantes** — dosagem semanal por canal |
+
+| | |
+|---|---|
+| ![Logs](docs/screenshots/04-logs.png) | ![Configuração](docs/screenshots/05-config.png) |
+| **Logs** — cada acionamento de bomba com o motivo | **Configuração** — geometria, sensor, rede, notificações, OTA |
+
+---
+
 ## 📚 Documentação Complementar
 
 O projeto possui documentação detalhada de hardware organizada nos seguintes arquivos:
