@@ -429,14 +429,17 @@ void test_uncalibrated_defaults_are_short() {
   // Default: not calibrated
   TEST_ASSERT_FALSE(wm.isCalibrated());
 
-  // Start draining
+  // Actually get to DRAINING. This used to jump straight from startTPA() to a
+  // long wait and assert ERROR, which passed only because it was tripping the
+  // *reservoir fill* timeout on the way — it never exercised the drain timeout
+  // it is named for, and it broke the moment that unrelated constant changed.
   setDistance(7.0f);
-  wm.startTPA();
-  wm.update();
-  mock_millis_value += 3001;
-  wm.update(); // → DRAINING
+  goToDraining(wm);
 
-  // After default timeout, should error
+  // With no calibration the drain falls back to _timeoutDrainMs's constructor
+  // default of 20 minutes. Note that is not TIMEOUT_DRAIN_MS, which says five —
+  // the named constant is not what initialises the member. Left alone here, but
+  // the two disagreeing is a trap for the next reader.
   mock_millis_value += 1200001;
   setDistance(7.0f);
   wm.update();

@@ -429,6 +429,45 @@ void test_paired_refill_stops_where_the_drain_leg_started() {
   TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_REFILL]);
 }
 
+void test_fill_window_is_not_reached_by_a_slow_fill() {
+  WaterManager wm = makeWM();
+  mock_pin_read_value[PIN_FLOAT] = HIGH; // not full yet
+  setDistance(8.0f);
+
+  wm.startTPA();
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::FILLING_RESERVOIR, wm.getState());
+
+  // A fill that takes half an hour is slow, not broken. The window exists to
+  // catch a float that never closes, and sizing it to the fill instead is what
+  // made every cycle fail when it was eight minutes.
+  advance(30UL * 60 * 1000, 8.0f);
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::FILLING_RESERVOIR, wm.getState());
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_SOLENOID]);
+
+  // And it ends the moment the float finally closes.
+  simulateFloatFull(wm);
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_SOLENOID]);
+}
+
+void test_zero_disables_the_fill_window() {
+  WaterManager wm = makeWM();
+  wm.setTimeoutReservoirFillMs(0);
+  mock_pin_read_value[PIN_FLOAT] = HIGH;
+  setDistance(8.0f);
+
+  wm.startTPA();
+  wm.update();
+  advance(3UL * 3600 * 1000, 8.0f); // three hours
+  wm.update();
+
+  // Nothing in the firmware stops it. Only defensible because a mechanical
+  // valve bounds the volume.
+  TEST_ASSERT_EQUAL(TPAState::FILLING_RESERVOIR, wm.getState());
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_SOLENOID]);
+}
+
 void test_fill_timeout_errors_without_a_mechanical_float() {
   WaterManager wm = makeWM();
   mock_pin_read_value[PIN_FLOAT] = HIGH; // never reads full
@@ -1013,6 +1052,8 @@ int main(int argc, char **argv) {
   RUN_TEST(test_paired_calibration_chains_drain_into_refill);
   RUN_TEST(test_abort_does_not_start_canister_with_low_water);
   RUN_TEST(test_paired_refill_stops_where_the_drain_leg_started);
+  RUN_TEST(test_fill_window_is_not_reached_by_a_slow_fill);
+  RUN_TEST(test_zero_disables_the_fill_window);
   RUN_TEST(test_fill_timeout_errors_without_a_mechanical_float);
   RUN_TEST(test_fill_timeout_proceeds_with_a_mechanical_float);
   RUN_TEST(test_canister_log_reflects_the_filter_not_the_pad);

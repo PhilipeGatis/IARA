@@ -31,7 +31,7 @@ WebManager::WebManager()
       _tpaPercent(20), _canisterSafePct(0), _language(0),
       _primeML(DEFAULT_PRIME_ML), _aqHeight(0), _aqLength(0), _aqWidth(0),
       _sensorFullDistanceMm(0), _drainFlowRate(0), _refillFlowRate(0),
-      _primeEnabled(true), _reservoirMechFloat(false),
+      _primeEnabled(true), _reservoirMechFloat(false), _resFillTimeoutMin(40),
       _reservoirVolume(0), _reservoirSafetyML(0), _lastTelemetryMs(0),
       _lastSSEMs(0), _lastSSECleanupMs(0), _rebootPending(false), _rebootMs(0) {
 }
@@ -92,6 +92,7 @@ void WebManager::begin(TimeManager *time, WaterManager *water,
     _water->setPrimeML(_primeML);
     _water->setPrimeEnabled(_primeEnabled);
     _water->setReservoirHasMechanicalFloat(_reservoirMechFloat);
+    _water->setTimeoutReservoirFillMs((unsigned long)_resFillTimeoutMin * 60000UL);
 
     syncFlowRatesFromWater();
     syncAquariumGeometryToWater();
@@ -242,6 +243,7 @@ String WebManager::_buildStatusJSON() {
   json += "\"primeRatio\":" + String(_primeRatio, 5) + ",";
   json += "\"primeEnabled\":" + String(_primeEnabled ? "true" : "false") + ",";
   json += "\"reservoirMechFloat\":" + String(_reservoirMechFloat ? "true" : "false") + ",";
+  json += "\"reservoirFillTimeoutMin\":" + String(_resFillTimeoutMin) + ",";
   json += "\"reservoirVolume\":" + String(_reservoirVolume) + ",";
   json += "\"reservoirSafetyML\":" + String(_reservoirSafetyML, 0) + ",";
   json += "\"tpaConfigReady\":";
@@ -548,6 +550,13 @@ void WebManager::_setupRoutes() {
         if (pe >= 0) {
           _primeEnabled = (pe == 1);
           if (_water) _water->setPrimeEnabled(_primeEnabled);
+          changed = true;
+        }
+        int ft = _extractInt(body, "reservoirFillTimeoutMin");
+        if (ft >= 1 && ft <= 120) {
+          _resFillTimeoutMin = ft;
+          if (_water)
+            _water->setTimeoutReservoirFillMs((unsigned long)ft * 60000UL);
           changed = true;
         }
         int mf = _extractInt(body, "reservoirMechFloat");
@@ -1353,6 +1362,7 @@ void WebManager::_loadParams() {
   _primeRatio = _prefs.getFloat("pRat", PRIME_LABEL_ML_PER_L);
   _primeEnabled = _prefs.getBool("pEn", true);
   _reservoirMechFloat = _prefs.getBool("resMF", false);
+  _resFillTimeoutMin = _prefs.getUShort("resFT", 40);
   _reservoirVolume = _prefs.getUShort("rVol", 0);
   _reservoirSafetyML = _prefs.getFloat("resSf", 0);
   _prefs.end();
@@ -1402,6 +1412,7 @@ void WebManager::_saveParams() {
   _prefs.putFloat("pRat", _primeRatio);
   _prefs.putBool("pEn", _primeEnabled);
   _prefs.putBool("resMF", _reservoirMechFloat);
+  _prefs.putUShort("resFT", _resFillTimeoutMin);
   _prefs.putUShort("rVol", _reservoirVolume);
   _prefs.putFloat("resSf", _reservoirSafetyML);
   _prefs.end();

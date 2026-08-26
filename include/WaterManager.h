@@ -96,6 +96,20 @@ public:
   float getPrimeML() const { return _primeML; }
 
   // ---- Dynamic timeouts ----
+  /// Window the solenoid may stay open waiting for the reservoir to read full.
+  ///
+  /// Zero disables it: the valve stays open until the float reports full, with
+  /// nothing in the firmware stopping it. That is only defensible when a
+  /// mechanical float valve bounds the volume — the timeout is otherwise the
+  /// sole limit on a mains feed. It also means a float that never closes leaves
+  /// the cycle in FILLING_RESERVOIR indefinitely rather than moving on.
+  void setTimeoutReservoirFillMs(unsigned long ms) {
+    _timeoutReservoirFillMs = ms;
+  }
+  unsigned long getTimeoutReservoirFillMs() const {
+    return _timeoutReservoirFillMs;
+  }
+
   void setTimeoutDrainMs(unsigned long ms) { _timeoutDrainMs = ms; }
   void setTimeoutRefillMs(unsigned long ms) { _timeoutRefillMs = ms; }
 
@@ -174,6 +188,7 @@ private:
   float _primeML;
 
   // Dynamic timeouts (initialized from Config.h, updated after calibration)
+  unsigned long _timeoutReservoirFillMs = TIMEOUT_RESERVOIR_FILL_MS;
   unsigned long _timeoutDrainMs;
   unsigned long _timeoutRefillMs;
 

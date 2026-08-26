@@ -89,6 +89,7 @@ public:
   }
   bool getPrimeEnabled() const { return _primeEnabled; }
   bool getReservoirMechFloat() const { return _reservoirMechFloat; }
+  uint16_t getReservoirFillTimeoutMin() const { return _resFillTimeoutMin; }
 
   /// Process serial commands (always active)
   void processSerialCommands();
@@ -123,7 +124,8 @@ private:
   float _refillFlowRate;     // mL/s
   float _primeRatio;         // mL per liter (manufacturer ratio)
   bool _primeEnabled;
-  bool _reservoirMechFloat;        // se true, o canal 5 faz Prime na TPA. se false, é um fertilizante genérico
+  bool _reservoirMechFloat;
+  uint16_t _resFillTimeoutMin;        // se true, o canal 5 faz Prime na TPA. se false, é um fertilizante genérico
 
   // ---- Reservoir config ----
   uint16_t _reservoirVolume; // reservoir liters

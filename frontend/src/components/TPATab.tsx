@@ -89,6 +89,7 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
     const [safetyML, setSafetyML] = useState('');
     const [primeEnabled, setPrimeEnabled] = useState(true);
     const [mechFloat, setMechFloat] = useState(false);
+    const [fillTimeout, setFillTimeout] = useState('40');
     const [drainGoal, setDrainGoal] = useState('');
     const [refillGoal, setRefillGoal] = useState('');
 
@@ -136,6 +137,7 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
             if (status.reservoirSafetyML !== undefined) setSafetyML(status.reservoirSafetyML.toString());
             if (status.primeEnabled !== undefined) setPrimeEnabled(status.primeEnabled);
             if (status.reservoirMechFloat !== undefined) setMechFloat(status.reservoirMechFloat);
+            if (status.reservoirFillTimeoutMin !== undefined) setFillTimeout(String(status.reservoirFillTimeoutMin));
         }
     }, [status]);
 
@@ -401,6 +403,19 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                             <span className="hint block">{t('tpa.primeEnabledHint')}</span>
                         </span>
                     </label>
+
+                    <div>
+                        <label className="lbl">{t('tpa.fillTimeout')}</label>
+                        <input
+                            type="number" inputMode="numeric" min={0} max={120}
+                            className="inp" value={fillTimeout}
+                            onChange={(e) => setFillTimeout(e.target.value)}
+                            onBlur={() => api('POST', '/api/config/aquarium', {
+                                reservoirFillTimeoutMin: parseInt(fillTimeout) || 0,
+                            })}
+                        />
+                        <span className="hint">{t('tpa.fillTimeoutHint')}</span>
+                    </div>
 
                     <label className="flex min-h-[56px] cursor-pointer items-center gap-3 rounded-xl border border-border bg-white/5 px-3 py-2">
                         <input

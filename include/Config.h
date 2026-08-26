@@ -86,11 +86,21 @@ constexpr unsigned long TIMEOUT_FILL_MS = 10UL * 60 * 1000;         // 10 min
 // is the real stop; this only bounds a stuck float. A ~18 L reservoir on a
 // typical ~5 L/min solenoid fills in about 4 minutes, so 20 minutes is generous
 // without leaving mains water running for hours.
-// The reservoir fills in about 4 minutes in practice. This is the only bound on
-// the solenoid, which is fed from the house mains — at ~5 L/min the old 20-minute
-// setting was ~100 L onto the floor before anything intervened, and there is no
-// hardware interlock on that channel. 8 minutes is 2x the measured fill.
-constexpr unsigned long TIMEOUT_RESERVOIR_FILL_MS = 8UL * 60 * 1000; // 8 min
+// How long the solenoid may stay open waiting for the reservoir to read full.
+//
+// This was briefly cut to 8 minutes on the reasoning that the solenoid is fed
+// from the mains with no hardware interlock, so a long window meant a large
+// volume on the floor. Both halves were wrong: the inlet has a mechanical float
+// valve, which bounds the volume no matter how long the valve is energised, and
+// a real fill on this hardware takes longer than 8 minutes. The short window
+// simply made every cycle fail.
+//
+// This is deliberately far longer than a fill takes. It is not sizing the fill
+// — it is the point past which the float plainly did not close and has failed.
+// Sizing it tightly is what broke every cycle when it was 8 minutes. Fill time
+// depends on household water pressure and reservoir size, which no compiled-in
+// constant can know; set reservoirFillTimeoutMin if 40 minutes is wrong.
+constexpr unsigned long TIMEOUT_RESERVOIR_FILL_MS = 40UL * 60 * 1000; // 40 min
 constexpr unsigned long TIMEOUT_REFILL_MS = 10UL * 60 * 1000;       // 10 min
 constexpr unsigned long TIMEOUT_PRIME_MS = 60UL * 1000;             // 1 min
 constexpr unsigned long TIMEOUT_FERT_MS = 30UL * 1000;              // 30 sec

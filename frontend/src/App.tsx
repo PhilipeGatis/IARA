@@ -35,6 +35,7 @@ export type AQStatus = {
   primeML: number;
   primeEnabled: boolean;
   reservoirMechFloat?: boolean;
+  reservoirFillTimeoutMin?: number;
   aqHeight: number;
   aqMarginMm: number;
   aqLength: number;
