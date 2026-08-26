@@ -1,5 +1,6 @@
 #include "nvs_flash.h"
 #include "WebManager.h"
+#include "TpaPlan.h"
 #include "PumpLog.h"
 #include "FertManager.h"
 #include "NotifyManager.h"
@@ -1616,76 +1617,57 @@ bool WebManager::triggerTPA(bool manual) {
 
   const float currentLevel = _safety->readUltrasonic();
   const float fullCm = (float)_sensorFullDistanceMm / 10.0f;
-
-  // Every setpoint below is measured from this one reading, so a bad frame here
-  // does not produce a slightly-off cycle — it produces a drain target derived
-  // from nonsense.
-  if (currentLevel < ULTRASONIC_MIN_DISTANCE_CM ||
-      currentLevel > ULTRASONIC_MAX_DISTANCE_CM) {
-    Serial.printf("[Web] TPA refused: implausible level reading %.1f cm\n",
-                  currentLevel);
-    return false;
-  }
-
-  // Distance grows as the water drops, so a level far *above* the calibrated
-  // full mark means the tank is already short. Draining from there and refilling
-  // back to there locks the deficit in, and it compounds every cycle.
-  if (currentLevel - fullCm > TPA_MAX_START_DEVIATION_CM) {
-    Serial.printf("[Web] TPA refused: level is %.1f cm below the 100%% mark "
-                  "(limit %.1f). Top the tank up first.\n",
-                  currentLevel - fullCm, TPA_MAX_START_DEVIATION_CM);
-    _tpaBlockedReason = F("level below the calibrated full mark");
-    return false;
-  }
-
   const float lPerCm = getLitersPerCm();
   const float aqVol = (float)getAquariumVolume();
-  float drainLiters = aqVol * getTpaPercent() / 100.0f;
 
+  float requested = aqVol * getTpaPercent() / 100.0f;
   const float hardCap = aqVol * TPA_MAX_DRAIN_PCT / 100.0f;
-  if (drainLiters > hardCap) {
-    drainLiters = hardCap;
-    Serial.printf("[Web] TPA capped to %.1f L (%.0f%% ceiling)\n", drainLiters,
+  if (requested > hardCap) {
+    requested = hardCap;
+    Serial.printf("[Web] TPA capped to %.1f L (%.0f%% ceiling)\n", requested,
                   TPA_MAX_DRAIN_PCT);
   }
 
-  // The reservoir cannot give more than it holds, minus the margin that keeps
-  // the refill pump from running dry. If the margin is larger than the
-  // reservoir there is nothing to draw and the old code fell through the cap
-  // entirely, draining the full percentage against an empty tank.
   const float resAvail =
       (float)getReservoirVolume() - getReservoirSafetyML() / 1000.0f;
-  if (resAvail <= 0) {
-    Serial.printf("[Web] TPA refused: safety margin (%.0f mL) leaves no usable "
-                  "water in a %d L reservoir\n",
-                  getReservoirSafetyML(), getReservoirVolume());
-    _tpaBlockedReason = F("reservoir safety margin exceeds its volume");
+
+  // Every setpoint below comes from planTPA(), which is a pure function and has
+  // tests. This one needs the whole async web server to exist, which is why the
+  // numbers deciding how much water leaves the aquarium went untested for so
+  // long.
+  const TpaPlan plan =
+      planTPA(currentLevel, fullCm, requested, lPerCm, resAvail);
+  if (!plan.ok) {
+    Serial.printf("[Web] TPA refused: %s (level %.1f cm, mark %.1f cm)\n",
+                  plan.refusal, currentLevel, fullCm);
+    _tpaBlockedReason = plan.refusal;
     return false;
   }
-  if (drainLiters > resAvail) {
-    drainLiters = resAvail;
-    Serial.printf("[Web] TPA capped to %.1f L (reservoir limit)\n", drainLiters);
+  if (plan.refillLiters < requested - 0.05f) {
+    Serial.printf("[Web] TPA capped to %.1f L (reservoir limit)\n",
+                  plan.refillLiters);
   }
   _tpaBlockedReason = String();
 
-  // What the cycle will actually deliver, which is not necessarily what was
-  // configured. Reported so a silently-capped change stops being silent.
-  _tpaPlannedLiters = drainLiters;
+  const float drainLiters = plan.drainLiters;
+  const float refillLiters = plan.refillLiters;
+  _tpaPlannedLiters = refillLiters;
 
   // Dose against the water actually being changed, not the reservoir's nominal
   // capacity. At a 20% change only about 13 of 18 L are drawn, so the old basis
   // over-dosed by the difference — and the residue carries its Prime into the
   // next cycle, which then gets a full dose again on top.
-  if (_water && _primeRatio > 0 && drainLiters > 0) {
-    const float cycleML = drainLiters * _primeRatio;
+  if (_water && _primeRatio > 0 && refillLiters > 0) {
+    const float cycleML = refillLiters * _primeRatio;
     _water->setPrimeML(cycleML);
     Serial.printf("[Web] Prime for this cycle: %.2f mL for %.1f L (%.4f mL/L)\n",
-                  cycleML, drainLiters, _primeRatio);
+                  cycleML, refillLiters, _primeRatio);
   }
 
-  const float cmToDrain = (lPerCm > 0) ? drainLiters / lPerCm : 0;
-  _water->setDrainTargetCm(currentLevel + cmToDrain);
-  _water->setRefillTargetCm(currentLevel);
+  _water->setDrainTargetCm(plan.drainTargetCm);
+  // Absolute, not "wherever the level happened to be". This is what makes the
+  // cycle end full instead of banking whatever was missing when it started.
+  _water->setRefillTargetCm(plan.refillTargetCm);
   _water->setLitersPerCm(lPerCm);
 
   const float effH = aqVol / lPerCm;
@@ -1698,10 +1680,12 @@ bool WebManager::triggerTPA(bool manual) {
   // timeout that will never fire. Clamp before the conversion, not after.
   const float drainLPM = _water->getDrainFlowLPM();
   const float refillLPM = _water->getRefillFlowLPM();
+  // The legs move different volumes now: the drain removes only what is left
+  // after the shortfall, the refill puts back the whole change.
   if (drainLPM > 0)
     _water->setTimeoutDrainMs(_clampTimeoutMs(drainLiters / drainLPM));
   if (refillLPM > 0)
-    _water->setTimeoutRefillMs(_clampTimeoutMs(drainLiters / refillLPM));
+    _water->setTimeoutRefillMs(_clampTimeoutMs(refillLiters / refillLPM));
 
   _water->startTPA(manual);
   // _tpaLastRun is deliberately NOT stamped here. It gates the schedule, so

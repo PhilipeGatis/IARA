@@ -161,11 +161,12 @@ constexpr float DEFAULT_DRAIN_PCT = 30.0f;   // Drain 30% of tank
 // livestock line is this clamp.
 constexpr float TPA_MAX_DRAIN_PCT = 50.0f;
 
-// How far the level may sit from the calibrated 100% mark and still be treated
-// as "the tank is where the last cycle left it". Past this, something already
-// went wrong — evaporation left unattended, or a cycle that errored during the
-// refill — and draining from that level would bank the deficit permanently.
-constexpr float TPA_MAX_START_DEVIATION_CM = 3.0f;
+// Superseded: a level below the 100% mark is no longer a reason to refuse a
+// cycle. The shortfall is subtracted from the drain and the refill returns to
+// the absolute mark, so the cycle delivers the configured volume of new water
+// and ends full. See WebManager::triggerTPA(). The only refusal left is a
+// shortfall larger than the change itself, which needs a top-up rather than a
+// water change.
 
 // -- NTP sync interval --
 constexpr unsigned long NTP_SYNC_INTERVAL_MS = 24UL * 3600 * 1000; // 24 h

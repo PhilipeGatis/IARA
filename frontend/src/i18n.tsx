@@ -246,6 +246,7 @@ const translations = {
     'tpaState.MANUAL_PUMP_DRAIN': { pt: 'Drenagem manual', en: 'Manual drain', ja: '手動排水' },
     'tpaState.MANUAL_PUMP_REFILL': { pt: 'Recalque manual', en: 'Manual refill', ja: '手動給水' },
     'home.tpaCapped': { pt: 'Limitado a {v} L pelo reservatório', en: 'Capped to {v} L by the reservoir', ja: 'リザーバーにより{v} Lに制限' },
+    'home.tpaTopUp': { pt: 'Complete o aquário — falta mais água do que esta troca reporia', en: 'Top the tank up — it is short by more than this change would replace', ja: '水槽に給水してください — 今回の換水で補える量を超えて不足しています' },
     'home.tpaBlocked': { pt: 'Última tentativa recusada: {r}', en: 'Last attempt refused: {r}', ja: '前回の実行は拒否されました: {r}' },
     'home.tpaError': { pt: 'Última TPA falhou: {e}', en: 'Last cycle failed: {e}', ja: '前回のサイクルが失敗: {e}' },
     'home.sensorDown': { pt: 'Sensor sem resposta — o nível mostrado pode estar velho', en: 'Sensor not responding — the level shown may be stale', ja: 'センサー応答なし — 表示中の水位は古い可能性があります' },
