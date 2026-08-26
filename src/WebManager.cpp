@@ -277,6 +277,10 @@ String WebManager::_buildStatusJSON() {
   json += "\"sensorsOk\":";
   json += (_safety && _safety->areSensorsConnected() ? "true" : "false");
   json += ",";
+  // Climbing on a still tank means the sensor is seeing something other than
+  // the water — a rippled surface, a wall, a hanging cable.
+  json += "\"rejectedReadings\":" +
+          String(_safety ? _safety->getRejectedReadings() : 0) + ",";
   json += "\"language\":" + String(_language) + ",";
   if (_water) {
     json += "\"pumpGoalLiters\":" + String(_water->getPumpGoalLiters(), 2) + ",";

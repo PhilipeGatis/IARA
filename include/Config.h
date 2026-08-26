@@ -134,6 +134,30 @@ constexpr float OVERFLOW_TOLERANCE_PCT = 3.0f;
 // millimetre in that time, so anything beyond this is the sensor being moved,
 // knocked or lying — never the water. Such readings must not open the drain.
 constexpr float MAX_PLAUSIBLE_LEVEL_STEP_CM = 3.0f;
+
+// Largest jump between one accepted reading and the next.
+//
+// The water cannot move quickly. The fastest actuator here is the refill pump
+// at roughly 6 L/min, which on this footprint is 0.055 cm per second — so
+// between two frames arriving 100 ms apart the surface moves about five
+// microns. A reading a centimetre away from the current estimate is therefore
+// not a measurement of anything; it is an echo off a rippled surface, a wall,
+// or a passing hand.
+//
+// The median filter handles isolated spikes, but a burst of them drags the
+// median with it, and 1 cm on this tank is 3 percentage points — enough to end
+// a drain early or hold a canister off.
+constexpr float MAX_LEVEL_STEP_CM = 1.0f;
+
+// Consecutive rejections after which the filter starts over.
+//
+// Without this, one bad estimate locks the gate forever: every correct reading
+// looks like an outlier against it and gets thrown away. When this many frames
+// in a row all disagree with the estimate, the estimate is what is wrong — the
+// level genuinely moved, someone topped the tank up by hand, or the sensor was
+// remounted. About a second of frames, deliberately shorter than the two-second
+// disconnect timeout so the filter heals before the sensor is declared dead.
+constexpr uint8_t MAX_LEVEL_STEP_REJECTS = 10;
 constexpr unsigned long MAINTENANCE_DURATION_MS = 30UL * 60 * 1000; // 30 min
 
 // Volumes and flow

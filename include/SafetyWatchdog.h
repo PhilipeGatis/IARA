@@ -29,6 +29,10 @@ public:
   /// True if ultrasonic sensor is producing valid readings
   bool areSensorsConnected() const { return _sensorsConnected; }
 
+  /// Readings refused as physically impossible since boot. A climbing count on
+  /// a still tank means the sensor is seeing something other than the water.
+  uint32_t getRejectedReadings() const { return _rejectedTotal; }
+
   // ---- Emergency actions ----
 
   /// Immediately set ALL output pins LOW
@@ -84,6 +88,8 @@ private:
   static constexpr uint8_t MEDIAN_BUFFER_SIZE = 20;
   // Entries beyond _medianCount are never read, so zero-init is fine.
   float _medianBuffer[MEDIAN_BUFFER_SIZE] = {};
+  uint8_t _slewRejects = 0;   ///< consecutive readings refused as implausible
+  uint32_t _rejectedTotal = 0; ///< lifetime count, for diagnosing a noisy sensor
   uint8_t _medianIndex = 0;
   uint8_t _medianCount = 0;
 

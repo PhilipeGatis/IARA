@@ -51,6 +51,27 @@ float SafetyWatchdog::readUltrasonic() {
         float distance = ((dataH << 8) | dataL) / 10.0f; // mm to cm
         if (distance >= ULTRASONIC_MIN_DISTANCE_CM &&
             distance <= ULTRASONIC_MAX_DISTANCE_CM) {
+          // Reject what the water cannot physically have done. See
+          // MAX_LEVEL_STEP_CM: between frames the surface moves microns, so a
+          // reading a centimetre off the estimate is an echo, not a level.
+          if (_lastDistance > 0 &&
+              fabsf(distance - _lastDistance) > MAX_LEVEL_STEP_CM) {
+            _rejectedTotal++;
+            if (++_slewRejects < MAX_LEVEL_STEP_REJECTS) {
+              continue; // outlier — do not let it into the median
+            }
+            // This many in a row all disagreeing means the estimate is what is
+            // stale, not the readings. Start over rather than stay locked onto
+            // a value the water left behind.
+            Serial.printf("[Safety] Level moved beyond the step limit for %u "
+                          "frames — rebuilding the filter around %.1f cm\n",
+                          (unsigned)_slewRejects, distance);
+            _medianCount = 0;
+            _medianIndex = 0;
+            _lastDistance = -1;
+          }
+          _slewRejects = 0;
+
           // Store in median buffer (circular)
           _medianBuffer[_medianIndex] = distance;
           _medianIndex = (_medianIndex + 1) % MEDIAN_BUFFER_SIZE;

@@ -207,7 +207,9 @@ void test_median_filter_rejects_spike() {
     sw.readUltrasonic();
   }
 
-  // Median of [2.0, 14.9, 15.0, 15.1, 15.2] sorted = 15.0
+  // The 2 cm echo never reaches the buffer — the step gate refuses it, since
+  // the water cannot fall 13 cm between two frames. The median is over the four
+  // that remain, and the spike is rejected twice over.
   float dist = sw.getLastDistance();
   TEST_ASSERT_FLOAT_WITHIN(0.5f, 15.0f, dist);
 }
@@ -216,15 +218,17 @@ void test_median_filter_with_partial_buffer() {
   SafetyWatchdog sw;
   sw.begin();
 
-  // Only 2 readings
+  // Only 2 readings, a plausible distance apart. A 2 cm step between
+  // consecutive frames would now be refused as physically impossible, which is
+  // a different property and has its own test.
   mock_inject_a02_distance(10.0f);
   sw.readUltrasonic();
-  mock_inject_a02_distance(12.0f);
+  mock_inject_a02_distance(10.5f);
   sw.readUltrasonic();
 
-  // With 2 samples, median = sorted[1] = 12.0
+  // With 2 samples, median = sorted[1] = 10.5
   float dist = sw.getLastDistance();
-  TEST_ASSERT_FLOAT_WITHIN(1.0f, 12.0f, dist);
+  TEST_ASSERT_FLOAT_WITHIN(0.1f, 10.5f, dist);
 }
 
 // ----------------------------------------------------------------------------
@@ -233,8 +237,58 @@ void test_median_filter_with_partial_buffer() {
 // MAIN
 // ============================================================================
 
+void test_outlier_does_not_move_the_median() {
+  SafetyWatchdog sw;
+  sw.begin();
+
+  // Settle on a still 20 cm surface.
+  for (int i = 0; i < 32; i++) { mock_inject_a02_distance(20.0f); sw.readUltrasonic(); }
+  TEST_ASSERT_FLOAT_WITHIN(0.05f, 20.0f, sw.readUltrasonic());
+
+  // A burst of echoes a couple of centimetres away. Physically the water moves
+  // microns between frames, so none of these is a level.
+  for (int i = 0; i < 5; i++) { mock_inject_a02_distance(23.0f); sw.readUltrasonic(); }
+  TEST_ASSERT_FLOAT_WITHIN(0.05f, 20.0f, sw.readUltrasonic());
+  TEST_ASSERT_TRUE(sw.getRejectedReadings() >= 5);
+}
+
+void test_a_real_move_is_not_rejected_forever() {
+  SafetyWatchdog sw;
+  sw.begin();
+
+  for (int i = 0; i < 32; i++) { mock_inject_a02_distance(20.0f); sw.readUltrasonic(); }
+  TEST_ASSERT_FLOAT_WITHIN(0.05f, 20.0f, sw.readUltrasonic());
+
+  // The tank was topped up by hand: the level really is somewhere else now, and
+  // every reading says so. A gate with no escape would throw away correct data
+  // indefinitely, holding an estimate the water left behind.
+  for (int i = 0; i < 40; i++) { mock_inject_a02_distance(14.0f); sw.readUltrasonic(); }
+  TEST_ASSERT_FLOAT_WITHIN(0.05f, 14.0f, sw.readUltrasonic());
+}
+
+void test_gradual_movement_passes_the_gate() {
+  SafetyWatchdog sw;
+  sw.begin();
+
+  for (int i = 0; i < 32; i++) { mock_inject_a02_distance(20.0f); sw.readUltrasonic(); }
+
+  // A drain at 2 L/min on this tank moves about a millimetre a second. Nothing
+  // here should be refused.
+  float d = 20.0f;
+  for (int i = 0; i < 60; i++) {
+    d += 0.05f;
+    mock_inject_a02_distance(d);
+    sw.readUltrasonic();
+  }
+  TEST_ASSERT_EQUAL_UINT32(0, sw.getRejectedReadings());
+  TEST_ASSERT_TRUE(sw.readUltrasonic() > 20.0f);
+}
+
 int main(int argc, char **argv) {
   UNITY_BEGIN();
+  RUN_TEST(test_outlier_does_not_move_the_median);
+  RUN_TEST(test_a_real_move_is_not_rejected_forever);
+  RUN_TEST(test_gradual_movement_passes_the_gate);
 
   // Initialization
   RUN_TEST(test_begin_sets_pin_modes);
