@@ -74,9 +74,13 @@ bool TimeManager::syncWithNTP() {
   if (_rtcConnected) {
     DateTime ntpTime(epoch);
     _rtc.adjust(ntpTime);
+    // The RTC now holds a real time. Leaving this set would keep the clock
+    // marked untrustworthy for as long as the board stays up.
+    _rtcLostPower = false;
     Serial.println("[Time] RTC adjusted from NTP.");
   }
 
+  _ntpEverSynced = true;
   _lastNtpSync = millis();
   return true;
 }
@@ -92,7 +96,9 @@ DateTime TimeManager::now() {
     return DateTime(epoch);
   }
 
-  // No valid time yet — return a safe default
+  // No valid time yet. This is not a safe default — it is a plausible-looking
+  // wrong answer, and callers must not schedule against it. isTimeValid() is
+  // the guard; this only keeps the return type honest.
   return DateTime(2025, 1, 1);
 }
 

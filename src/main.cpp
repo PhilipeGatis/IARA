@@ -420,7 +420,12 @@ void loop() {
   }
 
   // ---- 5. SCHEDULING (only if not in maintenance and not running TPA) ----
-  if (!safety.isMaintenanceMode()) {
+  //
+  // Everything below is a comparison against the clock, so an untrustworthy
+  // clock has to stop it rather than quietly produce wrong answers: an RTC that
+  // lost power reads year 2000 and the schedule never fires again, with no
+  // error and nothing to notice.
+  if (!safety.isMaintenanceMode() && timeMgr.isTimeValid()) {
 
     DateTime now = timeMgr.now();
     uint8_t currentMinute = now.minute();
@@ -458,6 +463,17 @@ void loop() {
         unsigned long lastRun = webMgr.getTpaLastRun();
         unsigned long nowEpoch = timeMgr.now().unixtime();
 
+        // A timestamp in the future can only come from a clock that was wrong
+        // when it was written. Left alone it makes the interval comparison
+        // false essentially forever, and the schedule is dead with no symptom.
+        if (lastRun > nowEpoch) {
+          Serial.printf("[Main] tpaLastRun is in the future (%lu > %lu) — "
+                        "clearing it.\n",
+                        lastRun, nowEpoch);
+          webMgr.setTpaLastRun(0);
+          lastRun = 0;
+        }
+
         // 43200 seconds = 12 hours. We grant a 12h leeway so that DST shifts
         // or small clock drifts don't cause it to miss a day. The precise
         // trigger happens below by strictly matching hour and minute.
@@ -483,6 +499,16 @@ void loop() {
           }
         }
       }
+    }
+  }
+
+  else if (!safety.isMaintenanceMode()) {
+    // Say so, rather than looking identical to a system with nothing scheduled.
+    static unsigned long lastClockWarnMs = 0;
+    if (lastClockWarnMs == 0 || millis() - lastClockWarnMs > 60UL * 1000) {
+      lastClockWarnMs = millis();
+      Serial.println("[Main] Clock not trusted (RTC lost power and no NTP sync "
+                     "yet) — all scheduling suspended.");
     }
   }
 

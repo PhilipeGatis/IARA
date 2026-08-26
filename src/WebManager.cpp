@@ -196,6 +196,9 @@ String WebManager::_buildStatusJSON() {
     json += "\"time\":\"" + _time->getFormattedTime() + "\",";
     json += "\"rtcConnected\":" + String(_time->isRtcConnected() ? "true" : "false") + ",";
     json += "\"rtcLostPower\":" + String(_time->hasRtcLostPower() ? "true" : "false") + ",";
+    // Scheduling is suspended while this is false, and nothing else about the
+    // dashboard would look any different.
+    json += "\"timeValid\":" + String(_time->isTimeValid() ? "true" : "false") + ",";
   }
   if (_safety) {
     json += "\"waterLevel\":" + String(_safety->getLastDistance(), 1) + ",";

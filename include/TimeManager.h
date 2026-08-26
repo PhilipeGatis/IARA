@@ -34,6 +34,21 @@ public:
   bool isRtcConnected() const { return _rtcConnected; }
   bool hasRtcLostPower() const { return _rtcLostPower; }
 
+  /// Is the clock trustworthy enough to schedule against?
+  ///
+  /// It is not, in two situations that both look completely normal from the
+  /// outside. An RTC that lost power reports a year-2000 date, so
+  /// `now >= lastRun + interval` is false forever and the water change simply
+  /// never happens — no error, no notification, nothing to notice. And a garbage
+  /// reading in the *future* gets stamped into _tpaLastRun, which poisons the
+  /// comparison permanently even after NTP corrects the clock.
+  ///
+  /// A clock jump also moves FertManager's day key, and the same channel can
+  /// then dose twice in one day.
+  bool isTimeValid() const {
+    return (_rtcConnected && !_rtcLostPower) || _ntpEverSynced;
+  }
+
 private:
   RTC_DS3231 _rtc;
   WiFiUDP _ntpUDP;
@@ -42,6 +57,7 @@ private:
   bool _rtcConnected;
   bool _rtcLostPower;
   bool _ntpStarted;
+  bool _ntpEverSynced = false;
   unsigned long _lastNtpSync;
 
   static constexpr long UTC_OFFSET_BRASILIA = -3 * 3600;
