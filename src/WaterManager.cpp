@@ -70,6 +70,8 @@ void WaterManager::_resetCycleState() {
   _refillConfirming = false;
   _manualTargetLevelCm = -1;
   _wasFullCycle = false;
+  _primeDoseStarted = false;
+  _primeWaitStartedMs = 0;
 }
 
 void WaterManager::startTPA(bool manual) {
@@ -444,17 +446,29 @@ void WaterManager::_handleDosingPrime() {
   }
 
   if (!_doseCompleted) {
-    // First call: perform dosing
     if (_fert && _primeML > 0) {
-      Serial.printf("[TPA] Dosing Prime: %.1f ml\n", _primeML);
-      bool ok = _fert->doseChannel(NUM_FERTS, _primeML); // Channel 4 = Prime
-      if (!ok) {
-        Serial.println("[TPA] WARNING: Prime dosing may have timed out.");
+      if (!_primeDoseStarted) {
+        // Dosing no longer blocks, so the pump runs while the rest of the
+        // system keeps ticking. Something else holding the channel is the only
+        // reason this can fail, and it should clear within a dose duration.
+        if (!_fert->startDose(NUM_FERTS, _primeML)) { // Channel 4 = Prime
+          if (_primeWaitStartedMs == 0)
+            _primeWaitStartedMs = millis();
+          if (millis() - _primeWaitStartedMs > TIMEOUT_PRIME_MS) {
+            _error("Prime channel busy");
+          }
+          return;
+        }
+        Serial.printf("[TPA] Dosing Prime: %.1f ml\n", _primeML);
+        _primeDoseStarted = true;
+        // Deduct from Prime stock
+        float stock = _fert->getStockML(NUM_FERTS);
+        _fert->setStockML(NUM_FERTS, stock - _primeML);
+        _fert->saveState();
+        return;
       }
-      // Deduct from Prime stock
-      float stock = _fert->getStockML(NUM_FERTS);
-      _fert->setStockML(NUM_FERTS, stock - _primeML);
-      _fert->saveState();
+      if (_fert->isDosing())
+        return; // pump still running
     }
     _doseCompleted = true;
     _waitUntilMs = millis() + 2000; // Let Prime mix

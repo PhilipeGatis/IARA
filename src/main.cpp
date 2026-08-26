@@ -358,9 +358,19 @@ void loop() {
   // ---- 1. SAFETY (highest priority, runs every 500ms) ----
   safety.update();
 
+  // Ends any dose whose duration has elapsed. Deliberately above every early
+  // return below: maintenance mode and emergency mode both skip the scheduling
+  // block, and a dose started just before either was entered would otherwise
+  // have nothing left to switch its pump off.
+  fertMgr.tickDose();
+
   // If in emergency, skip all scheduling and just process commands
   if (safety.isEmergency()) {
     if (!emergencyNotified) {
+      // emergencyShutdown() already dropped the LEDC duty, but FertManager
+      // still believes a dose is in flight; tickDose() would then log it as
+      // having completed normally. Tell it the dose was cut short.
+      fertMgr.abortDose();
       notifyMgr.notifyEmergency("Sistema em estado de emergência!");
       emergencyNotified = true;
     }
@@ -414,7 +424,14 @@ void loop() {
     uint8_t currentMinute = now.minute();
 
     // --- Fertilization schedule (Independent per Channel) ---
-    fertMgr.update(now);
+    // Held off while a water change is running. A change removes part of the
+    // column, so anything dosed into it is thrown away — standard practice is
+    // to dose after. The schedule is not lost: _lastDoseKey is only stamped
+    // once a dose actually starts, so a dose due mid-cycle fires as soon as the
+    // cycle ends.
+    if (!waterMgr.isRunning()) {
+      fertMgr.update(now);
+    }
 
     // --- Check low stock after fertilization ---
     for (uint8_t ch = 0; ch < NUM_FERTS + 1; ch++) {

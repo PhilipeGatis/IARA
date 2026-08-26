@@ -29,7 +29,26 @@ public:
   /// @param ch Channel index 0-3 (fertilizers) or 4 (prime)
   /// @param ml Volume in mL
   /// @return true if dosing completed without timeout
-  bool doseChannel(uint8_t ch, float ml);
+  /// Starts a dose and returns immediately; the pump is switched off by
+  /// tickDose(). The blocking form this replaced sat in a delay() loop for the
+  /// dose duration — up to 30 s for a fertiliser and 60 s for Prime — during
+  /// which loop() did not run, so the overflow watchdog, the emergency drain
+  /// and the TPA state machine were all frozen while a pump was running.
+  ///
+  /// Returns false if the channel is invalid, the volume is not positive, or a
+  /// dose is already in progress: the channels share one measurement of
+  /// elapsed time, and two at once is a dosing error waiting to happen.
+  bool startDose(uint8_t ch, float ml);
+
+  /// Switches the pump off once the dose duration has elapsed. Must be called
+  /// every loop, including in maintenance mode and during a TPA — it is the
+  /// only thing that ends a dose.
+  void tickDose();
+
+  bool isDosing() const { return _doseActive; }
+
+  /// Stops an in-progress dose immediately, mid-volume.
+  void abortDose();
 
   /// Manually turn the pump ON or OFF for priming the line
   void manualPump(uint8_t ch, bool state);
@@ -126,6 +145,11 @@ private:
 
   /// Check if a channel index is valid (0-NUM_FERTS inclusive) (DRY #7)
   bool _isValidChannel(uint8_t ch) const { return ch <= NUM_FERTS; }
+
+  // In-progress dose. Only one at a time; see startDose().
+  bool _doseActive = false;
+  uint8_t _doseChannel = 0;
+  unsigned long _doseEndMs = 0;
 
   /// Get the GPIO pin for a channel (0-3 = fert, 4 = prime)
   uint8_t _pinForChannel(uint8_t ch) const;

@@ -40,6 +40,11 @@ void FertManager::begin() {
 }
 
 void FertManager::update(DateTime now) {
+  // A dose in progress owns the channel until it ends. Starting a second one
+  // would overlap two pumps against a single elapsed-time measurement.
+  if (_doseActive)
+    return;
+
   uint32_t todayKey = _dateKey(now);
   uint8_t currentDow = now.dayOfTheWeek();
   uint8_t currentHour = now.hour();
@@ -57,12 +62,20 @@ void FertManager::update(DateTime now) {
         if (ds > 0 && _stockML[i] >= ds) {
           Serial.printf("[Fert] Scheduled auto-dose CH%d: %.1f ml\n", i + 1,
                         ds);
-          if (doseChannel(i, ds)) {
+          if (startDose(i, ds)) {
+            // Booked at the start, not on completion. If the dose is cut short
+            // the stock figure is pessimistic, which is the safe direction —
+            // whereas booking it at the end leaves a window in which the same
+            // channel could be scheduled again, and a double dose is the one
+            // failure here that kills livestock.
             _stockML[i] -= ds;
             if (_stockML[i] < 0)
               _stockML[i] = 0;
             _markDosed(i, now);
             saveState();
+            // One channel per pass; the next update() picks up the next one
+            // once this dose has finished.
+            return;
           }
         } else if (ds > 0) {
           Serial.printf(
@@ -79,10 +92,12 @@ void FertManager::update(DateTime now) {
   }
 }
 
-bool FertManager::doseChannel(uint8_t ch, float ml) {
+bool FertManager::startDose(uint8_t ch, float ml) {
   if (!_isValidChannel(ch))
     return false;
   if (ml <= 0)
+    return false;
+  if (_doseActive)
     return false;
 
   uint8_t pin = _pinForChannel(ch);
@@ -106,13 +121,30 @@ bool FertManager::doseChannel(uint8_t ch, float ml) {
                 durationMs, rate);
   ledcWrite(ch, _pwm[ch]);
 
-  unsigned long start = millis();
-  while ((millis() - start) < durationMs) {
-    delay(10); // Yield to watchdog
-  }
-
-  ledcWrite(ch, 0);
+  _doseActive = true;
+  _doseChannel = ch;
+  _doseEndMs = millis() + durationMs;
   return true;
+}
+
+void FertManager::tickDose() {
+  if (!_doseActive)
+    return;
+  // Signed difference so the comparison stays correct across the millis()
+  // rollover at ~49 days, which this board will reach.
+  if ((long)(millis() - _doseEndMs) < 0)
+    return;
+  ledcWrite(_doseChannel, 0);
+  _doseActive = false;
+  Serial.printf("[Fert] CH%d dose finished\n", _doseChannel + 1);
+}
+
+void FertManager::abortDose() {
+  if (!_doseActive)
+    return;
+  ledcWrite(_doseChannel, 0);
+  _doseActive = false;
+  Serial.printf("[Fert] CH%d dose aborted mid-volume\n", _doseChannel + 1);
 }
 
 void FertManager::manualPump(uint8_t ch, bool state) {

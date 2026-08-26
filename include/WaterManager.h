@@ -138,6 +138,8 @@ private:
   FertManager *_fert;
   bool _isManualTPA;
   bool _wasFullCycle = false;
+  bool _primeDoseStarted = false;
+  unsigned long _primeWaitStartedMs = 0;
 
   // State timing
   unsigned long _stateStartMs;

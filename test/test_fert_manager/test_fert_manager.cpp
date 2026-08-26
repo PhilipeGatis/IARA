@@ -184,21 +184,59 @@ void test_dose_channel_activates_correct_pin() {
   mock_reset_pins();
 
   // Dose CH1 (PIN_FERT1 = GPIO 13)
-  fm.doseChannel(0, 1.0f); // 1 ml
+  TEST_ASSERT_TRUE(fm.startDose(0, 1.0f)); // 1 ml
+  TEST_ASSERT_TRUE(fm.isDosing());
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[13]); // pump running
 
-  // After dosing, pin should be LOW again (pump turned off)
+  // The dose ends on the clock, not by blocking. Nothing switches the pump off
+  // until tickDose() sees the duration elapse.
+  mock_millis_value += 60UL * 1000;
+  fm.tickDose();
+  TEST_ASSERT_FALSE(fm.isDosing());
   TEST_ASSERT_EQUAL(LOW, mock_pin_state[13]);
+}
+
+void test_dose_does_not_block_the_loop() {
+  FertManager fm = createFM();
+  Preferences::mock_clearAll();
+  mock_reset_pins();
+
+  const unsigned long before = mock_millis_value;
+  fm.startDose(0, 30.0f); // a long dose
+
+  // startDose() must return with the clock untouched. The blocking version sat
+  // in delay() for the whole duration, and loop() — with it the overflow
+  // watchdog and the emergency drain — did not run for up to 30 seconds while
+  // a pump was live.
+  TEST_ASSERT_EQUAL(before, mock_millis_value);
+  TEST_ASSERT_TRUE(fm.isDosing());
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[13]);
+}
+
+void test_second_dose_refused_while_one_runs() {
+  FertManager fm = createFM();
+  Preferences::mock_clearAll();
+  mock_reset_pins();
+
+  TEST_ASSERT_TRUE(fm.startDose(0, 5.0f));
+  // The channels share one measurement of elapsed time.
+  TEST_ASSERT_FALSE(fm.startDose(1, 5.0f));
+
+  fm.abortDose();
+  TEST_ASSERT_FALSE(fm.isDosing());
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[13]);
+  TEST_ASSERT_TRUE(fm.startDose(1, 5.0f));
 }
 
 void test_dose_channel_rejects_invalid() {
   FertManager fm = createFM();
 
   // Channel > 4 should fail
-  bool ok = fm.doseChannel(10, 5.0f);
+  bool ok = fm.startDose(10, 5.0f);
   TEST_ASSERT_FALSE(ok);
 
   // Zero ml should fail
-  ok = fm.doseChannel(0, 0.0f);
+  ok = fm.startDose(0, 0.0f);
   TEST_ASSERT_FALSE(ok);
 }
 
@@ -230,6 +268,8 @@ int main(int argc, char **argv) {
 
   // GPIO behavior
   RUN_TEST(test_dose_channel_activates_correct_pin);
+  RUN_TEST(test_dose_does_not_block_the_loop);
+  RUN_TEST(test_second_dose_refused_while_one_runs);
   RUN_TEST(test_dose_channel_rejects_invalid);
 
   UNITY_END();
