@@ -1,4 +1,5 @@
 #include "WaterManager.h"
+#include "TpaPlan.h"
 #include <cmath> // fabsf
 #include "FertManager.h"
 #include "PumpLog.h"
@@ -860,14 +861,9 @@ bool WaterManager::restoreCanisterIfSafe(PumpReason reason) {
 
   const float dist = _safety->readUltrasonic();
   const float waterPct =
-      (_aqEffectiveHeightCm > 0)
-          ? ((_aqEffectiveHeightCm - dist) / _aqEffectiveHeightCm * 100.0f)
-          : 0;
-  const float safePct =
-      (_aqEffectiveHeightCm > 0)
-          ? ((_aqEffectiveHeightCm - _canisterSafeLevelCm) /
-             _aqEffectiveHeightCm * 100.0f)
-          : 0;
+      levelPercentFromDistance(dist, _sensorFullCm, _aqEffectiveHeightCm);
+  const float safePct = levelPercentFromDistance(
+      _canisterSafeLevelCm, _sensorFullCm, _aqEffectiveHeightCm);
 
   // Low distance means high water. Running the canister with its intake above
   // the surface pulls air and damages the pump, so it stays off until the

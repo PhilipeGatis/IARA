@@ -53,7 +53,13 @@ void WebManager::syncAquariumGeometryToWater() {
 
   const float effH = (float)getAquariumVolume() / lPerCm;
   _water->setAqEffectiveHeightCm(effH);
-  _water->setCanisterSafeLevelCm(effH * (100.0f - getCanisterSafePct()) / 100.0f);
+  // The offset matters: without it, a "safe level" of 80% resolves to a
+  // distance above the calibrated full mark, which the tank only reaches by
+  // overflowing — so the canister could never be allowed on.
+  const float fullCm = (float)_sensorFullDistanceMm / 10.0f;
+  _water->setSensorFullCm(fullCm);
+  _water->setCanisterSafeLevelCm(
+      distanceForLevelPercent(getCanisterSafePct(), fullCm, effH));
 }
 
 void WebManager::syncFlowRatesFromWater() {
@@ -1671,8 +1677,9 @@ bool WebManager::triggerTPA(bool manual) {
   _water->setLitersPerCm(lPerCm);
 
   const float effH = aqVol / lPerCm;
-  const float canisterSafeCm = effH * (100.0f - getCanisterSafePct()) / 100.0f;
-  _water->setCanisterSafeLevelCm(canisterSafeCm);
+  _water->setSensorFullCm(fullCm);
+  _water->setCanisterSafeLevelCm(
+      distanceForLevelPercent(getCanisterSafePct(), fullCm, effH));
   _water->setAqEffectiveHeightCm(effH);
 
   // A measured rate near zero makes this quotient enormous; assigning it to an
@@ -1699,12 +1706,24 @@ bool WebManager::triggerTPA(bool manual) {
 
 /// Converts a run time in minutes into a timeout, with margin and bounds.
 unsigned long WebManager::_clampTimeoutMs(float minutes) {
-  constexpr float MARGIN = 1.5f;
+  // 1.5x was too thin and a cycle failed by seven seconds. The estimate divides
+  // by a measured flow rate, and that measurement is taken over a couple of
+  // centimetres of a rippling surface — it reads high as often as low. A margin
+  // has to absorb that error, not merely round it.
+  constexpr float MARGIN = 2.0f;
+
+  // Flat allowance on top. Pump spin-up, the canister settle and the median
+  // filter's own lag cost the same handful of seconds whatever the volume, so
+  // scaling the whole budget starves a short leg. Subtracting the tank's
+  // shortfall from the drain made those legs much shorter, which is what
+  // exposed this.
+  constexpr float OVERHEAD_MINUTES = 1.0f;
+
   constexpr float MAX_MINUTES = 60.0f;
   if (!(minutes > 0))
     return TIMEOUT_DRAIN_MS; // fall back to the compiled-in default
-  float withMargin = minutes * MARGIN;
-  if (withMargin > MAX_MINUTES)
-    withMargin = MAX_MINUTES;
-  return (unsigned long)(withMargin * 60000.0f);
+  float budget = minutes * MARGIN + OVERHEAD_MINUTES;
+  if (budget > MAX_MINUTES)
+    budget = MAX_MINUTES;
+  return (unsigned long)(budget * 60000.0f);
 }

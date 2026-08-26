@@ -85,3 +85,34 @@ inline TpaPlan planTPA(float currentCm, float fullCm, float requestedLiters,
   p.ok = true;
   return p;
 }
+
+// ---------------------------------------------------------------------------
+// Distance <-> percentage
+//
+// The ultrasonic measures distance down to the surface, so the numbers only
+// mean anything relative to the calibrated 100% mark. Leaving that offset out
+// is not a rounding error: with a 32.8 cm tank whose mark sits at 8.2 cm, a
+// full tank reads 75% and a "safe level" of 80% resolves to a distance 1.6 cm
+// ABOVE the mark — a level the tank reaches only by overflowing. Anything
+// gated on it can then never turn on.
+//
+// One conversion, used everywhere, so the three copies that disagreed cannot
+// come back.
+// ---------------------------------------------------------------------------
+
+/// Water level as a percentage of the tank's usable height.
+/// 100% is the calibrated full mark; 0% is `effHCm` below it.
+inline float levelPercentFromDistance(float distCm, float fullCm,
+                                      float effHCm) {
+  if (effHCm <= 0)
+    return 0;
+  const float pct = ((fullCm + effHCm - distCm) / effHCm) * 100.0f;
+  return pct < 0 ? 0 : (pct > 100.0f ? 100.0f : pct);
+}
+
+/// The sensor distance a given percentage corresponds to. Inverse of the above.
+inline float distanceForLevelPercent(float pct, float fullCm, float effHCm) {
+  if (effHCm <= 0)
+    return fullCm;
+  return fullCm + effHCm * (100.0f - pct) / 100.0f;
+}

@@ -116,6 +116,10 @@ public:
   // ---- Calibration / Flow rates ----
   void setLitersPerCm(float lpc) { _litersPerCm = lpc; }
   void setAqEffectiveHeightCm(float h) { _aqEffectiveHeightCm = h; }
+
+  /// The calibrated 100% mark, as sensor distance. Percentages are meaningless
+  /// without it — see TpaPlan.h.
+  void setSensorFullCm(float cm) { _sensorFullCm = cm; }
   void setPrimeEnabled(bool enabled) { _primeEnabled = enabled; }
 
   /// Declares that a mechanical float valve closes the reservoir's inlet at the
@@ -270,6 +274,7 @@ private:
   unsigned long _manualTimeoutMs = MANUAL_PUMP_MAX_MS;
   bool _primeEnabled = true;
   bool _reservoirMechFloat = false;
+  float _sensorFullCm = 0;
 
   // Float sensor debounce (requires N consecutive "full" reads to confirm)
   static constexpr uint8_t FLOAT_DEBOUNCE_COUNT = 5; // 5 × 50ms loop = 250ms
