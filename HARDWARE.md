@@ -226,6 +226,32 @@ Montagem: reed **NA** (normalmente aberto) com um ímã mantido próximo por uma
 >
 > O **GPIO4**, que era do sensor capacitivo XKC-Y25 (nunca instalado, removido do projeto), está livre. Ligar um segundo reed nele devolveria essa visibilidade ao firmware, mas exige mudança de código.
 
+#### Como segurar o ímã e o reed: a gangorra impressa
+
+O trecho acima descreve o circuito. A mecânica que o executa está em [`3d_models/reed_level_seesaw.scad`](3d_models/reed_level_seesaw.scad).
+
+É uma gangorra apoiada na borda do vidro. O braço de dentro termina numa bandeja onde se cola um bloco de isopor; o de fora carrega o ímã de 6 × 2 mm **deitado** numa pá horizontal. O reed vive dentro de um tubo de acrílico de 5 mm que atravessa dois dedos saindo das orelhas do pivô. Nada do circuito toca a água.
+
+| | |
+|---|---|
+| Vidro | 4,9 mm |
+| Curso do ímã | 23,3 mm |
+| Campo no reed — fechado / aberto | ~43 / ~2,4 gauss |
+| Ponto mais alto acima da borda | 45,5 mm |
+| Peças impressas | 4 |
+
+> [!IMPORTANT]
+> **O reed não fica em cima do ímã, e isso não é descuido.** Ímã deitado lança campo vertical logo acima de si, e reed deitado não enxerga campo vertical — nessa posição ele nunca fecha. O campo só vira horizontal na linha de 54,7° a partir do eixo do ímã, por isso os contatos ficam 9,9 mm para o lado e 7 mm acima da face dele. As duas cotas são acopladas (`dy = 1,41 × dz`): mexer numa sozinha tira o reed da linha. Por isso a altura é furo redondo, sem ajuste — quem ajusta é o tubo, escorregando dentro dos dois dedos.
+
+> [!TIP]
+> **Quem compra margem de desarme é o braço do ímã, não o da boia.** O curso do ímã é `2 × arm_out × sin(15°)`, e o campo no batente de baixo cai com o cubo da distância. Alongar o braço da boia faz o contrário do que parece: ele é o denominador do ganho, então troca curso por torque.
+
+O ângulo entre os dois braços é escolhido num acoplamento dentado de 12 dentes, de 30 em 30 graus. O passo é grosso de propósito: quem define o nível de disparo é o contrapeso, cujo alcance é quase a altura inteira da boia. O ângulo só precisa pôr a boia perto da superfície.
+
+A calibração é o mesmo teste de histerese da dica acima, com uma etapa a mais: escorregue o tubo até o contato fechar com a alavanca no batente de cima, e só então confirme que ele abre no de baixo sem voltar a fechar em nenhum ponto do meio do curso.
+
+Impressão: quatro peças em PETG ou ASA — PLA absorve umidade e deforma perto d'água. As STLs saem já giradas e assentadas em z = 0, e `reed_seesaw_mesa.stl` traz as quatro numa mesa de 138 × 86 mm. Só a peça `bracket` pede suporte, em dois vãos abertos.
+
 ### Esquema de Ligação — Display TFT ST7735 (SPI)
 
 Display colorido 1.8" 128×160 pixels. Opera em **3.3V** — incompatível com 5V. Utiliza SPI por software (bit-banging) em pinos customizados.

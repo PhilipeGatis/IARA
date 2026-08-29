@@ -226,6 +226,32 @@ Assembly: **NO** (normally open) reed with a magnet held nearby by an EVA float,
 >
 > **GPIO4**, previously the XKC-Y25 capacitive sensor (never installed, dropped from the project), is free. Wiring a second reed to it would give the firmware that visibility back, but requires a code change.
 
+#### Holding the magnet and the reed: the printed seesaw
+
+The part above describes the circuit. The mechanics that carry it are in [`3d_models/reed_level_seesaw.scad`](3d_models/reed_level_seesaw.scad).
+
+It is a seesaw resting on the glass rim. The inner arm ends in a tray where a block of foam is glued; the outer arm carries the 6 × 2 mm magnet **lying flat** on a horizontal pad. The reed lives inside a 5 mm acrylic tube that threads through two fingers growing out of the pivot ears. No part of the circuit touches the water.
+
+| | |
+|---|---|
+| Glass | 4.9 mm |
+| Magnet travel | 23.3 mm |
+| Field at the reed — closed / open | ~43 / ~2.4 gauss |
+| Highest point above the rim | 45.5 mm |
+| Printed parts | 4 |
+
+> [!IMPORTANT]
+> **The reed is not above the magnet, and that is not an oversight.** A magnet lying flat throws a vertical field straight above itself, and a reed lying flat cannot see a vertical field — in that position it never closes. The field only turns horizontal on the 54.7° line from the magnet's axis, which is why the contacts sit 9.9 mm to the side and 7 mm above its face. The two dimensions are coupled (`dy = 1.41 × dz`): moving one alone takes the reed off that line. That is why the height is a round hole with no adjustment — the tube is what you adjust, sliding it through the two fingers.
+
+> [!TIP]
+> **The magnet arm is what buys release margin, not the float arm.** Magnet travel is `2 × arm_out × sin(15°)`, and the field at the open stop falls with the cube of the distance. Making the float arm longer does the opposite of what it looks like: it is the denominator of the gain, so it trades travel for torque.
+
+The angle between the two arms is chosen on a 12-tooth face coupling, in 30 degree steps. The step is coarse on purpose: the trip level is set by the counterweight, whose range is nearly the whole height of the float. The angle only has to put the float near the surface.
+
+Calibration is the same hysteresis test as the tip above, with one extra step: slide the tube until the contact closes with the lever at the upper stop, and only then confirm it opens at the lower one without closing again anywhere in between.
+
+Printing: four parts in PETG or ASA — PLA absorbs moisture and warps near water. The STLs come already rotated and seated at z = 0, and `reed_seesaw_mesa.stl` carries all four on a 138 × 86 mm plate. Only `bracket` needs support, in two open pockets.
+
 ### Wiring Diagram — TFT ST7735 Display (SPI)
 
 1.8" color display, 128×160 pixels. Operates at **3.3V** — incompatible with 5V. Uses software SPI (bit-banging) on custom pins.
