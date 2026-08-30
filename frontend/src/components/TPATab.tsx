@@ -76,8 +76,9 @@ function PumpTest({
 }
 
 export default function TPATab({ status }: { status: AQStatus | null }) {
-    const { t } = useT();
+    const { t, lang } = useT();
     const { ask, dialog } = useConfirm();
+    const dateLocale = lang === 'ja' ? 'ja-JP' : lang === 'en' ? 'en-US' : 'pt-BR';
     // Schedule Builder States
     const [interval, setInterval] = useState('');
     const [autoEnabled, setAutoEnabled] = useState(false);
@@ -149,6 +150,16 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
             tpaMinute: parseInt(m) || 0,
             tpaPercent: parseInt(pct) || 20
         });
+    };
+
+    // The stored date of the last cycle. The firmware never lets a failed run
+    // stamp it, so after a failure the schedule is correct but the number on
+    // screen is old; and a water change done by hand is invisible to it. Both
+    // cases need the date set from here. Zero is "never ran": the firmware
+    // treats the schedule as due and fires at the next hour:minute match.
+    const setLastRun = async (epoch: number, confirmKey: Parameters<typeof t>[0]) => {
+        if (!(await ask(t(confirmKey)))) return;
+        api('POST', '/api/schedule', { tpaLastRun: epoch });
     };
 
     const handleSaveConfig = () => {
@@ -358,6 +369,34 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                     <button onClick={handleSaveSchedule} className="btn btn-p w-full">
                         {t('tpa.saveSchedule')}
                     </button>
+
+                    <div className="rounded-xl bg-white/5 px-4 py-3">
+                        <span className="lbl">{t('tpa.lastRun')}</span>
+                        <p className="mt-0.5 text-sm font-bold text-accent">
+                            {status?.tpaLastRun
+                                ? new Date(status.tpaLastRun * 1000).toLocaleString(dateLocale, {
+                                    day: '2-digit', month: '2-digit', year: 'numeric',
+                                    hour: '2-digit', minute: '2-digit',
+                                })
+                                : t('tpa.lastRunNever')}
+                        </p>
+                        <div className="mt-3 grid grid-cols-2 gap-3">
+                            <button
+                                className="btn btn-s"
+                                disabled={!status?.tpaLastRun}
+                                onClick={() => setLastRun(0, 'confirm.tpaResetLastRun')}
+                            >
+                                {t('tpa.resetLastRun')}
+                            </button>
+                            <button
+                                className="btn btn-s"
+                                onClick={() => setLastRun(Math.floor(Date.now() / 1000), 'confirm.tpaMarkLastRun')}
+                            >
+                                {t('tpa.markLastRun')}
+                            </button>
+                        </div>
+                        <span className="hint mt-2 block">{t('tpa.lastRunHint')}</span>
+                    </div>
                 </div>
             </section>
 

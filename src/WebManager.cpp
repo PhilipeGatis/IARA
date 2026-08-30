@@ -797,6 +797,17 @@ void WebManager::_setupRoutes() {
           _tpaPercent = pct;
           changed = true;
         }
+
+        // Resetting the schedule by hand. Zero is what main.cpp reads as
+        // "never ran", so it makes the next hour:minute match due; any other
+        // epoch restarts the interval from that moment, which is how a water
+        // change done by hand gets counted. A failed cycle deliberately leaves
+        // this alone, and that is exactly when the stored date needs fixing.
+        int lastRun = _extractInt(body, "tpaLastRun");
+        if (lastRun >= 0) {
+          _tpaLastRun = (uint32_t)lastRun;
+          changed = true;
+        }
         int csp = _extractInt(body, "canisterSafePct");
         if (csp >= 0 && csp <= 100) {
           _canisterSafePct = csp;
