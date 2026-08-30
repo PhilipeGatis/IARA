@@ -410,6 +410,74 @@ void test_dynamic_timeout_drain() {
   TEST_ASSERT_EQUAL(TPAState::ERROR, wm.getState());
 }
 
+// A refill that is commanded but not filling has to be caught long before the
+// timeout, and the reason is the case areSensorsConnected() cannot see: a
+// sensor that keeps answering with a frozen number. From the firmware's side
+// that is indistinguishable from the reed having cut the pump, a dead pump or
+// a kinked hose -- all of them stop the level from moving.
+void test_refill_errors_when_level_stops_moving() {
+  WaterManager wm = makeWM();
+  wm.setLitersPerCm(2.0f);
+  wm.setRefillFlowLPM(5.0f); // 2.5 cm/min expected
+  wm.setTimeoutRefillMs(600000);
+
+  goToRefilling(wm);
+  setDistance(24.0f);
+  wm.update(); // pump on, expected rate snapshotted
+
+  mock_millis_value += 21000; // past the grace period
+  wm.update();                // opens the progress window
+
+  mock_millis_value += 31000; // window elapses with the level unchanged
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::ERROR, wm.getState());
+}
+
+// The mirror of the test above: a refill that is actually filling must survive
+// the same window. Guards against the check aborting legitimate water changes.
+void test_refill_survives_progress_check_while_filling() {
+  WaterManager wm = makeWM();
+  wm.setLitersPerCm(2.0f);
+  wm.setRefillFlowLPM(5.0f); // needs 1.25 cm in 30 s, 0.44 cm to pass
+  wm.setTimeoutRefillMs(600000);
+
+  goToRefilling(wm);
+  setDistance(24.0f);
+  wm.update();
+
+  mock_millis_value += 21000;
+  wm.update();
+
+  mock_millis_value += 31000;
+  setDistance(21.0f); // 3 cm of real progress, well past the threshold
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::REFILLING, wm.getState());
+}
+
+// The live recalibration rewrites _refillFlowLPM as the run goes. If the check
+// read that value instead of the snapshot, a stalling refill would drag its own
+// expectation down to zero and always agree that nothing is wrong.
+void test_refill_stall_check_uses_snapshot_not_live_rate() {
+  WaterManager wm = makeWM();
+  wm.setLitersPerCm(2.0f);
+  wm.setRefillFlowLPM(5.0f);
+  wm.setTimeoutRefillMs(600000);
+
+  goToRefilling(wm);
+  setDistance(24.0f);
+  wm.update();
+
+  // Creep: enough movement to keep the live rate alive, far short of expected.
+  mock_millis_value += 21000;
+  setDistance(23.9f);
+  wm.update();
+
+  mock_millis_value += 31000;
+  setDistance(23.8f); // 0.1 cm in 31 s against 1.29 cm expected
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::ERROR, wm.getState());
+}
+
 void test_dynamic_timeout_refill() {
   WaterManager wm = makeWM();
   wm.setTimeoutRefillMs(8000); // 8s custom timeout
@@ -504,6 +572,9 @@ int main(int argc, char **argv) {
   RUN_TEST(test_refill_calibration_during_tpa);
   RUN_TEST(test_refill_resumes_when_settled_reading_is_short);
   RUN_TEST(test_dynamic_timeout_drain);
+  RUN_TEST(test_refill_errors_when_level_stops_moving);
+  RUN_TEST(test_refill_survives_progress_check_while_filling);
+  RUN_TEST(test_refill_stall_check_uses_snapshot_not_live_rate);
   RUN_TEST(test_dynamic_timeout_refill);
   RUN_TEST(test_uncalibrated_defaults_are_short);
   RUN_TEST(test_is_calibrated_getter);

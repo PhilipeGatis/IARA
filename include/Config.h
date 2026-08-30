@@ -260,6 +260,23 @@ constexpr float CALIBRATION_STOP_MARGIN = 1.5f;
 // under the same calm conditions as the reference it is compared against.
 constexpr unsigned long REFILL_SETTLE_MS = 3000; // 3 s
 
+// Refill flow verification: while the pump runs, the level has to actually
+// move. areSensorsConnected() only catches a sensor that went quiet; one that
+// keeps answering with a frozen number reads exactly like a tank that stopped
+// filling. So do the reed having cut the pump, a dead pump, a kinked hose and
+// an empty reservoir — they all share the one symptom this check looks for.
+//
+// GRACE lets the pump prime and the surface calm down before measuring.
+// WINDOW has to be long enough that the expected movement beats the sensor's
+// own noise: at a typical couple of cm/min, 30 s moves the level about a
+// centimetre, well past MAX_LEVEL_STEP_CM.
+constexpr unsigned long REFILL_PROGRESS_GRACE_MS = 20UL * 1000;  // 20 s
+constexpr unsigned long REFILL_PROGRESS_WINDOW_MS = 30UL * 1000; // 30 s
+// Fraction of the expected movement that still counts as progress. Generous on
+// purpose: this is a stall detector, not a flow meter, and a false positive
+// aborts a legitimate water change.
+constexpr float REFILL_PROGRESS_MIN_FRACTION = 0.35f;
+
 // Upper bound for a calibration run. It normally ends earlier, as soon as the
 // level has moved CALIBRATION_MIN_DELTA_PCT.
 constexpr unsigned long PUMP_CALIBRATION_MAX_MS = 5UL * 60 * 1000; // 5 min

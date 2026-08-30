@@ -236,7 +236,9 @@ Assembly: **NO** (normally open) reed with a magnet held nearby by an EVA float,
 > **Test the release distance before sealing the assembly.** A reed has hysteresis: it closes at one distance and only opens at a larger one. With the multimeter on continuity, pull the magnet away until the contact opens and note the distance — the float's travel must be 2 to 3 times that value. Also confirm it does not close again at any intermediate position along the travel.
 
 > [!IMPORTANT]
-> **The firmware cannot see this cutoff.** When the reed acts, the state machine stays in `REFILLING` until the timeout expires and ends in `ERROR`. In normal operation the ultrasonic reaches the setpoint first, so this does not happen — the reed is a safety net, not a routine stop.
+> **The firmware cannot see the reed, but it can see its effect.** No signal wire comes back from the contact, so the cutoff itself is invisible. What `_handleRefilling()` watches is the **level moving**: with the pump commanded, the water has to rise at the calibrated rate (`_refillFlowLPM / _litersPerCm`). If it does not cover at least 35% of that in 30 s, the state machine stops and reaches `ERROR` in about 50 s instead of burning the 10-minute timeout.
+>
+> The same check covers what the reed is not: a dead pump, a kinked hose, an empty reservoir, and — the case that motivated it — a **frozen ultrasonic reading**. A sensor that goes quiet already raises an error through `areSensorsConnected()`; one that keeps answering with a stale number is indistinguishable from a tank that stopped filling, and until now the pump ran to the timeout against it.
 >
 > **GPIO4**, previously the XKC-Y25 capacitive sensor (never installed, dropped from the project), is free. Wiring a second reed to it would give the firmware that visibility back, but requires a code change.
 

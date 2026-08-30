@@ -44,7 +44,9 @@ WaterManager::WaterManager()
       _primeML(0), _timeoutDrainMs(1200000),   // Default: 20 min
       _timeoutRefillMs(1200000), // Default: 20 min
       _litersPerCm(0), _aqEffectiveHeightCm(0), _calStartLevel(0),
-      _calStartMs(0), _drainFlowLPM(0), _refillFlowLPM(0), _lastTPATime("N/A"),
+      _calStartMs(0), _drainFlowLPM(0), _refillFlowLPM(0),
+      _refillProgressCmMin(0), _refillProgressLevel(0), _refillProgressMs(0),
+      _lastTPATime("N/A"),
       _lastErrorMsg(""), _manualPumpTarget(""), _manualPumpGoalLiters(0) {}
 
 void WaterManager::begin(SafetyWatchdog *safety, FertManager *fert) {
@@ -343,6 +345,7 @@ void WaterManager::_enterState(TPAState newState) {
   _stateStartMs = millis();
   _floatFullCount = 0;       // Reset debounce on state transition
   _refillConfirming = false; // and any pending refill confirmation
+  _refillProgressMs = 0;     // and any refill progress window in flight
   Serial.printf("[TPA] -> State: %s\n", tpaStateName(newState));
 }
 
@@ -557,6 +560,13 @@ void WaterManager::_handleRefilling() {
       _calStartLevel = _safety->readUltrasonic();
       _calStartMs = millis();
     }
+    // Snapshot what "filling normally" looks like, taken now because the live
+    // recalibration below overwrites _refillFlowLPM as the run goes: a refill
+    // that stalls would otherwise lower the bar it is measured against.
+    _refillProgressMs = 0;
+    _refillProgressCmMin = (_litersPerCm > 0 && _refillFlowLPM > 0)
+                               ? _refillFlowLPM / _litersPerCm
+                               : 0.0f;
   }
 
   // Ultrasonic setpoint check + live recalibration
@@ -577,6 +587,46 @@ void WaterManager::_handleRefilling() {
       _refillConfirming = true;
       _waitUntilMs = millis() + REFILL_SETTLE_MS;
       return;
+    }
+
+    // Flow verification: the water has to be rising, not just the pump being
+    // commanded. This is the check that covers a reading which is stale rather
+    // than absent -- the sensor keeps answering, the setpoint never arrives,
+    // and without this the run would burn the whole timeout against a frozen
+    // number. The reed having cut the pump looks identical from here, and so
+    // do a dead pump, a kinked hose and an empty reservoir.
+    if (_refillProgressCmMin > 0 && dist > 0 &&
+        _stateElapsed() >= REFILL_PROGRESS_GRACE_MS) {
+      if (_refillProgressMs == 0) {
+        _refillProgressMs = millis();
+        _refillProgressLevel = dist;
+      } else if (millis() - _refillProgressMs >= REFILL_PROGRESS_WINDOW_MS) {
+        const float mins = (millis() - _refillProgressMs) / 60000.0f;
+        const float expected = _refillProgressCmMin * mins;
+        // The ultrasonic measures distance to the water, so filling makes the
+        // reading shrink: progress is the drop, not the rise.
+        const float actual = _refillProgressLevel - dist;
+
+        if (actual < expected * REFILL_PROGRESS_MIN_FRACTION) {
+          pumpOff(PIN_REFILL, PumpReason::ERROR_STOP);
+          // Deliberately no _captureRefillCalibration() here: the measured
+          // rate of a stalled run is near zero, and storing it would both
+          // corrupt the calibration and disable this very check next time.
+          char msg[140];
+          snprintf(msg, sizeof(msg),
+                   "Refill not progressing: %.1f cm in %.0f s, expected %.1f. "
+                   "Check reed cutoff, pump, hose, reservoir or sensor.",
+                   actual, mins * 60.0f, expected);
+          _error(msg);
+          return;
+        }
+
+        Serial.printf("[TPA] Refill progressing: %.1f cm in %.0fs (min %.1f)\n",
+                      actual, mins * 60.0f,
+                      expected * REFILL_PROGRESS_MIN_FRACTION);
+        _refillProgressMs = millis();
+        _refillProgressLevel = dist;
+      }
     }
   }
 

@@ -204,6 +204,14 @@ private:
   float _drainFlowLPM;        // Calibrated drain flow rate (L/min)
   float _refillFlowLPM;       // Calibrated refill flow rate (L/min)
 
+  // Refill flow verification. The expected rate is snapshotted when the pump
+  // starts, BEFORE the live recalibration below can touch _refillFlowLPM --
+  // otherwise a stalled refill would drag the expectation down with it and the
+  // check would agree that nothing is wrong.
+  float _refillProgressCmMin;      // Expected level movement (cm/min), 0 = off
+  float _refillProgressLevel;      // Level at the start of the window (cm)
+  unsigned long _refillProgressMs; // millis() at the start of the window
+
   // Telemetry
   String _lastTPATime;
   String _lastErrorMsg;

@@ -236,7 +236,9 @@ Montagem: reed **NA** (normalmente aberto) com um ímã mantido próximo por uma
 > **Teste a distância de liberação antes de fechar o conjunto.** Reed tem histerese: fecha a uma distância e só abre a uma distância maior. Com o multímetro em continuidade, afaste o ímã até o contato abrir e anote a distância — o curso da boia deve ser 2 a 3 vezes esse valor. Confirme também que ele não volta a fechar em nenhuma posição intermediária do curso.
 
 > [!IMPORTANT]
-> **O firmware não enxerga esse corte.** Quando o reed agir, a máquina de estados continuará em `REFILLING` até estourar o timeout e terminar em `ERROR`. Em operação normal o ultrassônico atinge o setpoint antes, então isso não acontece — o reed é rede de proteção, não parada de rotina.
+> **O firmware não enxerga o reed, mas enxerga o efeito dele.** Não há fio de sinal vindo do contato, então o corte em si é invisível. O que o `_handleRefilling()` verifica é o **movimento do nível**: com a bomba comandada, a lâmina tem que subir na taxa calibrada (`_refillFlowLPM / _litersPerCm`). Se em 30 s ela não andar ao menos 35% do esperado, a máquina para e vai a `ERROR` em cerca de 50 s, em vez de queimar os 10 min de timeout.
+>
+> A mesma verificação cobre o que o reed não é: bomba morta, mangueira dobrada, reservatório vazio e — o caso que motivou a checagem — **leitura congelada do ultrassônico**. Sensor que emudece já dispara erro por `areSensorsConnected()`; sensor que continua respondendo com um número velho é indistinguível de um tanque que parou de encher, e antes disso a bomba rodava até o timeout contra um número parado.
 >
 > O **GPIO4**, que era do sensor capacitivo XKC-Y25 (nunca instalado, removido do projeto), está livre. Ligar um segundo reed nele devolveria essa visibilidade ao firmware, mas exige mudança de código.
 
