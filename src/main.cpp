@@ -526,10 +526,9 @@ void loop() {
       calibrationSettled = true;
       waterMgr.setLastTPATime(timeMgr.getFormattedTime());
 
-      // The schedule interval is spent here rather than at trigger time. A
-      // cycle that errors must not consume the whole week: leaving _tpaLastRun
-      // alone keeps isTPADay latched, so the next day's scheduled minute
-      // retries instead of the tank sitting low until the interval elapses.
+      // The schedule interval is spent here rather than at trigger time.
+      // A cycle that errors spends it too, in the ERROR branch below, so the
+      // cadence stays what the user configured whatever the outcome.
       // Manual pump runs and calibrations also end in COMPLETE, and those are
       // not water changes — only a full cycle counts.
       if (waterMgr.wasFullCycle()) {
@@ -554,6 +553,18 @@ void loop() {
     }
   } else if (waterMgr.getState() == TPAState::ERROR) {
     if (!tpaErrorNotified) {
+      // A failed cycle spends the interval exactly like a successful one, and
+      // the notification is what tells you it failed. Leaving _tpaLastRun alone
+      // kept isTPADay latched, so a cycle that errored came back every single
+      // day at the scheduled minute until one succeeded — the schedule stopped
+      // meaning "every three days" the moment anything went wrong.
+      //
+      // The cost is deliberate: if the failure happened after the tank was
+      // drained, it now sits low until the next slot instead of retrying
+      // tomorrow. That is why the error notification is not optional.
+      if (waterMgr.wasFullCycle()) {
+        webMgr.setTpaLastRun(timeMgr.now().unixtime());
+      }
       if (!waterMgr.isManualTPA()) {
         notifyMgr.notifyTPAError(waterMgr.getLastErrorMsg().c_str());
       }

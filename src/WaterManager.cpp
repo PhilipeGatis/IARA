@@ -482,7 +482,8 @@ void WaterManager::_handleDosingPrime() {
         // Dosing no longer blocks, so the pump runs while the rest of the
         // system keeps ticking. Something else holding the channel is the only
         // reason this can fail, and it should clear within a dose duration.
-        if (!_fert->startDose(NUM_FERTS, _primeML)) { // Channel 4 = Prime
+        if (!_fert->startDose(NUM_FERTS, _primeML,
+                              PumpReason::TPA_PRIME)) { // Channel 4 = Prime
           if (_primeWaitStartedMs == 0)
             _primeWaitStartedMs = millis();
           if (millis() - _primeWaitStartedMs > TIMEOUT_PRIME_MS) {
@@ -603,27 +604,31 @@ void WaterManager::_handleRefilling() {
       } else if (millis() - _refillProgressMs >= REFILL_PROGRESS_WINDOW_MS) {
         const float mins = (millis() - _refillProgressMs) / 60000.0f;
         const float expected = _refillProgressCmMin * mins;
+        // Smaller of the two: a calibration that reads high must not be able
+        // to fail an honest refill. See REFILL_PROGRESS_MIN_CM.
+        const float fromRate = expected * REFILL_PROGRESS_MIN_FRACTION;
+        const float threshold =
+            fromRate < REFILL_PROGRESS_MIN_CM ? fromRate : REFILL_PROGRESS_MIN_CM;
         // The ultrasonic measures distance to the water, so filling makes the
         // reading shrink: progress is the drop, not the rise.
         const float actual = _refillProgressLevel - dist;
 
-        if (actual < expected * REFILL_PROGRESS_MIN_FRACTION) {
+        if (actual < threshold) {
           pumpOff(PIN_REFILL, PumpReason::ERROR_STOP);
           // Deliberately no _captureRefillCalibration() here: the measured
           // rate of a stalled run is near zero, and storing it would both
           // corrupt the calibration and disable this very check next time.
           char msg[140];
           snprintf(msg, sizeof(msg),
-                   "Refill not progressing: %.1f cm in %.0f s, expected %.1f. "
+                   "Refill not progressing: %.1f cm in %.0f s, needed %.1f. "
                    "Check reed cutoff, pump, hose, reservoir or sensor.",
-                   actual, mins * 60.0f, expected);
+                   actual, mins * 60.0f, threshold);
           _error(msg);
           return;
         }
 
         Serial.printf("[TPA] Refill progressing: %.1f cm in %.0fs (min %.1f)\n",
-                      actual, mins * 60.0f,
-                      expected * REFILL_PROGRESS_MIN_FRACTION);
+                      actual, mins * 60.0f, threshold);
         _refillProgressMs = millis();
         _refillProgressLevel = dist;
       }

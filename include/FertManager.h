@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Config.h"
+#include "PumpLog.h"
 #include <Arduino.h>
 #include <Preferences.h> // ESP32 NVS
 #include <RTClib.h>
@@ -38,7 +39,9 @@ public:
   /// Returns false if the channel is invalid, the volume is not positive, or a
   /// dose is already in progress: the channels share one measurement of
   /// elapsed time, and two at once is a dosing error waiting to happen.
-  bool startDose(uint8_t ch, float ml);
+  /// @param reason What to record in the pump log for this dose.
+  bool startDose(uint8_t ch, float ml,
+                 PumpReason reason = PumpReason::FERT_MANUAL);
 
   /// Switches the pump off once the dose duration has elapsed. Must be called
   /// every loop, including in maintenance mode and during a TPA — it is the
@@ -162,6 +165,8 @@ private:
   bool _manualActive = false;
   uint8_t _manualChannel = 0;
   unsigned long _manualEndMs = 0;
+
+  PumpReason _doseReason = PumpReason::FERT_MANUAL; // what to log on the OFF
 
   // In-progress dose. Only one at a time; see startDose().
   bool _doseActive = false;

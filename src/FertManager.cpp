@@ -50,7 +50,7 @@ void FertManager::update(DateTime now) {
         if (ds > 0 && _stockML[i] >= ds) {
           Serial.printf("[Fert] Scheduled auto-dose CH%d: %.1f ml\n", i + 1,
                         ds);
-          if (startDose(i, ds)) {
+          if (startDose(i, ds, PumpReason::FERT_SCHEDULED)) {
             // Booked at the start, not on completion. If the dose is cut short
             // the stock figure is pessimistic, which is the safe direction —
             // whereas booking it at the end leaves a window in which the same
@@ -80,7 +80,7 @@ void FertManager::update(DateTime now) {
   }
 }
 
-bool FertManager::startDose(uint8_t ch, float ml) {
+bool FertManager::startDose(uint8_t ch, float ml, PumpReason reason) {
   if (!_isValidChannel(ch))
     return false;
   if (ml <= 0)
@@ -108,9 +108,13 @@ bool FertManager::startDose(uint8_t ch, float ml) {
   Serial.printf("[Fert] Activating pin %d for %lu ms (Rate: %.2f mL/s)\n", pin,
                 durationMs, rate);
   ledcWrite(ch, _pwm[ch]);
+  // The dosing pins are driven by LEDC, so they never pass through pumpOn()
+  // and were absent from the pump log entirely. Log them here instead.
+  pumpLogEvent(pin, true, reason);
 
   _doseActive = true;
   _doseChannel = ch;
+  _doseReason = reason;
   _doseEndMs = millis() + durationMs;
   return true;
 }
@@ -120,6 +124,7 @@ void FertManager::tickDose() {
   // this is the one hook loop() calls unconditionally, above every early return.
   if (_manualActive && (long)(millis() - _manualEndMs) >= 0) {
     ledcWrite(_manualChannel, 0);
+    pumpLogEvent(_pinForChannel(_manualChannel), false, PumpReason::FERT_MANUAL);
     _manualActive = false;
     Serial.printf("[Fert] CH%d manual run hit its %lu ms ceiling — stopped\n",
                   _manualChannel + 1, MANUAL_FERT_MAX_MS);
@@ -132,6 +137,7 @@ void FertManager::tickDose() {
   if ((long)(millis() - _doseEndMs) < 0)
     return;
   ledcWrite(_doseChannel, 0);
+  pumpLogEvent(_pinForChannel(_doseChannel), false, _doseReason);
   _doseActive = false;
   Serial.printf("[Fert] CH%d dose finished\n", _doseChannel + 1);
 }
@@ -139,11 +145,13 @@ void FertManager::tickDose() {
 void FertManager::abortDose() {
   if (_manualActive) {
     ledcWrite(_manualChannel, 0);
+    pumpLogEvent(_pinForChannel(_manualChannel), false, PumpReason::ABORT);
     _manualActive = false;
   }
   if (!_doseActive)
     return;
   ledcWrite(_doseChannel, 0);
+  pumpLogEvent(_pinForChannel(_doseChannel), false, PumpReason::ABORT);
   _doseActive = false;
   Serial.printf("[Fert] CH%d dose aborted mid-volume\n", _doseChannel + 1);
 }
@@ -158,6 +166,7 @@ void FertManager::manualPump(uint8_t ch, bool state) {
   _manualChannel = ch;
   _manualEndMs = millis() + MANUAL_FERT_MAX_MS;
   ledcWrite(ch, state ? _pwm[ch] : 0);
+  pumpLogEvent(_pinForChannel(ch), state, PumpReason::FERT_MANUAL);
   Serial.printf("[Fert] Manual pump CH%d set to %s (PWM: %d)\n", ch + 1,
                 state ? "ON" : "OFF", state ? _pwm[ch] : 0);
 }

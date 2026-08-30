@@ -29,6 +29,11 @@ enum class PumpReason : uint8_t {
   ERROR_STOP,          // Error/timeout stop
   ABORT,               // User-initiated abort
   BOOT_INIT,           // Initialization during setup()
+  // Appended, never inserted: the reason is persisted to flash as a raw byte,
+  // so renumbering the existing entries would rewrite the history of every log
+  // already on the device.
+  FERT_SCHEDULED,      // Fertiliser dose fired by the schedule
+  FERT_MANUAL,         // Fertiliser channel run by hand from the UI
 };
 
 // ============================================================================
@@ -75,6 +80,15 @@ void pumpOff(uint8_t pin, PumpReason reason);
 
 /// @brief Deactivate ALL output pins with logging.
 void allPumpsOff(PumpReason reason);
+
+/// @brief Record an actuator event WITHOUT driving the pin.
+///
+/// For outputs the log does not own. The dosing channels are driven by the
+/// LEDC peripheral, so they cannot go through pumpOn()/pumpOff() — those write
+/// the pad directly and would fight the PWM. Without this the whole
+/// fertiliser side was invisible in the log: the UI offers FERT1..4 and PRIME
+/// filters that could only ever show emergency stops.
+void pumpLogEvent(uint8_t pin, bool state, PumpReason reason);
 
 /// @brief Get human-readable name for a pin.
 const char *pinName(uint8_t pin);

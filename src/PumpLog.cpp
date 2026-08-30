@@ -154,6 +154,8 @@ const char *reasonName(PumpReason r) {
   case PumpReason::ERROR_STOP:         return "ERROR_STOP";
   case PumpReason::ABORT:              return "ABORT";
   case PumpReason::BOOT_INIT:          return "BOOT_INIT";
+  case PumpReason::FERT_SCHEDULED:     return "FERT_SCHEDULED";
+  case PumpReason::FERT_MANUAL:        return "FERT_MANUAL";
   default:                             return "UNKNOWN";
   }
 }
@@ -275,6 +277,10 @@ static void _driveOff(uint8_t pin) {
   // A blanket LOW across every output would switch the filter ON — the exact
   // opposite of what a shutdown means, and at the worst possible moment.
   digitalWrite(pin, pin == PIN_CANISTER ? HIGH : LOW);
+}
+
+void pumpLogEvent(uint8_t pin, bool state, PumpReason reason) {
+  _log(pin, state, reason);
 }
 
 void pumpOn(uint8_t pin, PumpReason reason) {

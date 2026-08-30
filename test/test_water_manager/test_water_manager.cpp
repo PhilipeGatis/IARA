@@ -478,6 +478,31 @@ void test_refill_stall_check_uses_snapshot_not_live_rate() {
   TEST_ASSERT_EQUAL(TPAState::ERROR, wm.getState());
 }
 
+// The expected rate is only as trustworthy as the calibration behind it, and a
+// calibration taken against a level sensor that was not tracking comes out far
+// too high. One real device reported 19 L/min from a pump capable of 5. The
+// absolute floor is what stops that number from failing an honest refill.
+void test_refill_survives_a_wildly_overstated_calibration() {
+  WaterManager wm = makeWM();
+  wm.setLitersPerCm(1.8f);
+  wm.setRefillFlowLPM(19.19f); // ~10.7 cm/min claimed, 4x the real pump
+  wm.setTimeoutRefillMs(600000);
+
+  goToRefilling(wm);
+  setDistance(24.0f);
+  wm.update();
+
+  mock_millis_value += 21000;
+  wm.update();
+
+  // What the pump can really do: ~2.8 cm/min, so ~1.4 cm in the window. The
+  // fraction of the claimed rate would demand 1.87 cm and abort a good run.
+  mock_millis_value += 31000;
+  setDistance(22.6f);
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::REFILLING, wm.getState());
+}
+
 void test_dynamic_timeout_refill() {
   WaterManager wm = makeWM();
   wm.setTimeoutRefillMs(8000); // 8s custom timeout
@@ -575,6 +600,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_refill_errors_when_level_stops_moving);
   RUN_TEST(test_refill_survives_progress_check_while_filling);
   RUN_TEST(test_refill_stall_check_uses_snapshot_not_live_rate);
+  RUN_TEST(test_refill_survives_a_wildly_overstated_calibration);
   RUN_TEST(test_dynamic_timeout_refill);
   RUN_TEST(test_uncalibrated_defaults_are_short);
   RUN_TEST(test_is_calibrated_getter);

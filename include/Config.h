@@ -276,6 +276,13 @@ constexpr unsigned long REFILL_PROGRESS_WINDOW_MS = 30UL * 1000; // 30 s
 // purpose: this is a stall detector, not a flow meter, and a false positive
 // aborts a legitimate water change.
 constexpr float REFILL_PROGRESS_MIN_FRACTION = 0.35f;
+// Absolute floor, and the threshold is the SMALLER of the two. The expected
+// rate is only as good as the calibration behind it, and a calibration taken
+// against a level sensor that was not tracking comes out far too high — one
+// real device reported 19 L/min from a pump physically capable of 5. Measured
+// against that, an honest refill looks stalled. The floor keeps the check
+// answering the question it is actually for: is the water moving at all.
+constexpr float REFILL_PROGRESS_MIN_CM = 0.5f;
 
 // Upper bound for a calibration run. It normally ends earlier, as soon as the
 // level has moved CALIBRATION_MIN_DELTA_PCT.
