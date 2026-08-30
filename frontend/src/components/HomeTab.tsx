@@ -189,13 +189,38 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
 
                 {status?.tpaInterval ? (() => {
                     const lastRunDate = status.tpaLastRun ? new Date(status.tpaLastRun * 1000) : null;
-                    const nextRunDate = lastRunDate
-                        ? new Date(lastRunDate.getTime() + status.tpaInterval * 86400000)
-                        : null;
                     const now = new Date();
-                    const daysUntil = nextRunDate ? Math.ceil((nextRunDate.getTime() - now.getTime()) / 86400000) : null;
-                    const soon = daysUntil !== null && daysUntil <= 1;
                     const formatDate = (d: Date) => d.toLocaleDateString(dateLocale, { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+                    // The next run is not lastRun + interval. A cycle that fails
+                    // deliberately leaves tpaLastRun untouched so the firmware
+                    // retries at the next day's scheduled minute, and the schedule
+                    // latches 12h before the interval elapses. Adding the interval
+                    // to a last run that never advanced printed a date already in
+                    // the past — "em -1 dias" — precisely when the card should be
+                    // saying when the retry happens.
+                    const dueDate = lastRunDate
+                        ? new Date(lastRunDate.getTime() + status.tpaInterval * 86400000 - 43200000)
+                        : now; // never run: the firmware treats the schedule as due now
+
+                    // First hour:minute match at or after a given moment.
+                    const fireAtOrAfter = (from: Date) => {
+                        const f = new Date(from);
+                        f.setHours(status.tpaHour, status.tpaMinute, 0, 0);
+                        if (f.getTime() < from.getTime()) f.setDate(f.getDate() + 1);
+                        return f;
+                    };
+
+                    const scheduled = fireAtOrAfter(dueDate); // when it should have run
+                    const missed = scheduled.getTime() < now.getTime();
+                    const nextRunDate = missed ? fireAtOrAfter(now) : scheduled;
+
+                    // Whole calendar days apart, not elapsed milliseconds: a run
+                    // tomorrow at 10:00 seen at 09:00 today is 25h away, which
+                    // rounded up to "em 2 dias".
+                    const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+                    const daysUntil = Math.round((midnight(nextRunDate) - midnight(now)) / 86400000);
+                    const soon = missed || daysUntil <= 1;
 
                     return (
                         <>
@@ -203,16 +228,18 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                                 reference material next to the button below it. */}
                             <div className={`flex items-baseline justify-between gap-2 rounded-lg px-3 py-2 ${soon ? 'bg-warn/10' : 'bg-accent2/10'}`}>
                                 <span className={`text-base font-bold leading-tight ${soon ? 'text-warn' : 'text-accent2'}`}>
-                                    {nextRunDate
-                                        ? (daysUntil === 0 ? t('home.today') : daysUntil === 1 ? t('home.tomorrow') : t('home.inDays', { n: daysUntil ?? 0 }))
-                                        : '--'}
+                                    {daysUntil === 0 ? t('home.today') : daysUntil === 1 ? t('home.tomorrow') : t('home.inDays', { n: daysUntil })}
                                 </span>
-                                {nextRunDate && (
-                                    <span className="font-mono text-[11px] tabular-nums text-muted">
-                                        {formatDate(nextRunDate)} · {String(status.tpaHour).padStart(2, '0')}:{String(status.tpaMinute).padStart(2, '0')}
-                                    </span>
-                                )}
+                                <span className="font-mono text-[11px] tabular-nums text-muted">
+                                    {formatDate(nextRunDate)} · {String(status.tpaHour).padStart(2, '0')}:{String(status.tpaMinute).padStart(2, '0')}
+                                </span>
                             </div>
+
+                            {missed && (
+                                <p className="mt-1.5 rounded-lg bg-warn/15 px-3 py-2 text-xs text-warn">
+                                    {t('home.tpaMissed', { d: formatDate(scheduled) })}
+                                </p>
+                            )}
 
                             <p className="hint mt-1.5">
                                 {status.tpaPercent}%

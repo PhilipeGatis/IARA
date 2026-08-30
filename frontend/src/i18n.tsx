@@ -41,6 +41,7 @@ const translations = {
     'home.today': { pt: 'HOJE', en: 'TODAY', ja: '今日' },
     'home.tomorrow': { pt: 'amanhã', en: 'tomorrow', ja: '明日' },
     'home.inDays': { pt: 'em {n} dias', en: 'in {n} days', ja: '{n}日後' },
+    'home.tpaMissed': { pt: 'A TPA de {d} não foi concluída. O horário acima é a próxima tentativa.', en: 'The {d} water change did not complete. The time above is the next attempt.', ja: '{d}のTPAは完了しませんでした。上記は次回の試行です。' },
     'home.noSchedule': { pt: 'Nenhum agendamento configurado.', en: 'No schedule configured.', ja: 'スケジュール未設定。' },
     'home.stockBars': { pt: 'Estoque de Fertilizantes', en: 'Fertilizer Stock', ja: '肥料在庫' },
     'home.fertTable': { pt: 'Tabela de Fertilizantes', en: 'Fertilizer Table', ja: '肥料テーブル' },
