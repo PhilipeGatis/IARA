@@ -37,8 +37,9 @@ constexpr uint8_t PIN_US_TX = 18; // Ultrasonic A02 control lead (idle high)
 constexpr uint8_t PIN_US_RX = 34; // Ultrasonic A02 UART RX (from TX on sensor)
 // NOTE: GPIO4 was the XKC-Y25 capacitive max-level sensor. That sensor was
 // never installed and has been dropped: max-level protection is now a physical
-// reed switch wired in series with the refill MOSFET gate signal (GPIO33 ->
-// IN7), which cuts the pump independently of the firmware. GPIO4 is free.
+// reed switch wired in series with the refill pump's +12 V line, which cuts the
+// pump independently of the firmware. Being on the power side rather than on
+// the gate signal, it also covers the MOSFET failing shorted. GPIO4 is free.
 constexpr uint8_t PIN_FLOAT =
     19; // Horizontal float switch reservoir (Moved from 5 to 19 for stability)
 // --- TFT Display (ST7735, SPI) ---

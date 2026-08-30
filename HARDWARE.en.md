@@ -188,35 +188,49 @@ Water interlocks, strongest first:
 | Actuator | Physical stop | Electrical stop | Firmware |
 |---|---|---|---|
 | Solenoid (CH8) | **Mechanical float valve in the reservoir** | — | Float switch on GPIO19 + 8-minute timeout |
-| Refill pump (CH7) | — (not possible) | **Reed in series with the IN7 signal** | Ultrasonic + flow-sized timeout |
+| Refill pump (CH7) | — (not possible) | **Reed in series with the pump's +12 V** | Ultrasonic + flow-sized timeout |
 
-The max-level cutoff **does not go through the firmware**. It is a reed switch in series with the signal wire between **GPIO33** and input **IN7** of the MOSFET module (refill pump channel). If the water reaches max level the contact opens, the control signal is broken and the pump stops — even with the ESP32 hung, rebooting, or the ultrasonic silent.
+The max-level cutoff **does not go through the firmware**. It is a reed switch in series with the refill pump's **+12 V** wire. If the water reaches max level the contact opens, the pump loses power and stops — even with the ESP32 hung, rebooting, the ultrasonic silent, **or the MOSFET shorted**.
+
+That last case is why the reed sits in the power line and not in the signal. The MOSFETs on these modules fail shorted drain to source, and in that failure cutting the gate does nothing: the pump keeps running, and neither the firmware nor a reed on the signal can stop it.
 
 Assembly: **NO** (normally open) reed with a magnet held nearby by an EVA float, out of the water. At normal level the magnet is present and the contact closed. As the water rises, the float carries the magnet away and the contact opens.
 
-| Situation | Magnet | Reed | Signal | Pump |
+| Situation | Magnet | Reed | 12 V | Pump |
 |---|---|---|---|---|
 | Normal level | present | closed | passes | may run |
 | Max level | away | open | broken | **stopped** |
 | Broken wire | — | — | broken | **stopped** |
+| MOSFET shorted | away | open | broken | **stopped** |
 
 ```
-  ESP32 GPIO33 ───[ REED ]───┬─── IN7 (MOSFET module, channel 7)
-                             │
-                         [ 1 kΩ ]
-                             │
-                         [ 100 nF ]
-                             │
-                        module GND
+  +12V ──────[ REED ]────────── refill pump (+)
+
+  pump (−) ──────────────────── OUT− of the MOSFET module (channel 7)
+
+  ESP32 GPIO33 ──────────────── IN7 (MOSFET module, channel 7)
+                                 │
+                             [ 1 kΩ ]
+                                 │
+                             [ 100 nF ]
+                                 │
+                            module GND
 ```
 
 > [!CAUTION]
-> **The 1 kΩ resistor is mandatory and belongs on the module side**, past the point where the reed breaks the line. The MOSFET input works by stored charge: with the wire open and no such resistor, the gate floats, holds its charge and can keep the MOSFET partially conducting — the pump does not switch off.
+> **The 1 kΩ resistor still applies, now for a different reason.** With the reed out of the signal wire that line is never open in operation — but GPIO33 floats during the ESP32's boot and reset. The MOSFET input works by stored charge: without the resistor, the floating gate holds its charge and can keep the MOSFET partially conducting.
 >
 > Before building, measure the resistance between IN7 and the module GND. If it already reads between 10 kΩ and 100 kΩ, the module has its own pull-down and the external resistor is unnecessary.
 
 > [!WARNING]
-> **Do not wire the reed in series with the pump's power.** Reed contacts are rated for 0.5–1 A, and the refill pump draws several amps at startup. The contact would arc and eventually weld closed — a silent failure that voids the interlock. In this position, on the signal wire, it carries less than 4 mA.
+> **The reed may sit in the power line only because of this pump.** Reed contacts are rated for 0.5–1 A and 10 W. The pump in this project is 12 V, 5 W, 400 mA maximum, which puts 4.8 W on the contact — a little over 2× margin.
+>
+> Swap in a larger pump and that stops being true. With several amps at startup the contact arcs and eventually welds closed, a silent failure that voids the interlock. In that case the reed drives a **relay coil** instead (tens of mA), and the relay contact, rated for the load, carries the pump.
+
+> [!CAUTION]
+> **What hurts the contact is closing, not opening.** The pump is brushless with an epoxy-sealed board, meaning an input capacitor. A discharged capacitor looks like a short the instant the contact closes, and that surge is what welds reeds. Breaking 400 mA is uneventful.
+>
+> In practice the risk is small: after a cutoff the pump stops on the timeout, and the water only falls again through evaporation, hours later, with everything already off. The bad case is the float bobbing on the surface with the pump running, chattering the contact under load. During the continuity test, confirm the transition is **clean**, with no chatter near the trip point.
 
 > [!TIP]
 > **Test the release distance before sealing the assembly.** A reed has hysteresis: it closes at one distance and only opens at a larger one. With the multimeter on continuity, pull the magnet away until the contact opens and note the distance — the float's travel must be 2 to 3 times that value. Also confirm it does not close again at any intermediate position along the travel.

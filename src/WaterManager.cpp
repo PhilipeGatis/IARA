@@ -513,8 +513,9 @@ void WaterManager::_handleDosingPrime() {
 
 void WaterManager::_handleRefilling() {
   // NOTE: max-level cutoff is a hardware reed switch in series with the refill
-  // MOSFET gate signal. It kills the pump without the firmware being involved,
-  // so there is no max-level sensor to poll here.
+  // pump's +12 V line. It kills the pump without the firmware being involved,
+  // so there is no max-level sensor to poll here. On the power side it also
+  // covers the MOSFET failing shorted, which cutting the gate would not.
 
   // Same reasoning as DRAINING: acting on a frozen level while pumping water
   // *into* the aquarium is the direction that overflows.

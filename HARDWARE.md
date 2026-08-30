@@ -188,35 +188,49 @@ Resumo das travas de água, do mais forte para o mais fraco:
 | Atuador | Trava física | Trava elétrica | Firmware |
 |---|---|---|---|
 | Solenoide (CH8) | **Boia mecânica no reservatório** | — | Boia elétrica no GPIO19 + timeout de 8 min |
-| Bomba de recalque (CH7) | — (impossível) | **Reed em série com o sinal IN7** | Ultrassônico + timeout dimensionado pela vazão |
+| Bomba de recalque (CH7) | — (impossível) | **Reed em série com o +12 V da bomba** | Ultrassônico + timeout dimensionado pela vazão |
 
-O corte de nível máximo **não passa pelo firmware**. É um reed switch em série com o fio de sinal entre o **GPIO33** e a entrada **IN7** do módulo MOSFET (canal da bomba de recalque). Se a água atingir o nível máximo, o contato abre, o comando se rompe e a bomba para — mesmo com o ESP32 travado, reiniciando ou com o ultrassônico mudo.
+O corte de nível máximo **não passa pelo firmware**. É um reed switch em série com o fio de **+12 V da bomba de recalque**. Se a água atingir o nível máximo, o contato abre, a bomba perde alimentação e para — mesmo com o ESP32 travado, reiniciando, com o ultrassônico mudo **ou com o MOSFET em curto**.
+
+Esse último caso é o motivo de o reed estar na alimentação e não no sinal. MOSFET desses módulos falha em curto entre dreno e fonte, e nessa falha cortar o gate não faz nada: a bomba continua ligada, e nem o firmware nem um reed no sinal conseguem pará-la.
 
 Montagem: reed **NA** (normalmente aberto) com um ímã mantido próximo por uma boia de EVA, fora da água. No nível normal o ímã está presente e o contato fechado. Quando a água sobe, a boia afasta o ímã e o contato abre.
 
-| Situação | Ímã | Reed | Sinal | Bomba |
+| Situação | Ímã | Reed | 12 V | Bomba |
 |---|---|---|---|---|
 | Nível normal | presente | fechado | passa | pode funcionar |
 | Nível máximo | afastado | aberto | cortado | **parada** |
 | Fio rompido | — | — | cortado | **parada** |
+| MOSFET em curto | afastado | aberto | cortado | **parada** |
 
 ```
-  ESP32 GPIO33 ───[ REED ]───┬─── IN7 (módulo MOSFET, canal 7)
-                             │
-                         [ 1 kΩ ]
-                             │
-                         [ 100 nF ]
-                             │
-                       GND do módulo
+  +12V ──────[ REED ]────────── bomba de recalque (+)
+
+  bomba (−) ─────────────────── OUT− do módulo MOSFET (canal 7)
+
+  ESP32 GPIO33 ──────────────── IN7 (módulo MOSFET, canal 7)
+                                 │
+                             [ 1 kΩ ]
+                                 │
+                             [ 100 nF ]
+                                 │
+                           GND do módulo
 ```
 
 > [!CAUTION]
-> **O resistor de 1 kΩ é obrigatório e fica do lado do módulo**, depois do ponto onde o reed corta. A entrada do MOSFET funciona por carga acumulada: com o fio aberto e sem esse resistor, o gate fica flutuando, retém carga e pode manter o MOSFET parcialmente conduzindo — a bomba não desliga.
+> **O resistor de 1 kΩ continua valendo, agora por outro motivo.** Com o reed fora do fio de sinal, a linha nunca fica aberta em operação — mas o GPIO33 flutua durante o boot e o reset do ESP32. A entrada do MOSFET funciona por carga acumulada: sem o resistor, o gate flutuante retém carga e pode manter o MOSFET parcialmente conduzindo.
 >
 > Antes de montar, meça a resistência entre IN7 e o GND do módulo. Se já houver algo entre 10 kΩ e 100 kΩ, o módulo tem pull-down próprio e o resistor externo é dispensável.
 
 > [!WARNING]
-> **Não ligue o reed em série com a alimentação da bomba.** Contato de reed é especificado para 0,5–1 A, e a bomba de recalque puxa vários ampères na partida. O contato arcaria e acabaria soldando fechado — falha silenciosa que anula a trava. Nesta posição, no fio de sinal, ele conduz menos de 4 mA.
+> **O reed só pode ficar na alimentação por causa desta bomba.** Contato de reed é especificado para 0,5–1 A e 10 W. A bomba deste projeto é 12 V, 5 W e 400 mA máximos, o que dá 4,8 W no contato — folga de pouco mais de 2×.
+>
+> Trocando por uma bomba maior isso deixa de valer. Com vários ampères na partida o contato arca e acaba soldando fechado, falha silenciosa que anula a trava. Nesse caso o reed passa a comandar a **bobina de um relé** (dezenas de mA) e é o contato do relé, dimensionado para a carga, que carrega a bomba.
+
+> [!CAUTION]
+> **O que machuca o contato é fechar, não abrir.** A bomba é brushless, com placa vedada em epóxi, ou seja capacitor de entrada. Capacitor descarregado parece curto no instante em que o contato fecha, e é esse pico que solda reed. Abrir 400 mA é tranquilo.
+>
+> Na prática o risco é pequeno: depois do corte a bomba desliga no timeout, e a água só volta a descer por evaporação, horas depois, com tudo já desligado. O caso ruim é a boia oscilando na lâmina d'água com a bomba ligada, batendo o contato dezenas de vezes sob carga. No teste de continuidade, confirme que a transição é **limpa**, sem repique perto do ponto de disparo.
 
 > [!TIP]
 > **Teste a distância de liberação antes de fechar o conjunto.** Reed tem histerese: fecha a uma distância e só abre a uma distância maior. Com o multímetro em continuidade, afaste o ímã até o contato abrir e anote a distância — o curso da boia deve ser 2 a 3 vezes esse valor. Confirme também que ele não volta a fechar em nenhuma posição intermediária do curso.

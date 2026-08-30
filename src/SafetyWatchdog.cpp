@@ -224,7 +224,8 @@ void SafetyWatchdog::update() {
   }
 
   // NOTE: max-level cutoff is handled in hardware by a reed switch in series
-  // with the refill MOSFET gate signal. It cuts the pump without firmware.
+  // with the refill pump's +12 V line. It cuts the pump without firmware, and
+  // being on the power side it also covers the MOSFET failing shorted.
 
   // -- Ultrasonic overflow check --
   _checkOverflow();
