@@ -5,6 +5,76 @@
 modo_impressao = true; // true = Sólido de impressão limpo, false = Wireframe de debug
 comprimento = 150; // Comprimento total da peça em mm (ex: 300 = 30cm, 200 = 20cm)
 
+// =========================================================
+// ENCAIXE DO SENSOR ULTRASSONICO
+// =========================================================
+// Dois bracos em L, um sob cada orelha do A02YYUW. A CHAPA DA SHADE
+// FICA INTACTA: nada de janela, nada de furo nela.
+//
+// Cada L tem duas pernas, e a diferenca entre elas e o ponto do
+// projeto:
+//
+//   * o BRACO fica NO PRUMO, alinhado com o eixo da aba do clipe. Nao
+//     e perpendicular a chapa. A base dele sai cortada em bisel onde
+//     encontra a chapa, porque ela esta a 45 graus.
+//   * o PE e perpendicular ao braco, 90 graus, e por isso fica
+//     nivelado. E nele que o sensor aparafusa.
+//
+// Braco no prumo com pe a 90 graus e a unica combinacao que da, ao
+// mesmo tempo, canto vivo, assento nivelado e impressao sem balanco.
+// Braco perpendicular a chapa obrigaria o pe a dobrar 45 graus.
+//
+// POR QUE O ASSENTO PRECISA ESTAR NIVELADO
+// Transdutor fora do prumo manda o eco embora: a onda bate na agua em
+// angulo e volta desviada. O A02YYUW le errado ou nao le nada. Um
+// assento paralelo a chapa deixaria o sensor a 45 graus.
+//
+// O FURO FICA NO PE, NA PERNA FINA
+// Ele atravessa so a espessura do pe, e a porca aperta na face de
+// baixo dele -- paralela ao assento, entao a porca assenta reta. Furo
+// no canto obrigaria o parafuso a descer pelo braco e sair oblique-
+// mente do outro lado, com a porca apoiada numa aresta.
+//
+// O PE E ASSIMETRICO EM VOLTA DO FURO
+// Alongar so a frente empurra o braco rampa abaixo sem tirar o furo do
+// lugar: o braco desce no prumo contra uma chapa que cai 45 graus,
+// entao encontra a chapa mais cedo e fica curto sozinho.
+//
+// DE ONDE SAI O ANGULO
+// Da ABA DO CLIPE (rosa), a peca reta que entra na luminaria num rasgo
+// em pe: o eixo LONGO dela e a vertical do mundo. Vem dos proprios
+// pontos do perfil, Black (1.5858, 5.5355) ate Navy (5.4749, 9.4246):
+// 3,889 em x para 3,889 em z, ou seja 45 graus. Nao e constante fixa;
+// se o perfil mudar, o assento acompanha.
+//
+// Cuidado com a rampa (Olive->Black): ela esta a 135 graus, PERPEN-
+// DICULAR a aba. Usar a rampa como referencia inclina o assento para o
+// lado errado.
+function aba_dx() = 5.4749 - 1.5858;
+function aba_dz() = 9.4246 - 5.5355;
+function sensor_ang() = atan2(aba_dz(), aba_dx());
+
+// Centro da chapa livre, entre a parede interna e o labio do acrilico
+function x_sensor() = (17.1213 + 80.2426)/2;
+
+sensor_montar   = true;
+sensor_lado     = 1;     // +1 face de cima da chapa, -1 face de baixo
+sensor_sentido  = 1;     // de que lado a aba aponta para cima
+sensor_braco_lado = 1;   // de que ponta do pe o braco sai: -1 atras, +1 frente
+sensor_y        = 75;    // centro do sensor ao longo da peca
+sensor_furos    = 72.6;  // entre-eixos dos furos das orelhas
+
+// Largura e espessura sao coisas diferentes e nao podem cair juntas: o
+// furo M3 atravessa a ESPESSURA, e e a LARGURA que deixa material em
+// volta dele. A 6 mm de largura sobrariam 1,3 mm de parede de cada
+// lado do furo, que rasga no aperto.
+sensor_haste    = 12;    // largura, transversal a peca
+sensor_esp      = 6;     // espessura, no sentido do L
+sensor_haste_h  = 30;    // comprimento maximo do braco, antes do bisel
+sensor_pe_tras   = 8;    // pe, do furo para tras
+sensor_pe_frente = 26;   // pe, do furo para a frente
+sensor_furo_d   = 3.4;   // furo passante para M3
+
 y_ini = 0.5;
 y_fim = comprimento - 0.5;
 y_clip_ini = 12.5; // Início da transição do clipe (fixo, perto da borda)
@@ -96,7 +166,11 @@ module objeto_final_impressao(tol_clip = 0, aumento_diag = 0, aumento_rampa = 0,
     }
   }
 
+  // Centro da chapa livre, entre a parede interna e o labio do acrilico
+  x_sensor = (17.1213 + 80.2426)/2;
+
   translate([0, 0, -0.5])
+    difference() {
     union() {
       // 1. CORPO PRINCIPAL (Extrusão do perfil frontal)
       // O retângulo base é esticado e engrossado movendo Red e Black na diagonal
@@ -158,7 +232,82 @@ module objeto_final_impressao(tol_clip = 0, aumento_diag = 0, aumento_rampa = 0,
               }
         }
       }
+
+      // 3. AS DUAS HASTES DO SENSOR
+      if (sensor_montar)
+        color(cor_corpo) for (sy = [-1, 1]) haste_sensor(sy);
     }
+
+    // ---- recortes do sensor ----
+    // Furo simples atravessando o pe. Nao precisa de porca cativa: as
+    // duas faces do pe sao paralelas entre si e perpendiculares ao
+    // parafuso, entao a porca assenta reta por baixo.
+    if (sensor_montar)
+      for (sy = [-1, 1])
+        assento_sensor(sensor_y + sy*sensor_furos/2)
+          // furo passante, so pelo pe. A porca aperta por baixo dele.
+          translate([0, 0, -sensor_esp - 2])
+            cylinder(d = sensor_furo_d, h = sensor_esp + 4, $fn = 24);
+  }
+}
+
+// Uma haste em L de canto vivo:
+//
+//   * o BRACO fica no PRUMO -- alinhado com o eixo da aba do clipe, nao
+//     perpendicular a chapa. O topo dele sai cortado em bisel onde
+//     encontra a chapa, porque ela esta a 45 graus.
+//   * o PE e perpendicular ao braco, 90 graus, e por isso fica
+//     nivelado. E nele que o sensor aparafusa.
+//
+// O FURO FICA NO PE, no meio dele, e nao no canto. Assim ele atravessa
+// so os 12 mm da perna fina e a porca aperta na face de baixo do pe --
+// que e paralela ao assento, entao ela assenta reta. Era esse o
+// problema que antes obrigava porca cativa dentro do braco.
+//
+// Braco no prumo e pe a 90 graus e a unica combinacao que da, ao mesmo
+// tempo, canto vivo, assento nivelado e impressao sem balanco. Braco
+// perpendicular a chapa obrigaria o pe a dobrar 45 graus, que foi o
+// que ficou estranho antes.
+//
+// A uniao dos dois blocos ja produz o canto reto por dentro; hull daria
+// rampa.
+module haste_sensor(sy) {
+  py = sensor_y + sy*sensor_furos/2;
+  t  = sensor_haste;   // largura
+  e  = sensor_esp;     // espessura
+  intersection() {
+    assento_sensor(py)
+      union() {
+        // pe nivelado. O furo fica na origem; a face de cima, z = 0, e
+        // o assento, e a de baixo recebe a porca.
+        translate([-sensor_pe_tras, -t/2, -e])
+          cube([sensor_pe_tras + sensor_pe_frente, t, e]);
+        // braco no prumo, saindo de uma das pontas do pe
+        translate([sensor_braco_lado < 0 ? -sensor_pe_tras
+                                         : sensor_pe_frente - e,
+                   -t/2, -(sensor_haste_h + 40)])
+          cube([e, t, sensor_haste_h + 40]);
+      }
+    // corta tudo que passaria para o outro lado da chapa
+    if (sensor_lado > 0)
+      translate([-50, -50, 0.5]) cube([300, comprimento + 100, 400]);
+    else
+      translate([-50, -50, 2.0 - 400]) cube([300, comprimento + 100, 400]);
+  }
+}
+
+// Coordenadas do assento: origem na face de apoio da orelha, plano XY
+// nivelado com a shade montada, +z para o lado do sensor.
+//
+// Quem fica centrado na chapa e o ASSENTO, nao a base do braco. Como o
+// braco sobe no prumo e a chapa esta a 45 graus, a base cai
+// haste_h*sin(45) para tras -- e e ela que passeia, nao o sensor.
+module assento_sensor(py) {
+  z = ((sensor_lado > 0) ? 0.5 : 2.0)
+      + sensor_lado*sensor_haste_h*cos(sensor_ang());
+  translate([x_sensor(), py, z])
+    rotate([0, sensor_sentido*sensor_ang(), 0])
+      children();
 }
 
 module desenhar_arestas(lista_pares) {
