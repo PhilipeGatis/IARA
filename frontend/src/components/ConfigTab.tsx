@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { type AQStatus } from '../App';
 import { api, REQUEST_HEADER } from '../api';
+import Sheet from './Sheet';
 import { useT, type Lang } from '../i18n';
 import { useConfirm } from '../Confirm';
 
@@ -48,6 +49,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
     const [primeRatio, setPrimeRatio] = useState('');
     const [reservoirVol, setReservoirVol] = useState('');
     const [canisterSafePct, setCanisterSafePct] = useState('');
+    const [sheet, setSheet] = useState<null | 'aquarium' | 'notify'>(null);
     const [feedPauseMin, setFeedPauseMin] = useState('');
     const [ssid, setSsid] = useState('');
     const [pass, setPass] = useState('');
@@ -305,136 +307,17 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                 </div>
             </section>
 
-            {/* AQUARIUM — dimensions, level sensor, reservoir; one save */}
+            {/* AQUARIUM — a summary; the fields live in a sheet */}
             <section className="card">
                 <div className="card-h">
                     <h2 className="card-t">{t('config.aquarium')}</h2>
+                    <span className="pill bg-white/5 text-muted">
+                        {height && length && width ? `${height}×${length}×${width} cm` : t('config.notSet')}
+                    </span>
                 </div>
-
-                <div className="flex flex-col gap-4">
-                    {/* Dimensions */}
-                    <div className="field">
-                        <label className="lbl">{t('config.dimensions')}</label>
-                        <div className="grid grid-cols-3 gap-2">
-                            <input
-                                type="number" min="0" step="1" placeholder={t('config.height')}
-                                aria-label={t('config.heightLabel')}
-                                className="inp remove-arrow text-center"
-                                value={height} onChange={(e) => setHeight(e.target.value)}
-                            />
-                            <input
-                                type="number" min="0" step="1" placeholder={t('config.length')}
-                                aria-label={t('config.lengthLabel')}
-                                className="inp remove-arrow text-center"
-                                value={length} onChange={(e) => setLength(e.target.value)}
-                            />
-                            <input
-                                type="number" min="0" step="1" placeholder={t('config.width')}
-                                aria-label={t('config.widthLabel')}
-                                className="inp remove-arrow text-center"
-                                value={width} onChange={(e) => setWidth(e.target.value)}
-                            />
-                        </div>
-                        <div className="grid grid-cols-3 gap-2 text-center text-[10px] text-muted">
-                            <span>{t('config.heightLabel')}</span>
-                            <span>{t('config.lengthLabel')}</span>
-                            <span>{t('config.widthLabel')}</span>
-                        </div>
-                    </div>
-
-                    <div className="field">
-                        <label className="lbl">{t('config.margin')}</label>
-                        <input
-                            type="number" min="0" step="1" placeholder="15"
-                            className="inp remove-arrow"
-                            value={margin} onChange={(e) => setMargin(e.target.value)}
-                        />
-                        <span className="hint">{t('config.marginHint')}</span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                        <div className="rounded-lg bg-accent/10 px-3 py-2">
-                            <span className="block text-[10px] text-muted">{t('config.calcVolume')}</span>
-                            <strong className="font-mono text-sm text-accent">{calcVolume().toFixed(1)} L</strong>
-                        </div>
-                        <div className="rounded-lg bg-accent2/10 px-3 py-2">
-                            <span className="block text-[10px] text-muted">{t('config.litersPerCm')}</span>
-                            <strong className="font-mono text-sm text-accent2">{litersPerCm().toFixed(2)}</strong>
-                        </div>
-                    </div>
-
-                    {/* Level sensor */}
-                    <div className="sub flex flex-col gap-3">
-                        <h3 className="sub-t">{t('config.sensorSection')}</h3>
-                        <div className="field">
-                            <label className="lbl">{t('config.sensorFull')}</label>
-                            <input
-                                type="number" min="0" step="1" placeholder="50"
-                                className="inp remove-arrow"
-                                value={sensorFull} onChange={(e) => setSensorFull(e.target.value)}
-                            />
-                            <span className="hint">{t('config.sensorFullHint')}</span>
-                        </div>
-                        <button onClick={handleCalibrateSensor} className="btn btn-a2 w-full">
-                            {t('config.calibrateSensor')}
-                        </button>
-                    </div>
-
-                    {/* Reservoir & Prime */}
-                    <div className="sub flex flex-col gap-4">
-                        <h3 className="sub-t">{t('config.reservoirSection')}</h3>
-                        <div className="field">
-                            <label className="lbl">{t('config.reservoirVol')}</label>
-                            <input
-                                type="number" step="1" min="0" placeholder="20"
-                                className="inp remove-arrow"
-                                value={reservoirVol} onChange={(e) => setReservoirVol(e.target.value)}
-                            />
-                            <span className="hint">{t('config.reservoirHint')}</span>
-                        </div>
-
-                        <div className="field">
-                            <label className="lbl">{t('config.canisterSafe')}</label>
-                            <input
-                                type="number" step="1" min="0" max="100" placeholder="25"
-                                className="inp remove-arrow"
-                                value={canisterSafePct} onChange={(e) => setCanisterSafePct(e.target.value)}
-                            />
-                            <span className="hint">{t('config.canisterSafeHint')}</span>
-                        </div>
-
-                        <div className="field">
-                            <label className="lbl">{t('config.feedPause')}</label>
-                            <input
-                                type="number" step="1" min="1" max="60" placeholder="10"
-                                className="inp remove-arrow"
-                                value={feedPauseMin} onChange={(e) => setFeedPauseMin(e.target.value)}
-                            />
-                            <span className="hint">{t('config.feedPauseHint')}</span>
-                        </div>
-
-                        <div className="field">
-                            <label className="lbl">{t('config.primeRatio')}</label>
-                            <input
-                                type="number" step="0.01" min="0" placeholder="0.05"
-                                className="inp remove-arrow"
-                                value={primeRatio} onChange={(e) => setPrimeRatio(e.target.value)}
-                            />
-                            <span className="hint">{t('config.primeHint')}</span>
-                        </div>
-
-                        <div className="rounded-lg bg-accent/10 px-3 py-2">
-                            <span className="block text-[10px] text-muted">{t('config.calcPrime')}</span>
-                            <strong className="font-mono text-sm text-accent">
-                                {calcPrimeDose() > 0 ? `${calcPrimeDose().toFixed(2)} mL` : t('config.calcPrimeHint')}
-                            </strong>
-                        </div>
-                    </div>
-
-                    <button onClick={handleSaveConfig} className="btn btn-p2 w-full">
-                        {t('config.saveConfig')}
-                    </button>
-                </div>
+                <button onClick={() => setSheet('aquarium')} className="btn btn-n w-full">
+                    {t('config.edit')}
+                </button>
             </section>
 
             {/* NETWORK */}
@@ -477,7 +360,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                 </div>
             </section>
 
-            {/* NOTIFICATIONS (ntfy.sh) */}
+            {/* NOTIFICATIONS (ntfy.sh) — a summary; the toggles live in a sheet */}
             <section className="card">
                 <div className="card-h">
                     <h2 className="card-t">{t('notify.title')}</h2>
@@ -485,72 +368,15 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                         {notifyStatus?.enabled ? t('notify.enabled') : t('notify.disabled')}
                     </span>
                 </div>
-
-                <div className="flex flex-col gap-4">
-                    <div className="field">
-                        <label className="lbl">{t('notify.key')}</label>
-                        <div className="flex gap-2">
-                            <input
-                                type="text"
-                                placeholder={notifyStatus?.topic || 'iara_topic'}
-                                className="inp flex-1"
-                                value={topicInput}
-                                onChange={(e) => setTopicInput(e.target.value)}
-                            />
-                            <button onClick={handleSaveTopic} className="btn btn-a flex-none">
-                                {t('notify.save')}
-                            </button>
-                        </div>
-                        <span className="hint">{t('notify.keyHint')}</span>
-                    </div>
-
-                    {notifyStatus?.enabled && (
-                        <button onClick={handleTestNotify} className="btn btn-a2 w-full">
-                            {t('notify.test')}
-                        </button>
-                    )}
-
-                    <div className="sub flex flex-col gap-3">
-                        <div className="field">
-                            <label className="lbl">{t('notify.reportTime')}</label>
-                            <div className="grid grid-cols-2 gap-2">
-                                <input
-                                    type="number" min="0" max="23" step="1"
-                                    aria-label={t('tpa.hour')}
-                                    className="inp remove-arrow text-center"
-                                    value={reportH} onChange={(e) => setReportH(e.target.value)}
-                                />
-                                <input
-                                    type="number" min="0" max="59" step="1"
-                                    aria-label={t('tpa.minute')}
-                                    className="inp remove-arrow text-center"
-                                    value={reportM} onChange={(e) => setReportM(e.target.value)}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col gap-2">
-                            {NOTIFY_TYPE_KEYS.map((key, idx) => (
-                                <button
-                                    key={key}
-                                    onClick={() => handleToggleType(idx)}
-                                    aria-pressed={!!typeToggles[idx]}
-                                    className={`flex min-h-[48px] items-center justify-between gap-3 rounded-xl border px-4 py-2 text-left transition-all active:scale-[0.98] ${typeToggles[idx] ? 'border-accent2/40 bg-accent2/10' : 'border-border bg-white/5'
-                                        }`}
-                                >
-                                    <span className="min-w-0 text-sm text-text">{t(key)}</span>
-                                    <span className={`inline-flex h-6 w-11 flex-none items-center rounded-full p-0.5 transition-colors ${typeToggles[idx] ? 'bg-accent2' : 'bg-white/20'}`}>
-                                        <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-md transition-transform ${typeToggles[idx] ? 'translate-x-5' : 'translate-x-0'}`} />
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
-
-                        <button onClick={handleSaveNotifyConfig} className="btn btn-p2 w-full">
-                            {t('notify.saveConfig')}
-                        </button>
-                    </div>
-                </div>
+                <button onClick={() => setSheet('notify')} className="btn btn-n w-full">
+                    {t('config.edit')}
+                </button>
+                <p className="hint">
+                    {t('notify.activeCount', {
+                        n: String(typeToggles.filter(Boolean).length),
+                        total: String(NOTIFY_TYPE_KEYS.length),
+                    })}
+                </p>
             </section>
 
             {/* FIRMWARE UPDATE */}
@@ -622,6 +448,213 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                     {status?.emergency ? t('config.emergencyClearHint') : t('config.emergencyHint')}
                 </p>
             </section>
+
+            {sheet === 'aquarium' && (
+                <Sheet title={t('config.aquarium')} onClose={() => setSheet(null)}>
+                    <div className="flex flex-col gap-4">
+                        {/* Dimensions */}
+                        <div className="field">
+                            <label className="lbl">{t('config.dimensions')}</label>
+                            <div className="grid grid-cols-3 gap-2">
+                                <input
+                                    type="number" min="0" step="1" placeholder={t('config.height')}
+                                    aria-label={t('config.heightLabel')}
+                                    className="inp remove-arrow text-center"
+                                    value={height} onChange={(e) => setHeight(e.target.value)}
+                                />
+                                <input
+                                    type="number" min="0" step="1" placeholder={t('config.length')}
+                                    aria-label={t('config.lengthLabel')}
+                                    className="inp remove-arrow text-center"
+                                    value={length} onChange={(e) => setLength(e.target.value)}
+                                />
+                                <input
+                                    type="number" min="0" step="1" placeholder={t('config.width')}
+                                    aria-label={t('config.widthLabel')}
+                                    className="inp remove-arrow text-center"
+                                    value={width} onChange={(e) => setWidth(e.target.value)}
+                                />
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-center text-[10px] text-muted">
+                                <span>{t('config.heightLabel')}</span>
+                                <span>{t('config.lengthLabel')}</span>
+                                <span>{t('config.widthLabel')}</span>
+                            </div>
+                        </div>
+
+                        <div className="field">
+                            <label className="lbl">{t('config.margin')}</label>
+                            <input
+                                type="number" min="0" step="1" placeholder="15"
+                                className="inp remove-arrow"
+                                value={margin} onChange={(e) => setMargin(e.target.value)}
+                            />
+                            <span className="hint">{t('config.marginHint')}</span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="rounded-lg bg-accent/10 px-3 py-2">
+                                <span className="block text-[10px] text-muted">{t('config.calcVolume')}</span>
+                                <strong className="font-mono text-sm text-accent">{calcVolume().toFixed(1)} L</strong>
+                            </div>
+                            <div className="rounded-lg bg-accent2/10 px-3 py-2">
+                                <span className="block text-[10px] text-muted">{t('config.litersPerCm')}</span>
+                                <strong className="font-mono text-sm text-accent2">{litersPerCm().toFixed(2)}</strong>
+                            </div>
+                        </div>
+
+                        {/* Level sensor */}
+                        <div className="sub flex flex-col gap-3">
+                            <h3 className="sub-t">{t('config.sensorSection')}</h3>
+                            <div className="field">
+                                <label className="lbl">{t('config.sensorFull')}</label>
+                                <input
+                                    type="number" min="0" step="1" placeholder="50"
+                                    className="inp remove-arrow"
+                                    value={sensorFull} onChange={(e) => setSensorFull(e.target.value)}
+                                />
+                                <span className="hint">{t('config.sensorFullHint')}</span>
+                            </div>
+                            <button onClick={handleCalibrateSensor} className="btn btn-a2 w-full">
+                                {t('config.calibrateSensor')}
+                            </button>
+                        </div>
+
+                        {/* Reservoir & Prime */}
+                        <div className="sub flex flex-col gap-4">
+                            <h3 className="sub-t">{t('config.reservoirSection')}</h3>
+                            <div className="field">
+                                <label className="lbl">{t('config.reservoirVol')}</label>
+                                <input
+                                    type="number" step="1" min="0" placeholder="20"
+                                    className="inp remove-arrow"
+                                    value={reservoirVol} onChange={(e) => setReservoirVol(e.target.value)}
+                                />
+                                <span className="hint">{t('config.reservoirHint')}</span>
+                            </div>
+
+                            <div className="field">
+                                <label className="lbl">{t('config.canisterSafe')}</label>
+                                <input
+                                    type="number" step="1" min="0" max="100" placeholder="25"
+                                    className="inp remove-arrow"
+                                    value={canisterSafePct} onChange={(e) => setCanisterSafePct(e.target.value)}
+                                />
+                                <span className="hint">{t('config.canisterSafeHint')}</span>
+                            </div>
+
+                            <div className="field">
+                                <label className="lbl">{t('config.feedPause')}</label>
+                                <input
+                                    type="number" step="1" min="1" max="60" placeholder="10"
+                                    className="inp remove-arrow"
+                                    value={feedPauseMin} onChange={(e) => setFeedPauseMin(e.target.value)}
+                                />
+                                <span className="hint">{t('config.feedPauseHint')}</span>
+                            </div>
+
+                            <div className="field">
+                                <label className="lbl">{t('config.primeRatio')}</label>
+                                <input
+                                    type="number" step="0.01" min="0" placeholder="0.05"
+                                    className="inp remove-arrow"
+                                    value={primeRatio} onChange={(e) => setPrimeRatio(e.target.value)}
+                                />
+                                <span className="hint">{t('config.primeHint')}</span>
+                            </div>
+
+                            <div className="rounded-lg bg-accent/10 px-3 py-2">
+                                <span className="block text-[10px] text-muted">{t('config.calcPrime')}</span>
+                                <strong className="font-mono text-sm text-accent">
+                                    {calcPrimeDose() > 0 ? `${calcPrimeDose().toFixed(2)} mL` : t('config.calcPrimeHint')}
+                                </strong>
+                            </div>
+                        </div>
+
+                        <button onClick={handleSaveConfig} className="btn btn-p2 w-full">
+                            {t('config.saveConfig')}
+                        </button>
+                    </div>
+                </Sheet>
+            )}
+
+            {sheet === 'notify' && (
+                <Sheet
+                    title={t('notify.title')}
+                    badge={
+                        <span className={`pill flex-none ${notifyStatus?.enabled ? 'bg-accent2/20 text-accent2' : 'bg-white/10 text-muted'}`}>
+                            {notifyStatus?.enabled ? t('notify.enabled') : t('notify.disabled')}
+                        </span>
+                    }
+                    onClose={() => setSheet(null)}
+                >
+                    <div className="flex flex-col gap-4">
+                        <div className="field">
+                            <label className="lbl">{t('notify.key')}</label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    placeholder={notifyStatus?.topic || 'iara_topic'}
+                                    className="inp flex-1"
+                                    value={topicInput}
+                                    onChange={(e) => setTopicInput(e.target.value)}
+                                />
+                                <button onClick={handleSaveTopic} className="btn btn-a flex-none">
+                                    {t('notify.save')}
+                                </button>
+                            </div>
+                            <span className="hint">{t('notify.keyHint')}</span>
+                        </div>
+
+                        {notifyStatus?.enabled && (
+                            <button onClick={handleTestNotify} className="btn btn-a2 w-full">
+                                {t('notify.test')}
+                            </button>
+                        )}
+
+                        <div className="sub flex flex-col gap-3">
+                            <div className="field">
+                                <label className="lbl">{t('notify.reportTime')}</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <input
+                                        type="number" min="0" max="23" step="1"
+                                        aria-label={t('tpa.hour')}
+                                        className="inp remove-arrow text-center"
+                                        value={reportH} onChange={(e) => setReportH(e.target.value)}
+                                    />
+                                    <input
+                                        type="number" min="0" max="59" step="1"
+                                        aria-label={t('tpa.minute')}
+                                        className="inp remove-arrow text-center"
+                                        value={reportM} onChange={(e) => setReportM(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col gap-2">
+                                {NOTIFY_TYPE_KEYS.map((key, idx) => (
+                                    <button
+                                        key={key}
+                                        onClick={() => handleToggleType(idx)}
+                                        aria-pressed={!!typeToggles[idx]}
+                                        className={`flex min-h-[48px] items-center justify-between gap-3 rounded-xl border px-4 py-2 text-left transition-all active:scale-[0.98] ${typeToggles[idx] ? 'border-accent2/40 bg-accent2/10' : 'border-border bg-white/5'
+                                            }`}
+                                    >
+                                        <span className="min-w-0 text-sm text-text">{t(key)}</span>
+                                        <span className={`inline-flex h-6 w-11 flex-none items-center rounded-full p-0.5 transition-colors ${typeToggles[idx] ? 'bg-accent2' : 'bg-white/20'}`}>
+                                            <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-md transition-transform ${typeToggles[idx] ? 'translate-x-5' : 'translate-x-0'}`} />
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+
+                            <button onClick={handleSaveNotifyConfig} className="btn btn-p2 w-full">
+                                {t('notify.saveConfig')}
+                            </button>
+                        </div>
+                    </div>
+                </Sheet>
+            )}
         </div>
     );
 }

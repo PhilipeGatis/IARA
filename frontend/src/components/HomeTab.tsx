@@ -38,8 +38,11 @@ export function ConfigChecklist({ status }: { status: AQStatus | null }) {
 }
 
 /* ── Vertical stock bar ───────────────────────────────────────── */
-function StockBar({ label, stock, color }: { label: string; stock: number; color: string }) {
-    const pct = Math.min(100, Math.max(0, (stock / 500) * 100));
+function StockBar({ label, stock, cap, color }: { label: string; stock: number; cap?: number; color: string }) {
+    // Measured against the channel's own bottle. Older firmware reports no
+    // capacity, and 500 is the size it assumed for every channel.
+    const full = cap && cap > 0 ? cap : 500;
+    const pct = Math.min(100, Math.max(0, (stock / full) * 100));
     return (
         <div className="flex min-w-0 flex-1 flex-col items-center gap-1">
             <span className="text-[11px] font-bold tabular-nums" style={{ color }}>{Math.round(pct)}%</span>
@@ -365,6 +368,7 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                             <StockBar
                                 key={i}
                                 stock={s.stock}
+                                cap={s.cap}
                                 color={STOCK_COLORS[i] || STOCK_COLORS[4]}
                                 label={i === 4 && status.primeEnabled ? (s.name || 'Prime') : (s.name || `F${i + 1}`).substring(0, 6)}
                             />

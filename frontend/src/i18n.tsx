@@ -203,6 +203,8 @@ const translations = {
     'config.primeHint': { pt: 'Conforme recomendação do fabricante (Ex: Seachem Prime = 0.05 mL/L)', en: 'Per manufacturer recommendation (e.g. Seachem Prime = 0.05 mL/L)', ja: 'メーカー推奨値（例: Seachem Prime = 0.05 mL/L）' },
     'config.feedPause': { pt: 'Pausa para alimentação (min)', en: 'Feeding pause (min)', ja: '給餌の停止時間（分）' },
     'config.feedPauseHint': { pt: 'Quanto tempo o canister fica desligado ao tocar em Alimentar. O firmware religa sozinho ao fim do tempo.', en: 'How long the canister stays off after tapping Feed. The firmware switches it back on when the time is up.', ja: '「給餌」をタップした後キャニスターを停止する時間。時間経過後はファームウェアが自動で再開します。' },
+    'config.edit': { pt: 'Editar', en: 'Edit', ja: '編集' },
+    'config.notSet': { pt: 'não definido', en: 'not set', ja: '未設定' },
     'config.canisterSafe': { pt: 'Nível seguro do canister (%)', en: 'Canister safe level (%)', ja: 'キャニスター安全水位 (%)' },
     'config.canisterSafeHint': { pt: 'Altura mínima da água, em % do aquário, para religar o canister após um erro. Abaixo disso ele fica desligado para não funcionar a seco.', en: 'Minimum water height, as % of the aquarium, to switch the canister back on after an error. Below it the filter stays off so it does not run dry.', ja: 'エラー後にキャニスターを再始動するための最低水位（水槽に対する%）。これを下回る場合、空運転を避けるため停止したままにします。' },
     'config.reservoirVol': { pt: 'Volume do Reservatório de Tratamento (Litros)', en: 'Treatment Reservoir Volume (Liters)', ja: '処理リザーバー容量（リットル）' },
@@ -226,6 +228,7 @@ const translations = {
     'config.language': { pt: 'Idioma / Language / 言語', en: 'Language / Idioma / 言語', ja: '言語 / Language / Idioma' },
 
     // ---- Notifications ----
+    'notify.activeCount': { pt: '{n} de {total} avisos ligados', en: '{n} of {total} alerts on', ja: '{total}件中{n}件の通知が有効' },
     'notify.title': { pt: 'Notificações (ntfy.sh)', en: 'Notifications (ntfy.sh)', ja: '通知（ntfy.sh）' },
     'notify.key': { pt: 'Tópico ntfy.sh', en: 'ntfy.sh Topic', ja: 'ntfy.shトピック' },
     'notify.keyHint': { pt: 'Baixe o app ntfy e inscreva-se neste tópico', en: 'Download ntfy app and subscribe to this topic', ja: 'ntfyアプリをダウンロードし、このトピックを購読してください' },
