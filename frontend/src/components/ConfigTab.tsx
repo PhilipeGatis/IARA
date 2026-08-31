@@ -46,6 +46,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
     const [length, setLength] = useState('');
     const [width, setWidth] = useState('');
     const [sensorFull, setSensorFull] = useState('');
+    const [blindZone, setBlindZone] = useState('');
     const [primeRatio, setPrimeRatio] = useState('');
     const [reservoirVol, setReservoirVol] = useState('');
     const [canisterSafePct, setCanisterSafePct] = useState('');
@@ -78,6 +79,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
             if (status.aqLength) setLength(status.aqLength.toString());
             if (status.aqWidth) setWidth(status.aqWidth.toString());
             if (status.sensorFullDistanceMm !== undefined) setSensorFull(status.sensorFullDistanceMm.toString());
+            if (status.ultrasonicMinMm !== undefined) setBlindZone(status.ultrasonicMinMm.toString());
             if (status.primeRatio) setPrimeRatio(status.primeRatio.toString());
             if (status.reservoirVolume) setReservoirVol(status.reservoirVolume.toString());
             if (status.canisterSafePct) setCanisterSafePct(status.canisterSafePct.toString());
@@ -105,6 +107,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
             aqLength: parseInt(length) || 0,
             aqWidth: parseInt(width) || 0,
             sensorFullDistanceMm: parseInt(sensorFull) || 0,
+            ultrasonicMinMm: parseInt(blindZone) || 0,
             primeRatio: parseFloat(primeRatio) || 0,
             reservoirVolume: parseInt(reservoirVol) || 0,
             canisterSafePct: parseInt(canisterSafePct) || 0,
@@ -514,6 +517,15 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                                     value={sensorFull} onChange={(e) => setSensorFull(e.target.value)}
                                 />
                                 <span className="hint">{t('config.sensorFullHint')}</span>
+                            </div>
+                            <div className="field">
+                                <label className="lbl">{t('config.blindZone')}</label>
+                                <input
+                                    type="number" min="5" max="200" step="1" placeholder="20"
+                                    className="inp remove-arrow"
+                                    value={blindZone} onChange={(e) => setBlindZone(e.target.value)}
+                                />
+                                <span className="hint">{t('config.blindZoneHint')}</span>
                             </div>
                             <button onClick={handleCalibrateSensor} className="btn btn-a2 w-full">
                                 {t('config.calibrateSensor')}

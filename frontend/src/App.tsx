@@ -6,7 +6,7 @@ import ConfigTab from './components/ConfigTab';
 import LogsTab from './components/LogsTab';
 import { I18nProvider, useT } from './i18n';
 import { setNetErrorMsg } from './api';
-import LevelBadge, { StateIcon } from './LevelBadge';
+import LevelBadge, { SensorIcon, StateIcon } from './LevelBadge';
 
 declare const __APP_VERSION__: string;
 
@@ -32,6 +32,7 @@ export type AQStatus = {
   tpaBlockedReason?: string;
   lastError?: string;
   sensorsOk?: boolean;
+  ultrasonicMinMm?: number;
   primeML: number;
   primeEnabled: boolean;
   reservoirMechFloat?: boolean;
@@ -210,6 +211,11 @@ function AppContent() {
             <StateIcon icon="🌀" on={status?.canister} label={t('home.canister')} />
             <StateIcon icon="🛟" on={status?.float} label={t('home.float')} />
             <StateIcon icon="🔧" on={status?.maintenance} label={t('home.maintenance')} />
+            <SensorIcon
+              ok={status?.sensorsOk}
+              okLabel={t('home.sensorOk')}
+              downLabel={t('home.sensorDown')}
+            />
           </div>
 
           {/* The level matters from every tab, not just Home. */}

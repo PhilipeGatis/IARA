@@ -46,10 +46,15 @@ float SafetyWatchdog::readUltrasonic() {
       uint8_t dataH = Serial2.read();
       uint8_t dataL = Serial2.read();
       uint8_t sum = Serial2.read();
-      
-      if (((header + dataH + dataL) & 0xFF) == sum) {
+      _bytesSeen += 4;
+
+      if (((header + dataH + dataL) & 0xFF) != sum) {
+        _checksumFails++;
+      } else {
+        _framesSeen++;
         float distance = ((dataH << 8) | dataL) / 10.0f; // mm to cm
-        if (distance >= ULTRASONIC_MIN_DISTANCE_CM &&
+        _lastRawCm = distance;
+        if (distance >= _minDistanceCm &&
             distance <= ULTRASONIC_MAX_DISTANCE_CM) {
           // Reject what the water cannot physically have done. See
           // MAX_LEVEL_STEP_CM: between frames the surface moves microns, so a
@@ -104,10 +109,28 @@ float SafetyWatchdog::readUltrasonic() {
 
           newData = true;
           lastValidMs = millis();
+        } else {
+          // A frame the sensor sent but the range filter threw away. Without
+          // this the two cases look identical on the wire: a sensor that has
+          // gone quiet and one that is happily reporting 0 mm because it
+          // cannot find the surface. Rate-limited because frames arrive about
+          // ten times a second and the log is the only channel we have.
+          _rangeRejects++;
+          const unsigned long nowMs = millis();
+          if (nowMs - _lastRangeLogMs >= RANGE_LOG_INTERVAL_MS) {
+            _lastRangeLogMs = nowMs;
+            Serial.printf("[Safety] Ultrasonic frame out of range: %.1f cm "
+                          "(valid %.1f-%.1f) — %lu discarded so far\n",
+                          distance, _minDistanceCm,
+                          ULTRASONIC_MAX_DISTANCE_CM,
+                          (unsigned long)_rangeRejects);
+          }
         }
       }
     } else {
       Serial2.read(); // Discard garbage byte and try again
+      _bytesSeen++;
+      _garbageBytes++;
     }
   }
 

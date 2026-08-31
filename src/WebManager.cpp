@@ -32,7 +32,9 @@ WebManager::WebManager()
       _tpaPercent(20), _canisterSafePct(0),
       _feedPauseMin(DEFAULT_FEED_PAUSE_MIN), _language(0),
       _primeML(DEFAULT_PRIME_ML), _aqHeight(0), _aqLength(0), _aqWidth(0),
-      _sensorFullDistanceMm(0), _drainFlowRate(0), _refillFlowRate(0),
+      _sensorFullDistanceMm(0),
+      _ultrasonicMinMm((uint16_t)(ULTRASONIC_MIN_DISTANCE_DEFAULT_CM * 10)),
+      _drainFlowRate(0), _refillFlowRate(0),
       _primeEnabled(true), _reservoirMechFloat(false), _resFillTimeoutMin(40),
       _reservoirVolume(0), _reservoirSafetyML(0), _lastTelemetryMs(0),
       _lastSSEMs(0), _lastSSECleanupMs(0), _rebootPending(false), _rebootMs(0) {
@@ -247,6 +249,7 @@ String WebManager::_buildStatusJSON() {
   json += "\"aqLength\":" + String(_aqLength) + ",";
   json += "\"aqWidth\":" + String(_aqWidth) + ",";
   json += "\"sensorFullDistanceMm\":" + String(_sensorFullDistanceMm) + ",";
+  json += "\"ultrasonicMinMm\":" + String(_ultrasonicMinMm) + ",";
   json += "\"aquariumVolume\":" + String(aqVol) + ",";
   json += "\"litersPerCm\":" + String(lPerCm, 2) + ",";
   json += "\"drainFlowRate\":" + String(_drainFlowRate, 2) + ",";
@@ -285,6 +288,21 @@ String WebManager::_buildStatusJSON() {
   // the water — a rippled surface, a wall, a hanging cable.
   json += "\"rejectedReadings\":" +
           String(_safety ? _safety->getRejectedReadings() : 0) + ",";
+  // Why the sensor is quiet, not just that it is. Reading these over the
+  // network beats a serial cable behind a tank full of water: zero bytes is a
+  // dead wire, bytes without frames is noise or the wrong baud rate, frames
+  // without accepted readings is a sensor that cannot find the surface.
+  if (_safety) {
+    json += "\"usDiag\":{";
+    json += "\"bytes\":" + String(_safety->getUsBytes()) + ",";
+    json += "\"garbage\":" + String(_safety->getUsGarbageBytes()) + ",";
+    json += "\"frames\":" + String(_safety->getUsFrames()) + ",";
+    json += "\"csFail\":" + String(_safety->getUsChecksumFails()) + ",";
+    json += "\"rangeRej\":" + String(_safety->getUsRangeRejects()) + ",";
+    json += "\"lastRaw\":" + String(_safety->getUsLastRaw(), 1) + ",";
+    json += "\"pending\":" + String(_safety->getUsPending());
+    json += "},";
+  }
   json += "\"language\":" + String(_language) + ",";
   if (_water) {
     json += "\"pumpGoalLiters\":" + String(_water->getPumpGoalLiters(), 2) + ",";
@@ -591,6 +609,16 @@ void WebManager::_setupRoutes() {
           _sensorFullDistanceMm = mg;
           changed = true;
         }
+        // The blind zone belongs to the module, not the firmware. Bounds are
+        // enforced here as well as in the setter: a zero would let ring-down
+        // through as a level, and a huge one silently blinds the tank.
+        int umm = _extractInt(body, "ultrasonicMinMm");
+        if (umm >= (int)(ULTRASONIC_MIN_DISTANCE_FLOOR_CM * 10) &&
+            umm <= (int)(ULTRASONIC_MIN_DISTANCE_CEIL_CM * 10)) {
+          _ultrasonicMinMm = umm;
+          if (_safety) _safety->setMinDistanceCm(getUltrasonicMinCm());
+          changed = true;
+        }
         // The config form posts this alongside the dimensions, which is where a
         // user would expect it to live. It was only ever parsed by
         // /api/tpa/schedule, so saving the form silently discarded it and the
@@ -636,7 +664,7 @@ void WebManager::_setupRoutes() {
                  // frame, not a measurement. Storing one here is expensive:
                  // this reading defines where 100% is, so every level, every
                  // percentage and the overflow threshold inherit the error.
-                 if (dist >= ULTRASONIC_MIN_DISTANCE_CM &&
+                 if (dist >= getUltrasonicMinCm() &&
                      dist <= ULTRASONIC_MAX_DISTANCE_CM) {
                    _sensorFullDistanceMm = (uint16_t)round(dist * 10.0f); // mm
 
@@ -1483,6 +1511,8 @@ void WebManager::_loadParams() {
   // distance: overflow detection is derived from it, and a placeholder value
   // makes a fresh board believe a normal water level is a flood.
   _sensorFullDistanceMm = _prefs.getUShort("aqMg", 0);
+  _ultrasonicMinMm = _prefs.getUShort(
+      "usMin", (uint16_t)(ULTRASONIC_MIN_DISTANCE_DEFAULT_CM * 10));
   _drainFlowRate = _prefs.getFloat("drFR", 0);
   _refillFlowRate = _prefs.getFloat("rfFR", 0);
   _primeRatio = _prefs.getFloat("pRat", PRIME_LABEL_ML_PER_L);
@@ -1500,13 +1530,14 @@ void WebManager::_loadParams() {
 
   if (_safety) {
     _safety->setOverflowThresholdCm(getOverflowThresholdCm());
+    _safety->setMinDistanceCm(getUltrasonicMinCm());
   }
 
   Serial.println("[Config] ====== NVS LOADED (namespace: aqua) ======");
   Serial.printf("[Config]   TPA: interval=%dd, auto=%s, hour=%02d:%02d, pct=%d%%\n",
     _tpaInterval, _tpaAutoEnabled ? "ON" : "OFF", _tpaHour, _tpaMinute, _tpaPercent);
-  Serial.printf("[Config]   Aquarium: %dx%dx%d cm, margin=%d mm, sensorFull=%d mm\n",
-    _aqHeight, _aqLength, _aqWidth, _aqMarginMm, _sensorFullDistanceMm);
+  Serial.printf("[Config]   Aquarium: %dx%dx%d cm, margin=%d mm, sensorFull=%d mm, blindZone=%d mm\n",
+    _aqHeight, _aqLength, _aqWidth, _aqMarginMm, _sensorFullDistanceMm, _ultrasonicMinMm);
   Serial.printf("[Config]   Drain flow: %.2f mL/s, Refill flow: %.2f mL/s\n",
     _drainFlowRate, _refillFlowRate);
   Serial.printf("[Config]   Prime: %.1f mL, ratio=%.5f, enabled=%s\n",
@@ -1534,6 +1565,7 @@ void WebManager::_saveParams() {
   _prefs.putUShort("aqW", _aqWidth);
   _prefs.putUShort("aqBord", _aqMarginMm);
   _prefs.putUShort("aqMg", _sensorFullDistanceMm);
+  _prefs.putUShort("usMin", _ultrasonicMinMm);
   _prefs.putFloat("drFR", _drainFlowRate);
   _prefs.putFloat("rfFR", _refillFlowRate);
   _prefs.putFloat("pRat", _primeRatio);
@@ -1762,7 +1794,8 @@ bool WebManager::triggerTPA(bool manual) {
   // numbers deciding how much water leaves the aquarium went untested for so
   // long.
   const TpaPlan plan =
-      planTPA(currentLevel, fullCm, requested, lPerCm, resAvail);
+      planTPA(currentLevel, fullCm, requested, lPerCm, resAvail,
+              getUltrasonicMinCm());
   if (!plan.ok) {
     Serial.printf("[Web] TPA refused: %s (level %.1f cm, mark %.1f cm)\n",
                   plan.refusal, currentLevel, fullCm);

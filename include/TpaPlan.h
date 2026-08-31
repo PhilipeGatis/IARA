@@ -41,12 +41,14 @@ struct TpaPlan {
 /// @param requestedLiters new water the cycle should deliver
 /// @param litersPerCm    tank footprint
 /// @param reservoirAvailL usable reservoir volume, after its safety margin
+/// @param minCm          the sensor's blind zone, below which a reading is not
+///                       a level. Configurable per module, hence a parameter.
 inline TpaPlan planTPA(float currentCm, float fullCm, float requestedLiters,
-                       float litersPerCm, float reservoirAvailL) {
+                       float litersPerCm, float reservoirAvailL,
+                       float minCm = ULTRASONIC_MIN_DISTANCE_DEFAULT_CM) {
   TpaPlan p;
 
-  if (currentCm < ULTRASONIC_MIN_DISTANCE_CM ||
-      currentCm > ULTRASONIC_MAX_DISTANCE_CM) {
+  if (currentCm < minCm || currentCm > ULTRASONIC_MAX_DISTANCE_CM) {
     p.refusal = "implausible level reading";
     return p;
   }

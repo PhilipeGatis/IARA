@@ -221,12 +221,22 @@ constexpr float TPA_MAX_DRAIN_PCT = 50.0f;
 constexpr unsigned long NTP_SYNC_INTERVAL_MS = 24UL * 3600 * 1000; // 24 h
 
 // -- Ultrasonic --
-// The A02YYUW's specified range. Below the blind zone the sensor does not
-// return a distance, it returns whatever ring-down it is still hearing — and a
-// 1 cm reading means "tank is overflowing" to everything downstream, so a
-// single bad frame must not reach the median buffer.
-constexpr float ULTRASONIC_MIN_DISTANCE_CM = 3.0f;
+// Below the blind zone the sensor does not return a distance, it returns
+// whatever ring-down it is still hearing — and a 1 cm reading means "tank is
+// overflowing" to everything downstream, so a single bad frame must not reach
+// the median buffer.
+//
+// The floor is configurable because it is a property of the specific module,
+// not of the firmware: the value here was 3.0 cm and silently discarded every
+// valid reading from a sensor whose blind zone is 2 cm, which looks exactly
+// like a dead sensor from the dashboard. Set the real one in Config; this is
+// only the starting point for a board that has never been configured.
+constexpr float ULTRASONIC_MIN_DISTANCE_DEFAULT_CM = 2.0f;
 constexpr float ULTRASONIC_MAX_DISTANCE_CM = 400.0f;
+// Bounds for the configured floor. The upper one is not a sensor limit — it is
+// the point past which a "blind zone" is a mistyped tank depth.
+constexpr float ULTRASONIC_MIN_DISTANCE_FLOOR_CM = 0.5f;
+constexpr float ULTRASONIC_MIN_DISTANCE_CEIL_CM = 20.0f;
 // Median window length lives in SafetyWatchdog::MEDIAN_BUFFER_SIZE, next to the
 // buffer it sizes. ULTRASONIC_SAMPLES and ULTRASONIC_PULSE_TIMEOUT_US were left
 // over from the HC-SR04/pulseIn driver and described nothing the A02YYUW does.

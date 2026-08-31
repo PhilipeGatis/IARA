@@ -50,6 +50,9 @@ public:
   float getLitersPerCm() const { return (float)_aqLength * _aqWidth / 1000.0f; }
   uint16_t getAqHeight() const { return _aqHeight; }
   uint16_t getSensorFullDistanceMm() const { return _sensorFullDistanceMm; }
+  /// Configured blind zone in cm, for the callers that validate a reading
+  /// before using it. Stored in mm to keep the form and NVS in integers.
+  float getUltrasonicMinCm() const { return _ultrasonicMinMm / 10.0f; }
   /// Distance (cm) at or below which the water counts as overflowing.
   /// Returns 0 — meaning "no overflow detection" — until the level sensor has
   /// been calibrated. A freshly flashed board must never act on a placeholder
@@ -122,6 +125,8 @@ private:
   uint16_t _aqLength;        // Comprimento (cm)
   uint16_t _aqWidth;         // Largura (cm)
   uint16_t _sensorFullDistanceMm; // Distância do sensor até a água 100% cheia (mm)
+  uint16_t _ultrasonicMinMm;      // Zona cega do sensor (mm) — abaixo disso a
+                                  // leitura é ring-down, não distância
   float _drainFlowRate;      // mL/s
   float _refillFlowRate;     // mL/s
   float _primeRatio;         // mL per liter (manufacturer ratio)
