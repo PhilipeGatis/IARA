@@ -22,7 +22,7 @@ O **IARA** é um sistema embarcado completo para automação de aquários planta
 
 - **TPA (Troca Parcial de Água)** — drenagem e reposição automática com máquina de estados de 6 estados.
 - **Fertilização** — dosagem programada via bombas peristálticas com controle de estoque.
-- **Filtração** — controle liga/desliga do canister via relé SSR (corrente AC).
+- **Filtração** — controle liga/desliga do canister via relé SSR (corrente AC), com pausa cronometrada para alimentação.
 - **Segurança** — monitoramento contínuo de sensores, watchdog e modo emergência.
 
 O firmware roda em um **ESP32 DevKit V1** e conta com **dashboard web embarcado** (React + Vite servido via LittleFS), **display TFT colorido (ST7735)**, **relógio RTC DS3231** e interface via **comandos serial**. 

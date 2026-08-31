@@ -189,6 +189,12 @@ constexpr float DEFAULT_STOCK_ML = 500.0f;   // Default bottle size
 constexpr float FLOW_RATE_ML_PER_SEC = 1.5f; // Peristaltic pump flow rate
 constexpr float DEFAULT_DRAIN_PCT = 30.0f;   // Drain 30% of tank
 
+// How long the canister stays off for feeding. Long enough for the food to be
+// eaten rather than pulled into the intake, short enough that the tank is not
+// left without circulation if the pause is forgotten.
+constexpr uint16_t DEFAULT_FEED_PAUSE_MIN = 10;
+constexpr uint16_t MAX_FEED_PAUSE_MIN = 60;
+
 // Hard ceiling on a single cycle, independent of what tpaPercent says. The only
 // thing standing between a typo in reservoirVolume and a drain target below the
 // livestock line is this clamp.

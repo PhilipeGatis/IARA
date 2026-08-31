@@ -22,7 +22,7 @@
 
 - **Water Change (TPA)** — automated drain & refill with a 6-state state machine.
 - **Fertilization** — scheduled dosing via peristaltic pumps with stock tracking.
-- **Filtration** — canister on/off control through an SSR relay (AC power).
+- **Filtration** — canister on/off control through an SSR relay (AC power), with a timed pause for feeding.
 - **Safety** — continuous sensor monitoring, watchdog timer, and emergency shutdown mode.
 
 The firmware runs on an **ESP32 DevKit V1** and features an **embedded web dashboard** (React + Vite served via LittleFS), **color TFT display (ST7735)**, **DS3231 RTC clock**, and a **serial command interface**.

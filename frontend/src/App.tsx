@@ -44,6 +44,10 @@ export type AQStatus = {
   aquariumVolume: number;
   litersPerCm: number;
   canisterSafePct: number;
+  /** Minutes the feeding pause keeps the canister off. */
+  feedPauseMin?: number;
+  /** Seconds left in the running feeding pause, 0 when none. */
+  feedingLeft?: number;
   drainFlowRate: number;
   refillFlowRate: number;
   primeRatio: number;

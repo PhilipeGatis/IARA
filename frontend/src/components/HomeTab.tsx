@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { type AQStatus } from '../App';
 import { api } from '../api';
 import { useT, tpaStateKey } from '../i18n';
@@ -78,6 +79,22 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
     // back to "start".
     const TERMINAL = ['IDLE', 'COMPLETE', 'ERROR'];
     const running = !!status && !TERMINAL.includes(status.tpaState);
+
+    /* ── Feeding pause ───────────────────────────────────────── */
+    // The device reports the seconds left, but only as often as it pushes a
+    // status. Counting down locally between pushes keeps the number moving,
+    // and every push resets it to the truth.
+    const pushedFeed = status?.feedingLeft ?? 0;
+    const [feedLeft, setFeedLeft] = useState(pushedFeed);
+    useEffect(() => setFeedLeft(pushedFeed), [pushedFeed]);
+    useEffect(() => {
+        if (feedLeft <= 0) return;
+        const id = setTimeout(() => setFeedLeft(v => Math.max(0, v - 1)), 1000);
+        return () => clearTimeout(id);
+    }, [feedLeft]);
+    const feeding = feedLeft > 0;
+    const feedClock = `${Math.floor(feedLeft / 60)}:${String(feedLeft % 60).padStart(2, '0')}`;
+    const feedMinutes = status?.feedPauseMin ?? 10;
     const stateKey = status ? tpaStateKey(status.tpaState) : null;
     const stateLabel = stateKey ? t(stateKey) : (status?.tpaState ?? '--');
 
@@ -180,6 +197,33 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                 {/* Float, canister and maintenance moved to the header, where they
                     are visible from every tab instead of only this one. */}
             </section>
+
+            {/* 2b — Feeding: the one thing done by hand every day */}
+            <button
+                onClick={async () => {
+                    // The next status push is up to 3 s away, and a button that
+                    // does not visibly react gets pressed twice — which would
+                    // cancel the pause the first press just started.
+                    const r = await api('POST', '/api/canister/feed');
+                    if (r && typeof r.feedingLeft === 'number') setFeedLeft(r.feedingLeft);
+                }}
+                disabled={running}
+                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left shadow-md transition disabled:opacity-40 ${feeding ? 'bg-warn/15 ring-1 ring-warn/40' : 'bg-card active:bg-white/5'}`}
+            >
+                <span className="text-2xl">🍤</span>
+                <span className="min-w-0 flex-1">
+                    <span className={`block text-sm font-bold ${feeding ? 'text-warn' : 'text-text'}`}>
+                        {feeding ? t('home.feedActive', { t: feedClock }) : t('home.feed')}
+                    </span>
+                    <span className="hint block">
+                        {running
+                            ? t('home.feedBusy')
+                            : feeding
+                                ? t('home.feedRestore')
+                                : t('home.feedHint', { n: String(feedMinutes) })}
+                    </span>
+                </span>
+            </button>
 
             {/* 3 — TPA: when is the next one, and start/stop it */}
             <section className="card">

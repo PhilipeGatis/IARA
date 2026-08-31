@@ -571,6 +571,98 @@ void test_progress_uses_sensor_data() {
   TEST_ASSERT_FLOAT_WITHIN(2.0f, 16.0f, progress);
 }
 
+// ----------------------------------------------------------------------------
+// Feeding pause
+// ----------------------------------------------------------------------------
+
+// The pause only ever restores the filter through restoreCanisterIfSafe(), and
+// that refuses on a level below the safe mark. A generous mark plus a shallow
+// reading is what "the water is fine" looks like to these tests.
+static void allowCanisterRestore(WaterManager &wm) {
+  wm.setCanisterSafeLevelCm(20.0f);
+  setDistance(10.0f);
+}
+
+void test_feeding_pause_switches_the_canister_off() {
+  WaterManager wm = makeWM();
+  digitalWrite(PIN_CANISTER, LOW); // ON
+
+  wm.startFeedingPause(10);
+
+  TEST_ASSERT_TRUE(wm.isFeedingPause());
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_CANISTER]); // SSR: HIGH = OFF
+  TEST_ASSERT_EQUAL_UINT32(600, wm.feedingSecondsLeft());
+}
+
+void test_feeding_pause_restores_the_canister_when_time_is_up() {
+  WaterManager wm = makeWM();
+  allowCanisterRestore(wm);
+  digitalWrite(PIN_CANISTER, LOW);
+
+  wm.startFeedingPause(10);
+  mock_millis_value += 9UL * 60UL * 1000UL;
+  wm.update();
+  TEST_ASSERT_TRUE(wm.isFeedingPause());
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_CANISTER]); // still off
+
+  mock_millis_value += 2UL * 60UL * 1000UL;
+  wm.update();
+
+  TEST_ASSERT_FALSE(wm.isFeedingPause());
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_CANISTER]); // back ON
+  TEST_ASSERT_EQUAL_UINT32(0, wm.feedingSecondsLeft());
+}
+
+void test_feeding_pause_ends_early() {
+  WaterManager wm = makeWM();
+  allowCanisterRestore(wm);
+  digitalWrite(PIN_CANISTER, LOW);
+
+  wm.startFeedingPause(10);
+  wm.endFeedingPause();
+
+  TEST_ASSERT_FALSE(wm.isFeedingPause());
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_CANISTER]);
+}
+
+void test_feeding_pause_refused_during_a_cycle() {
+  WaterManager wm = makeWM();
+  goToCanisterOff(wm);
+  wm.update(); // the cycle owns the canister from here
+
+  wm.startFeedingPause(10);
+
+  // Refusing matters more than the relay position: the cycle switches the
+  // filter off too, so the pin alone cannot tell the two apart. What must not
+  // happen is a pause that later switches the filter on mid-cycle.
+  TEST_ASSERT_FALSE(wm.isFeedingPause());
+}
+
+void test_feeding_pause_lets_go_when_the_filter_is_switched_on_by_hand() {
+  WaterManager wm = makeWM();
+  allowCanisterRestore(wm);
+  digitalWrite(PIN_CANISTER, LOW);
+  wm.startFeedingPause(10);
+
+  digitalWrite(PIN_CANISTER, LOW); // the header toggle, mid-pause
+  wm.update();
+
+  // The pause is over because someone else decided, and it leaves the relay
+  // exactly where that someone put it.
+  TEST_ASSERT_FALSE(wm.isFeedingPause());
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_CANISTER]);
+}
+
+void test_feeding_pause_of_zero_minutes_does_nothing() {
+  WaterManager wm = makeWM();
+  digitalWrite(PIN_CANISTER, LOW);
+
+  wm.startFeedingPause(0);
+
+  TEST_ASSERT_FALSE(wm.isFeedingPause());
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_CANISTER]);
+}
+
 int main(int argc, char **argv) {
   UNITY_BEGIN();
 
@@ -579,6 +671,14 @@ int main(int argc, char **argv) {
   RUN_TEST(test_start_tpa_blocked_during_emergency);
   RUN_TEST(test_double_start_ignored);
   RUN_TEST(test_canister_off_disables_relay);
+
+  // Feeding pause
+  RUN_TEST(test_feeding_pause_switches_the_canister_off);
+  RUN_TEST(test_feeding_pause_restores_the_canister_when_time_is_up);
+  RUN_TEST(test_feeding_pause_ends_early);
+  RUN_TEST(test_feeding_pause_refused_during_a_cycle);
+  RUN_TEST(test_feeding_pause_lets_go_when_the_filter_is_switched_on_by_hand);
+  RUN_TEST(test_feeding_pause_of_zero_minutes_does_nothing);
   RUN_TEST(test_draining_activates_drain_pump);
   RUN_TEST(test_draining_stops_at_target);
   RUN_TEST(test_draining_timeout_causes_error);

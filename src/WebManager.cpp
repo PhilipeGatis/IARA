@@ -29,7 +29,8 @@ WebManager::WebManager()
 #endif
       _time(nullptr), _water(nullptr), _fert(nullptr), _safety(nullptr),
       _tpaInterval(7), _tpaAutoEnabled(false), _tpaHour(10), _tpaMinute(0), _tpaLastRun(0),
-      _tpaPercent(20), _canisterSafePct(0), _language(0),
+      _tpaPercent(20), _canisterSafePct(0),
+      _feedPauseMin(DEFAULT_FEED_PAUSE_MIN), _language(0),
       _primeML(DEFAULT_PRIME_ML), _aqHeight(0), _aqLength(0), _aqWidth(0),
       _sensorFullDistanceMm(0), _drainFlowRate(0), _refillFlowRate(0),
       _primeEnabled(true), _reservoirMechFloat(false), _resFillTimeoutMin(40),
@@ -234,6 +235,9 @@ String WebManager::_buildStatusJSON() {
   json += "\"tpaMinute\":" + String(_tpaMinute) + ",";
   json += "\"tpaPercent\":" + String(_tpaPercent) + ",";
   json += "\"canisterSafePct\":" + String(_canisterSafePct) + ",";
+  json += "\"feedPauseMin\":" + String(_feedPauseMin) + ",";
+  json += "\"feedingLeft\":" +
+          String(_water ? _water->feedingSecondsLeft() : 0) + ",";
   json += "\"tpaLastRun\":" + String(_tpaLastRun) + ",";
   json += "\"primeML\":" + String(_primeML, 1) + ",";
   uint32_t aqVol = getAquariumVolume();
@@ -596,6 +600,11 @@ void WebManager::_setupRoutes() {
           _canisterSafePct = csp;
           changed = true;
         }
+        int fpm = _extractInt(body, "feedPauseMin");
+        if (fpm > 0 && fpm <= MAX_FEED_PAUSE_MIN) {
+          _feedPauseMin = fpm;
+          changed = true;
+        }
 
         if (changed) {
           // Auto-calculate primeML from reservoirVolume × ratio
@@ -681,6 +690,26 @@ void WebManager::_setupRoutes() {
                }
                Serial.printf("[Web] Canister manually turned %s\n", current ? "OFF" : "ON");
                request->send(200, "application/json", "{\"ok\":true}");
+             });
+
+  // ---- POST /api/canister/feed ----
+  // Toggles the feeding pause. One control rather than two: the button that
+  // starts the pause is the same one that ends it early, so the dashboard
+  // never has to guess which of the pair applies.
+  _server.on("/api/canister/feed", HTTP_POST,
+             [this](AsyncWebServerRequest *request) {
+               if (_rejectForgedRequest(request)) return;
+               if (_water) {
+                 if (_water->isFeedingPause()) {
+                   _water->endFeedingPause();
+                 } else {
+                   _water->startFeedingPause(_feedPauseMin);
+                 }
+               }
+               request->send(200, "application/json",
+                             String("{\"feedingLeft\":") +
+                                 (_water ? _water->feedingSecondsLeft() : 0) +
+                                 "}");
              });
 
   // ---- POST /api/emergency/stop ----
@@ -815,6 +844,11 @@ void WebManager::_setupRoutes() {
           // canisterSafeLevelCm is derived from this percentage, so WaterManager
           // keeps using the old one until the geometry is pushed down again.
           syncAquariumGeometryToWater();
+          changed = true;
+        }
+        int fpm = _extractInt(body, "feedPauseMin");
+        if (fpm > 0 && fpm <= MAX_FEED_PAUSE_MIN) {
+          _feedPauseMin = fpm;
           changed = true;
         }
         int lang = _extractInt(body, "language");
@@ -1402,6 +1436,7 @@ void WebManager::_loadParams() {
   _tpaLastRun = _prefs.getUInt("tpaRun", 0);
   _tpaPercent = _prefs.getUChar("tpaPct", 20);
   _canisterSafePct = _prefs.getUChar("canSf", 0);
+  _feedPauseMin = _prefs.getUShort("feedMin", DEFAULT_FEED_PAUSE_MIN);
   _language = _prefs.getUChar("lang", 0);
   _primeML = _prefs.getFloat("tpaPr", DEFAULT_PRIME_ML);
   _aqHeight = _prefs.getUShort("aqH", 40);
@@ -1455,6 +1490,7 @@ void WebManager::_saveParams() {
   _prefs.putUInt("tpaRun", _tpaLastRun);
   _prefs.putUChar("tpaPct", _tpaPercent);
   _prefs.putUChar("canSf", _canisterSafePct);
+  _prefs.putUShort("feedMin", _feedPauseMin);
   _prefs.putUChar("lang", _language);
   _prefs.putFloat("tpaPr", _primeML);
   _prefs.putUShort("aqH", _aqHeight);

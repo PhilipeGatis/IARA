@@ -48,6 +48,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
     const [primeRatio, setPrimeRatio] = useState('');
     const [reservoirVol, setReservoirVol] = useState('');
     const [canisterSafePct, setCanisterSafePct] = useState('');
+    const [feedPauseMin, setFeedPauseMin] = useState('');
     const [ssid, setSsid] = useState('');
     const [pass, setPass] = useState('');
     const [networks, setNetworks] = useState<string[]>([]);
@@ -78,6 +79,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
             if (status.primeRatio) setPrimeRatio(status.primeRatio.toString());
             if (status.reservoirVolume) setReservoirVol(status.reservoirVolume.toString());
             if (status.canisterSafePct) setCanisterSafePct(status.canisterSafePct.toString());
+            if (status.feedPauseMin) setFeedPauseMin(status.feedPauseMin.toString());
         }
     }, [status]);
 
@@ -104,6 +106,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
             primeRatio: parseFloat(primeRatio) || 0,
             reservoirVolume: parseInt(reservoirVol) || 0,
             canisterSafePct: parseInt(canisterSafePct) || 0,
+            feedPauseMin: parseInt(feedPauseMin) || 0,
         });
     };
 
@@ -398,6 +401,16 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                                 value={canisterSafePct} onChange={(e) => setCanisterSafePct(e.target.value)}
                             />
                             <span className="hint">{t('config.canisterSafeHint')}</span>
+                        </div>
+
+                        <div className="field">
+                            <label className="lbl">{t('config.feedPause')}</label>
+                            <input
+                                type="number" step="1" min="1" max="60" placeholder="10"
+                                className="inp remove-arrow"
+                                value={feedPauseMin} onChange={(e) => setFeedPauseMin(e.target.value)}
+                            />
+                            <span className="hint">{t('config.feedPauseHint')}</span>
                         </div>
 
                         <div className="field">

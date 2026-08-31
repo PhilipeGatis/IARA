@@ -157,6 +157,21 @@ public:
     return digitalRead(PIN_CANISTER) == LOW;
   } // SSR: LOW = ON
 
+  // ---- Feeding pause ----
+  /// Switch the canister off so food is not pulled into the intake, and
+  /// schedule it back on. Refused during a water change or an emergency: both
+  /// already decide what the filter does. A pause never outlives its timer —
+  /// the filter coming back on is the point, not a courtesy.
+  void startFeedingPause(uint16_t minutes);
+
+  /// Restore the canister now and drop the pause.
+  void endFeedingPause();
+
+  bool isFeedingPause() const { return _feedingPause; }
+
+  /// Seconds left in the pause, 0 when none is running.
+  uint32_t feedingSecondsLeft() const;
+
   /// Get last TPA completion timestamp (for telemetry)
   String getLastTPATime() const { return _lastTPATime; }
   void setLastTPATime(const String &t) { _lastTPATime = t; }
@@ -218,6 +233,10 @@ private:
 
   // ---- State handlers ----
   void _enterState(TPAState newState);
+  /// Ends a feeding pause when its time is up, or when something with a better
+  /// claim on the canister takes over. Runs every loop, including while idle.
+  void _tickFeedingPause();
+
   void _handleCanisterOff();
   void _handleDraining();
   void _handleFillingReservoir();
@@ -268,6 +287,10 @@ private:
   float _manualPumpGoalLiters;
   /// True while a manual run has the canister switched off on its behalf.
   bool _canisterOffForManual = false;
+  /// True while a feeding pause has the canister switched off on its behalf.
+  bool _feedingPause = false;
+  unsigned long _feedingStartMs = 0;
+  unsigned long _feedingDurationMs = 0;
   /// True while the refill is paused, waiting for the surface to settle before
   /// accepting that the setpoint was really reached.
   bool _refillConfirming = false;

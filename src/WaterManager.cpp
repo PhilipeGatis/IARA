@@ -290,6 +290,10 @@ unsigned long WaterManager::getPumpElapsedMs() const {
 }
 
 void WaterManager::update() {
+  // Ahead of the early return below: a feeding pause runs while the state
+  // machine is idle, which is the one state this function used to ignore.
+  _tickFeedingPause();
+
   if (_state == TPAState::IDLE || _state == TPAState::COMPLETE ||
       _state == TPAState::ERROR) {
     return;
@@ -907,6 +911,65 @@ void WaterManager::_stopCanisterForManualRun() {
     Serial.println("[TPA] Canister OFF for the manual run. Settling 3s...");
   }
   _waitUntilMs = millis() + 3000;
+}
+
+void WaterManager::startFeedingPause(uint16_t minutes) {
+  if (minutes == 0)
+    return;
+  // A water change already switches the canister off and on for its own
+  // reasons, and an emergency has its own idea of what should be running.
+  // Layering a pause on top of either would hand the relay two owners.
+  if (isRunning() || (_safety && _safety->isEmergency())) {
+    Serial.println("[Feed] Refused — a cycle or an emergency owns the filter.");
+    return;
+  }
+  pumpOn(PIN_CANISTER, PumpReason::MANUAL_PUMP); // SSR: HIGH = OFF
+  _feedingPause = true;
+  _feedingStartMs = millis();
+  _feedingDurationMs = (unsigned long)minutes * 60000UL;
+  Serial.printf("[Feed] Canister OFF for feeding, back on in %u min.\n",
+                (unsigned)minutes);
+}
+
+void WaterManager::endFeedingPause() {
+  if (!_feedingPause)
+    return;
+  _feedingPause = false;
+  Serial.println("[Feed] Pause ended early.");
+  restoreCanisterIfSafe(PumpReason::MANUAL_PUMP);
+}
+
+uint32_t WaterManager::feedingSecondsLeft() const {
+  if (!_feedingPause)
+    return 0;
+  const unsigned long elapsed = millis() - _feedingStartMs;
+  if (elapsed >= _feedingDurationMs)
+    return 0;
+  return (uint32_t)((_feedingDurationMs - elapsed) / 1000UL);
+}
+
+void WaterManager::_tickFeedingPause() {
+  if (!_feedingPause)
+    return;
+
+  // Someone switched the filter back on from the header, or a water change or
+  // an emergency took the relay over. In every case the pause no longer owns
+  // it, so it lets go without touching the relay itself — whatever is in
+  // charge now gets to keep what it set.
+  if (isCanisterOn() || isRunning() || (_safety && _safety->isEmergency())) {
+    _feedingPause = false;
+    return;
+  }
+
+  if (millis() - _feedingStartMs < _feedingDurationMs)
+    return;
+
+  _feedingPause = false;
+  Serial.println("[Feed] Feeding time is up — restoring the canister.");
+  // May refuse on a low level, and then the hourly sweep in main.cpp keeps
+  // trying. Feeding does not change the water level, so that is a tank that
+  // was already too low before the food went in.
+  restoreCanisterIfSafe(PumpReason::MANUAL_PUMP);
 }
 
 bool WaterManager::restoreCanisterIfSafe(PumpReason reason) {

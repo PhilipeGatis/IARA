@@ -38,6 +38,7 @@ public:
   void setTpaLastRun(uint32_t epoch);
   uint8_t getTpaPercent() const { return _tpaPercent; }
   uint8_t getCanisterSafePct() const { return _canisterSafePct; }
+  uint16_t getFeedPauseMin() const { return _feedPauseMin; }
   uint8_t getLanguage() const { return _language; }
 
   // ---- Aquarium config ----
@@ -110,6 +111,7 @@ private:
   uint32_t _tpaLastRun;
   uint8_t _tpaPercent;      // % of aquarium volume to change
   uint8_t _canisterSafePct; // Min water level % for safe canister operation
+  uint16_t _feedPauseMin;   // How long the feeding pause keeps the filter off
   uint8_t _language;        // 0=PT, 1=EN, 2=JA
 
   float _primeML;
