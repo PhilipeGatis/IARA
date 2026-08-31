@@ -29,11 +29,6 @@ void FertManager::begin() {
 }
 
 void FertManager::update(DateTime now) {
-  // A dose in progress owns the channel until it ends. Starting a second one
-  // would overlap two pumps against a single elapsed-time measurement.
-  if (_doseActive)
-    return;
-
   uint32_t todayKey = _dateKey(now);
   uint8_t currentDow = now.dayOfTheWeek();
   uint8_t currentHour = now.hour();
@@ -41,6 +36,9 @@ void FertManager::update(DateTime now) {
 
   for (uint8_t i = 0; i < NUM_FERTS + 1; i++) {
     if (!_enabled[i]) continue;
+    // A dose in progress owns its own channel until it ends. The others are
+    // untouched by it.
+    if (_doseActive[i]) continue;
 
     // Check if it's the right time for today's day-of-week (minute precision)
     if (currentHour == _schedHour[i][currentDow] &&
@@ -62,9 +60,6 @@ void FertManager::update(DateTime now) {
               _stockML[i] = 0;
             _markDosed(i, now);
             saveState();
-            // One channel per pass; the next update() picks up the next one
-            // once this dose has finished.
-            return;
           }
         } else if (ds > 0) {
           Serial.printf(
@@ -86,7 +81,9 @@ bool FertManager::startDose(uint8_t ch, float ml, PumpReason reason) {
     return false;
   if (ml <= 0)
     return false;
-  if (_doseActive)
+  // Only this channel. Another one already running is not a reason to refuse:
+  // they share no pin, no LEDC channel and no timer.
+  if (_doseActive[ch])
     return false;
 
   uint8_t pin = _pinForChannel(ch);
@@ -113,48 +110,63 @@ bool FertManager::startDose(uint8_t ch, float ml, PumpReason reason) {
   // and were absent from the pump log entirely. Log them here instead.
   pumpLogEvent(pin, true, reason);
 
-  _doseActive = true;
-  _doseChannel = ch;
-  _doseReason = reason;
-  _doseEndMs = millis() + durationMs;
+  _doseActive[ch] = true;
+  _doseReason[ch] = reason;
+  _doseEndMs[ch] = millis() + durationMs;
   return true;
+}
+
+bool FertManager::isDosing() const {
+  for (uint8_t ch = 0; ch < NUM_FERTS + 1; ch++) {
+    if (_doseActive[ch])
+      return true;
+  }
+  return false;
 }
 
 void FertManager::tickDose() {
   // Also ends a manual run that outlived its ceiling. Both live here because
   // this is the one hook loop() calls unconditionally, above every early return.
-  if (_manualActive && (long)(millis() - _manualEndMs) >= 0) {
-    ledcWrite(_manualChannel, 0);
-    pumpLogEvent(_pinForChannel(_manualChannel), false, PumpReason::FERT_MANUAL);
-    _manualActive = false;
-    Serial.printf("[Fert] CH%d manual run hit its %lu ms ceiling — stopped\n",
-                  _manualChannel + 1, MANUAL_FERT_MAX_MS);
-  }
+  // Every channel is checked on every tick: doses overlap now, so an early
+  // return on the first idle slot would strand the ones behind it.
+  for (uint8_t ch = 0; ch < NUM_FERTS + 1; ch++) {
+    if (_manualActive[ch] && (long)(millis() - _manualEndMs[ch]) >= 0) {
+      ledcWrite(ch, 0);
+      pumpLogEvent(_pinForChannel(ch), false, PumpReason::FERT_MANUAL);
+      _manualActive[ch] = false;
+      Serial.printf("[Fert] CH%d manual run hit its %lu ms ceiling — stopped\n",
+                    ch + 1, MANUAL_FERT_MAX_MS);
+    }
 
-  if (!_doseActive)
-    return;
-  // Signed difference so the comparison stays correct across the millis()
-  // rollover at ~49 days, which this board will reach.
-  if ((long)(millis() - _doseEndMs) < 0)
-    return;
-  ledcWrite(_doseChannel, 0);
-  pumpLogEvent(_pinForChannel(_doseChannel), false, _doseReason);
-  _doseActive = false;
-  Serial.printf("[Fert] CH%d dose finished\n", _doseChannel + 1);
+    if (!_doseActive[ch])
+      continue;
+    // Signed difference so the comparison stays correct across the millis()
+    // rollover at ~49 days, which this board will reach.
+    if ((long)(millis() - _doseEndMs[ch]) < 0)
+      continue;
+    ledcWrite(ch, 0);
+    pumpLogEvent(_pinForChannel(ch), false, _doseReason[ch]);
+    _doseActive[ch] = false;
+    Serial.printf("[Fert] CH%d dose finished\n", ch + 1);
+  }
 }
 
 void FertManager::abortDose() {
-  if (_manualActive) {
-    ledcWrite(_manualChannel, 0);
-    pumpLogEvent(_pinForChannel(_manualChannel), false, PumpReason::ABORT);
-    _manualActive = false;
+  // Everything, not just the first one found: this is the safety path, and a
+  // stop that leaves four of five pumps running is not a stop.
+  for (uint8_t ch = 0; ch < NUM_FERTS + 1; ch++) {
+    if (_manualActive[ch]) {
+      ledcWrite(ch, 0);
+      pumpLogEvent(_pinForChannel(ch), false, PumpReason::ABORT);
+      _manualActive[ch] = false;
+    }
+    if (!_doseActive[ch])
+      continue;
+    ledcWrite(ch, 0);
+    pumpLogEvent(_pinForChannel(ch), false, PumpReason::ABORT);
+    _doseActive[ch] = false;
+    Serial.printf("[Fert] CH%d dose aborted mid-volume\n", ch + 1);
   }
-  if (!_doseActive)
-    return;
-  ledcWrite(_doseChannel, 0);
-  pumpLogEvent(_pinForChannel(_doseChannel), false, PumpReason::ABORT);
-  _doseActive = false;
-  Serial.printf("[Fert] CH%d dose aborted mid-volume\n", _doseChannel + 1);
 }
 
 void FertManager::manualPump(uint8_t ch, bool state) {
@@ -163,9 +175,8 @@ void FertManager::manualPump(uint8_t ch, bool state) {
   // The caller is a browser, and the OFF request is not guaranteed to arrive:
   // a closed tab, a dropped link or a crashed page between ON and OFF used to
   // leave the pump running indefinitely. tickDose() enforces the ceiling.
-  _manualActive = state;
-  _manualChannel = ch;
-  _manualEndMs = millis() + MANUAL_FERT_MAX_MS;
+  _manualActive[ch] = state;
+  _manualEndMs[ch] = millis() + MANUAL_FERT_MAX_MS;
   ledcWrite(ch, state ? _pwm[ch] : 0);
   pumpLogEvent(_pinForChannel(ch), state, PumpReason::FERT_MANUAL);
   Serial.printf("[Fert] Manual pump CH%d set to %s (PWM: %d)\n", ch + 1,
@@ -316,14 +327,14 @@ void FertManager::resetChannel(uint8_t ch) {
   // Stop this channel's pump before the numbers behind it are erased. Only this
   // channel: abortDose() would also cut a manual run on a different one, and a
   // reset of CH2 has no business stopping CH3.
-  if (_doseActive && _doseChannel == ch) {
+  if (_doseActive[ch]) {
     ledcWrite(ch, 0);
-    _doseActive = false;
+    _doseActive[ch] = false;
     Serial.printf("[Fert] CH%d dose stopped by config reset\n", ch + 1);
   }
-  if (_manualActive && _manualChannel == ch) {
+  if (_manualActive[ch]) {
     ledcWrite(ch, 0);
-    _manualActive = false;
+    _manualActive[ch] = false;
   }
 
   _applyDefaults(ch);

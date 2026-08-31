@@ -503,7 +503,10 @@ void WaterManager::_handleDosingPrime() {
         _fert->saveState();
         return;
       }
-      if (_fert->isDosing())
+      // The Prime channel specifically. Doses run in parallel now, so asking
+      // whether *anything* is dosing would hold the cycle for a fertiliser on
+      // an unrelated channel.
+      if (_fert->isDosing(NUM_FERTS))
         return; // pump still running
     }
     _doseCompleted = true;

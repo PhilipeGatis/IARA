@@ -36,9 +36,10 @@ public:
   /// which loop() did not run, so the overflow watchdog, the emergency drain
   /// and the TPA state machine were all frozen while a pump was running.
   ///
-  /// Returns false if the channel is invalid, the volume is not positive, or a
-  /// dose is already in progress: the channels share one measurement of
-  /// elapsed time, and two at once is a dosing error waiting to happen.
+  /// Returns false if the channel is invalid, the volume is not positive, or
+  /// that same channel is already dosing. Other channels are free to run at the
+  /// same time: each drives its own LEDC channel and its own pin, and each
+  /// tracks its own end time.
   /// @param reason What to record in the pump log for this dose.
   bool startDose(uint8_t ch, float ml,
                  PumpReason reason = PumpReason::FERT_MANUAL);
@@ -48,7 +49,12 @@ public:
   /// only thing that ends a dose.
   void tickDose();
 
-  bool isDosing() const { return _doseActive; }
+  /// Is any channel dosing?
+  bool isDosing() const;
+  /// Is this particular channel dosing?
+  bool isDosing(uint8_t ch) const {
+    return _isValidChannel(ch) && _doseActive[ch];
+  }
 
   /// Stops an in-progress dose immediately, mid-volume.
   void abortDose();
@@ -172,16 +178,19 @@ private:
   bool _isValidChannel(uint8_t ch) const { return ch <= NUM_FERTS; }
 
   // A manual run has no scheduled end, so it gets a hard ceiling instead.
-  bool _manualActive = false;
-  uint8_t _manualChannel = 0;
-  unsigned long _manualEndMs = 0;
+  bool _manualActive[NUM_FERTS + 1] = {};
+  unsigned long _manualEndMs[NUM_FERTS + 1] = {};
 
-  PumpReason _doseReason = PumpReason::FERT_MANUAL; // what to log on the OFF
-
-  // In-progress dose. Only one at a time; see startDose().
-  bool _doseActive = false;
-  uint8_t _doseChannel = 0;
-  unsigned long _doseEndMs = 0;
+  // In-progress doses, one slot per channel.
+  //
+  // These were single values, which made the whole dosing side serial: three
+  // channels scheduled for the same minute ran one after another, and any that
+  // did not get its turn before the minute elapsed was skipped for the day
+  // without a word. Nothing in the hardware asked for that — the pumps sit on
+  // separate LEDC channels behind separate MOSFETs.
+  bool _doseActive[NUM_FERTS + 1] = {};
+  unsigned long _doseEndMs[NUM_FERTS + 1] = {};
+  PumpReason _doseReason[NUM_FERTS + 1] = {}; ///< what to log on the OFF
 
   /// Get the GPIO pin for a channel (0-3 = fert, 4 = prime)
   uint8_t _pinForChannel(uint8_t ch) const;

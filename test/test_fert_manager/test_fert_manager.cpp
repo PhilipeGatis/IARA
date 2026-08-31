@@ -213,19 +213,81 @@ void test_dose_does_not_block_the_loop() {
   TEST_ASSERT_EQUAL(HIGH, mock_pin_state[13]);
 }
 
-void test_second_dose_refused_while_one_runs() {
+void test_second_dose_on_same_channel_refused() {
   FertManager fm = createFM();
   Preferences::mock_clearAll();
   mock_reset_pins();
 
   TEST_ASSERT_TRUE(fm.startDose(0, 5.0f));
-  // The channels share one measurement of elapsed time.
-  TEST_ASSERT_FALSE(fm.startDose(1, 5.0f));
+  // One channel, one dose: a second would run the same pump against a second
+  // end time and deliver an unknown volume.
+  TEST_ASSERT_FALSE(fm.startDose(0, 5.0f));
 
   fm.abortDose();
   TEST_ASSERT_FALSE(fm.isDosing());
   TEST_ASSERT_EQUAL(LOW, mock_pin_state[13]);
-  TEST_ASSERT_TRUE(fm.startDose(1, 5.0f));
+  TEST_ASSERT_TRUE(fm.startDose(0, 5.0f));
+}
+
+void test_channels_dose_in_parallel() {
+  FertManager fm = createFM();
+  Preferences::mock_clearAll();
+  mock_reset_pins();
+
+  // Separate pins, separate LEDC channels, separate end times — nothing about
+  // one channel's dose has any bearing on another's.
+  TEST_ASSERT_TRUE(fm.startDose(0, 3.0f));  // 2 s at the default 1.5 mL/s
+  TEST_ASSERT_TRUE(fm.startDose(1, 15.0f)); // 10 s
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_FERT1]);
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_FERT2]);
+
+  // The short one ends on its own schedule and leaves the long one running.
+  mock_millis_value += 2500;
+  fm.tickDose();
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_FERT1]);
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_FERT2]);
+  TEST_ASSERT_FALSE(fm.isDosing(0));
+  TEST_ASSERT_TRUE(fm.isDosing(1));
+  TEST_ASSERT_TRUE(fm.isDosing()); // something is still running
+
+  mock_millis_value += 8000;
+  fm.tickDose();
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_FERT2]);
+  TEST_ASSERT_FALSE(fm.isDosing());
+}
+
+void test_schedule_starts_every_due_channel_in_one_pass() {
+  FertManager fm = createFM();
+  Preferences::mock_clearAll();
+  mock_reset_pins();
+
+  // Three channels on the same minute. They used to run one after another,
+  // and any that did not get its turn before the minute elapsed was skipped
+  // for the day in silence.
+  DateTime dt(2026, 2, 24, 9, 0, 0);
+  fm.update(dt);
+
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_FERT1]);
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_FERT2]);
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_FERT3]);
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_FERT4]);
+}
+
+void test_abort_stops_every_running_channel() {
+  FertManager fm = createFM();
+  Preferences::mock_clearAll();
+  mock_reset_pins();
+
+  TEST_ASSERT_TRUE(fm.startDose(0, 20.0f));
+  TEST_ASSERT_TRUE(fm.startDose(2, 20.0f));
+  fm.manualPump(3, true);
+
+  // A stop that leaves the other pumps running is not a stop.
+  fm.abortDose();
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_FERT1]);
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_FERT3]);
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_FERT4]);
+  TEST_ASSERT_FALSE(fm.isDosing());
 }
 
 void test_manual_pump_stops_at_its_ceiling() {
@@ -469,7 +531,10 @@ int main(int argc, char **argv) {
   // GPIO behavior
   RUN_TEST(test_dose_channel_activates_correct_pin);
   RUN_TEST(test_dose_does_not_block_the_loop);
-  RUN_TEST(test_second_dose_refused_while_one_runs);
+  RUN_TEST(test_second_dose_on_same_channel_refused);
+  RUN_TEST(test_channels_dose_in_parallel);
+  RUN_TEST(test_schedule_starts_every_due_channel_in_one_pass);
+  RUN_TEST(test_abort_stops_every_running_channel);
   RUN_TEST(test_manual_pump_stops_at_its_ceiling);
   RUN_TEST(test_dose_channel_rejects_invalid);
 
