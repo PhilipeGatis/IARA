@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { type AQStatus } from '../App';
-import { api } from '../api';
+import { api, deviceEpochNow, dateFromDeviceEpoch } from '../api';
 import { FertCard } from './FertsTab';
 import { ConfigChecklist } from './HomeTab';
 import FertConfigModal from './FertConfigModal';
@@ -374,7 +374,7 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                         <span className="lbl">{t('tpa.lastRun')}</span>
                         <p className="mt-0.5 text-sm font-bold text-accent">
                             {status?.tpaLastRun
-                                ? new Date(status.tpaLastRun * 1000).toLocaleString(dateLocale, {
+                                ? dateFromDeviceEpoch(status.tpaLastRun).toLocaleString(dateLocale, {
                                     day: '2-digit', month: '2-digit', year: 'numeric',
                                     hour: '2-digit', minute: '2-digit',
                                 })
@@ -390,7 +390,7 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                             </button>
                             <button
                                 className="btn btn-s"
-                                onClick={() => setLastRun(Math.floor(Date.now() / 1000), 'confirm.tpaMarkLastRun')}
+                                onClick={() => setLastRun(deviceEpochNow(), 'confirm.tpaMarkLastRun')}
                             >
                                 {t('tpa.markLastRun')}
                             </button>

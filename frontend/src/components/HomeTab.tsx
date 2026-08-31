@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { type AQStatus } from '../App';
-import { api } from '../api';
+import { api, dateFromDeviceEpoch } from '../api';
 import { useT, tpaStateKey } from '../i18n';
 import { useConfirm } from '../Confirm';
 import { levelPercent } from '../LevelBadge';
@@ -235,7 +235,7 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                 </div>
 
                 {status?.tpaInterval ? (() => {
-                    const lastRunDate = status.tpaLastRun ? new Date(status.tpaLastRun * 1000) : null;
+                    const lastRunDate = status.tpaLastRun ? dateFromDeviceEpoch(status.tpaLastRun) : null;
                     const now = new Date();
                     const formatDate = (d: Date) => d.toLocaleDateString(dateLocale, { day: '2-digit', month: '2-digit', year: 'numeric' });
 

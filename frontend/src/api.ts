@@ -44,3 +44,27 @@ let netErrorMsg = 'Connection to the controller failed. The command was NOT sent
 export const setNetErrorMsg = (m: string) => {
   netErrorMsg = m;
 };
+
+/**
+ * The controller's clock is local time carried in a field named "epoch".
+ *
+ * TimeManager syncs NTP with the Brasilia offset already applied and writes
+ * that into the RTC, so `unixtime()` — and therefore every timestamp the
+ * firmware stores or reports — runs three hours behind real UTC.
+ *
+ * A browser epoch is real UTC, so sending one straight to /api/schedule stamped
+ * a last run three hours in the *future* for the device. main.cpp reads a future
+ * timestamp as a wrong clock and clears it, so "Foi feita agora" silently became
+ * "nunca" within the minute, and the next water change went back to being due
+ * immediately.
+ *
+ * Both helpers use the browser's own offset, which is right whenever the phone
+ * and the aquarium are in the same timezone — and the dashboard is only reachable
+ * from the tank's network.
+ */
+export const deviceEpochNow = () =>
+  Math.floor(Date.now() / 1000) - new Date().getTimezoneOffset() * 60;
+
+/** The real instant a timestamp from the controller refers to. */
+export const dateFromDeviceEpoch = (epoch: number) =>
+  new Date((epoch + new Date().getTimezoneOffset() * 60) * 1000);
