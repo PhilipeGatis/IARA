@@ -1108,31 +1108,41 @@ void WebManager::_setupRoutes() {
         request->send(200, "application/json", "{\"ok\":true}");
       });
 
-  // ---- POST /api/fert/dose-now ----
+  // ---- POST /api/fert/dose-now (JSON body: {"includeDosed": 0|1}) ----
   // Fires today's schedule ahead of its hour. Not a manual pump run: it is the
   // configured volume for today's day of week, it books stock, and it stamps
   // the day, so the automatic dose does not land on top of it later.
-  _server.on("/api/fert/dose-now", HTTP_POST,
-             [this](AsyncWebServerRequest *request) {
-               if (_rejectForgedRequest(request)) return;
-               if (!_fert) {
-                 request->send(500, "application/json",
-                               "{\"error\":\"no fertiliser manager\"}");
-                 return;
-               }
-               // The dose is stamped against a date. Firing one while the clock
-               // is untrusted would stamp the wrong day, and the real schedule
-               // would then skip or repeat.
-               if (!_time || !_time->isTimeValid()) {
-                 request->send(409, "application/json",
-                               "{\"error\":\"clock not synced yet\"}");
-                 return;
-               }
-               const uint8_t queued = _fert->doseTodayNow(_time->now());
-               request->send(200, "application/json",
-                             "{\"ok\":true,\"queued\":" + String(queued) +
-                                 "}");
-             });
+  //
+  // includeDosed repeats channels that already ran today. It exists because the
+  // common reason to reach for this button is a dose that ran and delivered
+  // nothing, and refusing to repeat it would leave the only fix as editing the
+  // schedule.
+  _server.on(
+      "/api/fert/dose-now", HTTP_POST, [](AsyncWebServerRequest *request) {},
+      NULL,
+      [this](AsyncWebServerRequest *request, uint8_t *data, size_t len,
+             size_t index, size_t total) {
+        String body;
+        if (!_collectBody(request, data, len, index, total, body))
+          return;
+        if (!_fert) {
+          request->send(500, "application/json",
+                        "{\"error\":\"no fertiliser manager\"}");
+          return;
+        }
+        // The dose is stamped against a date. Firing one while the clock is
+        // untrusted would stamp the wrong day, and the real schedule would then
+        // skip or repeat.
+        if (!_time || !_time->isTimeValid()) {
+          request->send(409, "application/json",
+                        "{\"error\":\"clock not synced yet\"}");
+          return;
+        }
+        const bool includeDosed = _extractInt(body, "includeDosed") == 1;
+        const uint8_t queued = _fert->doseTodayNow(_time->now(), includeDosed);
+        request->send(200, "application/json",
+                      "{\"ok\":true,\"queued\":" + String(queued) + "}");
+      });
 
   // ---- GET /api/pump/log ----
   _server.on(

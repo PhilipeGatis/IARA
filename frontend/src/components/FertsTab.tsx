@@ -203,16 +203,25 @@ export { FertCardCompact as FertCard };
 /* ── Main FertsTab ─────────────────────────────────────────────── */
 export default function FertsTab({ status }: { status: AQStatus | null }) {
     const { t } = useT();
-    const { ask, dialog } = useConfirm();
+    const { choose, dialog } = useConfirm();
     const [configChannel, setConfigChannel] = useState<number | null>(null);
     const [doseMsg, setDoseMsg] = useState<string | null>(null);
 
-    // Fires today's schedule ahead of its hour. The firmware decides what is
-    // owing — a channel that already dosed today is not in it — so the answer
-    // worth showing is how many channels it actually took.
+    // Fires today's schedule ahead of its hour. Two ways to mean it: the
+    // channels still owing, or every channel including the ones already stamped
+    // as done today — which is the case worth having, because the reason to
+    // reach for this button is usually a dose that ran and delivered nothing.
+    // The firmware decides what the choice resolves to, so the answer worth
+    // showing is how many channels it actually took.
     const doseNow = async () => {
-        if (!(await ask(t('confirm.fertDoseNow')))) return;
-        const r = await api('POST', '/api/fert/dose-now');
+        const pick = await choose(t('confirm.fertDoseNow'), [
+            { key: 'pending', label: t('fert.doseNowPending'), primary: true },
+            { key: 'all', label: t('fert.doseNowAll') },
+        ]);
+        if (!pick) return;
+        const r = await api('POST', '/api/fert/dose-now', {
+            includeDosed: pick === 'all' ? 1 : 0,
+        });
         if (!r) return; // api() already reported the network failure
         setDoseMsg(
             r.queued > 0

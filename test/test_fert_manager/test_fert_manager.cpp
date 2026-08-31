@@ -330,6 +330,40 @@ void test_dose_now_does_not_double_a_dose_already_given() {
   TEST_ASSERT_EQUAL_FLOAT(stockAfterSchedule, fm.getStockML(0));
 }
 
+void test_dose_now_all_repeats_a_channel_already_dosed() {
+  FertManager fm = createFM();
+  Preferences::mock_clearAll();
+  mock_reset_pins();
+
+  // The whole schedule runs at its hour.
+  DateTime dt(2026, 2, 24, 9, 0, 0);
+  for (uint8_t i = 0; i < NUM_FERTS + 1; i++) {
+    fm.update(dt);
+    mock_millis_value += FERT_START_STAGGER_MS;
+  }
+  mock_millis_value += 5000; // every dose runs out
+  fm.tickDose();
+  TEST_ASSERT_FALSE(fm.isDosing());
+  const float stockAfterSchedule = fm.getStockML(0);
+  mock_reset_pins();
+
+  // The doses ran and delivered nothing — an unprimed line, a flow rate that is
+  // wrong. Asked explicitly, the button repeats them despite the day's stamp.
+  DateTime later(2026, 2, 24, 14, 0, 0);
+  TEST_ASSERT_EQUAL(NUM_FERTS + 1, fm.doseTodayNow(later, true));
+  fm.update(later);
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_FERT1]);
+  TEST_ASSERT_EQUAL_FLOAT(stockAfterSchedule - DEFAULT_DOSE_ML,
+                          fm.getStockML(0));
+
+  // And it is spent afterwards: the repeat does not repeat itself.
+  mock_millis_value += 10000;
+  fm.tickDose();
+  mock_reset_pins();
+  fm.update(later);
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_FERT1]);
+}
+
 void test_dose_now_does_not_survive_into_the_next_day() {
   FertManager fm = createFM();
   Preferences::mock_clearAll();
@@ -610,6 +644,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_schedule_staggers_the_pump_starts);
   RUN_TEST(test_dose_now_fires_todays_schedule_off_hour);
   RUN_TEST(test_dose_now_does_not_double_a_dose_already_given);
+  RUN_TEST(test_dose_now_all_repeats_a_channel_already_dosed);
   RUN_TEST(test_dose_now_does_not_survive_into_the_next_day);
   RUN_TEST(test_abort_stops_every_running_channel);
   RUN_TEST(test_manual_pump_stops_at_its_ceiling);

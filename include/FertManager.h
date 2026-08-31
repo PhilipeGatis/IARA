@@ -28,17 +28,21 @@ public:
 
   /// Runs today's scheduled doses now, without waiting for their hour.
   ///
-  /// Only what the schedule would have delivered anyway: the volume configured
-  /// for today's day of week, on enabled channels that have not dosed today and
-  /// have the stock for it. A channel already dosed today is left alone —
-  /// pressing a button must not be able to double a dose.
+  /// What the schedule would have delivered anyway: the volume configured for
+  /// today's day of week, on enabled channels that have the stock for it.
+  ///
+  /// @param includeDosed also re-dose channels that already ran today. Off by
+  ///        default, because a repeated button press must not be able to double
+  ///        a dose by accident — it is only ever true when the person asking
+  ///        said so explicitly, which is a legitimate thing to want after a
+  ///        dose that visibly delivered nothing.
   ///
   /// The doses do not start here. They are handed to update(), which owns the
   /// stagger between pump starts and the one path that books stock and stamps
   /// the day, so a hand-fired dose behaves exactly like a scheduled one.
   ///
   /// @return how many channels are going to dose
-  uint8_t doseTodayNow(DateTime now);
+  uint8_t doseTodayNow(DateTime now, bool includeDosed = false);
 
   /// Manually dose a specific channel
   /// @param ch Channel index 0-3 (fertilizers) or 4 (prime)
@@ -188,9 +192,6 @@ private:
   /// Mark today as dosed for a channel in NVS
   void _markDosed(uint8_t ch, DateTime now);
 
-  /// Is there a channel still owing today's dose?
-  bool _dosePendingToday(uint32_t todayKey, uint8_t dayOfWeek) const;
-
   /// Check if a channel index is valid (0-NUM_FERTS inclusive) (DRY #7)
   bool _isValidChannel(uint8_t ch) const { return ch <= NUM_FERTS; }
 
@@ -198,6 +199,14 @@ private:
   // a request that survives midnight — the board was mid-water-change, say —
   // dies with the day it belonged to instead of firing into the next one.
   uint32_t _forceDoseKey = 0;
+
+  // Which channels that request covers, one bit each. A set of channels rather
+  // than a flag because "dose everything again" has to reach channels whose
+  // day is already stamped, and that stamp is the only thing standing between
+  // a schedule and a double dose — so it is bypassed per channel, once, for
+  // the channels someone deliberately named, and the bit is cleared the moment
+  // the dose starts.
+  uint8_t _forceMask = 0;
 
   // When the last pump was switched on, for the stagger. Separate flag because
   // millis() is legitimately near zero right after boot.

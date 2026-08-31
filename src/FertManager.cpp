@@ -34,8 +34,7 @@ void FertManager::update(DateTime now) {
   uint8_t currentHour = now.hour();
   uint8_t currentMinute = now.minute();
 
-  // Today's schedule was released by hand. Every other rule still applies —
-  // the button skips the clock, nothing else.
+  // Today's schedule was released by hand.
   const bool forced = (_forceDoseKey != 0 && _forceDoseKey == todayKey);
 
   for (uint8_t i = 0; i < NUM_FERTS + 1; i++) {
@@ -44,24 +43,31 @@ void FertManager::update(DateTime now) {
     // untouched by it.
     if (_doseActive[i]) continue;
 
+    const bool byHand = forced && (_forceMask & (1 << i));
+
     // Check if it's the right time for today's day-of-week (minute precision)
-    if (!forced && (currentHour != _schedHour[i][currentDow] ||
+    if (!byHand && (currentHour != _schedHour[i][currentDow] ||
                     currentMinute != _schedMinute[i][currentDow]))
       continue;
 
-    // Check if it was already dosed today
-    if (_lastDoseKey[i] == todayKey) continue;
+    // Check if it was already dosed today. Skipped for a channel named by hand:
+    // doseTodayNow() has already decided whether a repeat was asked for.
+    if (!byHand && _lastDoseKey[i] == todayKey) continue;
 
     float ds = _doseML[i][currentDow];
     if (ds <= 0) {
       // Volume is 0 for today, just mark as checked to prevent loop repeats if
       // someone sets it via UI during the minute
       _markDosed(i, now);
+      _forceMask &= ~(1 << i);
       continue;
     }
     if (_stockML[i] < ds) {
       Serial.printf("[Fert] Skipping CH%d: Insufficient stock (%.1f < %.1f)\n",
                     i + 1, _stockML[i], ds);
+      // Dropped from the request rather than retried every pass: the bottle is
+      // not going to refill itself between two loop iterations.
+      _forceMask &= ~(1 << i);
       continue;
     }
 
@@ -74,7 +80,7 @@ void FertManager::update(DateTime now) {
       break;
 
     Serial.printf("[Fert] %s dose CH%d: %.1f ml\n",
-                  forced ? "Hand-fired" : "Scheduled auto-dose", i + 1, ds);
+                  byHand ? "Hand-fired" : "Scheduled auto-dose", i + 1, ds);
     if (startDose(i, ds, PumpReason::FERT_SCHEDULED)) {
       // Booked at the start, not on completion. If the dose is cut short
       // the stock figure is pessimistic, which is the safe direction —
@@ -85,47 +91,43 @@ void FertManager::update(DateTime now) {
       if (_stockML[i] < 0)
         _stockML[i] = 0;
       _markDosed(i, now);
+      _forceMask &= ~(1 << i);
       saveState();
     }
   }
 
-  // The request is spent once nothing is left owing today. Clearing it matters:
-  // held past midnight it would fire tomorrow's schedule at 00:00.
-  if (forced && !_dosePendingToday(todayKey, currentDow))
+  // The request is spent once every channel it named has been dealt with.
+  // Clearing it matters: held past midnight it would fire tomorrow's schedule
+  // at 00:00.
+  if (forced && _forceMask == 0)
     _forceDoseKey = 0;
 }
 
-bool FertManager::_dosePendingToday(uint32_t todayKey,
-                                    uint8_t dayOfWeek) const {
-  for (uint8_t ch = 0; ch < NUM_FERTS + 1; ch++) {
-    if (!_enabled[ch]) continue;
-    if (_lastDoseKey[ch] == todayKey) continue;
-    const float ds = _doseML[ch][dayOfWeek];
-    if (ds > 0 && _stockML[ch] >= ds)
-      return true;
-  }
-  return false;
-}
-
-uint8_t FertManager::doseTodayNow(DateTime now) {
+uint8_t FertManager::doseTodayNow(DateTime now, bool includeDosed) {
   const uint32_t todayKey = _dateKey(now);
   const uint8_t dow = now.dayOfTheWeek();
 
+  uint8_t mask = 0;
   uint8_t queued = 0;
   for (uint8_t ch = 0; ch < NUM_FERTS + 1; ch++) {
     if (!_enabled[ch]) continue;
-    if (_lastDoseKey[ch] == todayKey) continue;
+    if (!includeDosed && _lastDoseKey[ch] == todayKey) continue;
     const float ds = _doseML[ch][dow];
-    if (ds > 0 && _stockML[ch] >= ds)
+    if (ds > 0 && _stockML[ch] >= ds) {
+      mask |= (1 << ch);
       queued++;
+    }
   }
 
   if (queued > 0) {
     _forceDoseKey = todayKey;
-    Serial.printf("[Fert] Dose-now: %u channel(s) released ahead of schedule\n",
+    _forceMask = mask;
+    Serial.printf("[Fert] Dose-now (%s): %u channel(s) released ahead of "
+                  "schedule\n",
+                  includeDosed ? "every channel" : "not yet dosed",
                   (unsigned)queued);
   } else {
-    Serial.println("[Fert] Dose-now: nothing left owing today");
+    Serial.println("[Fert] Dose-now: nothing to dose today");
   }
   return queued;
 }
