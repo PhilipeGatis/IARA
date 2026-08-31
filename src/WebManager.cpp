@@ -1108,6 +1108,32 @@ void WebManager::_setupRoutes() {
         request->send(200, "application/json", "{\"ok\":true}");
       });
 
+  // ---- POST /api/fert/dose-now ----
+  // Fires today's schedule ahead of its hour. Not a manual pump run: it is the
+  // configured volume for today's day of week, it books stock, and it stamps
+  // the day, so the automatic dose does not land on top of it later.
+  _server.on("/api/fert/dose-now", HTTP_POST,
+             [this](AsyncWebServerRequest *request) {
+               if (_rejectForgedRequest(request)) return;
+               if (!_fert) {
+                 request->send(500, "application/json",
+                               "{\"error\":\"no fertiliser manager\"}");
+                 return;
+               }
+               // The dose is stamped against a date. Firing one while the clock
+               // is untrusted would stamp the wrong day, and the real schedule
+               // would then skip or repeat.
+               if (!_time || !_time->isTimeValid()) {
+                 request->send(409, "application/json",
+                               "{\"error\":\"clock not synced yet\"}");
+                 return;
+               }
+               const uint8_t queued = _fert->doseTodayNow(_time->now());
+               request->send(200, "application/json",
+                             "{\"ok\":true,\"queued\":" + String(queued) +
+                                 "}");
+             });
+
   // ---- GET /api/pump/log ----
   _server.on(
       "/api/pump/log", HTTP_GET, [](AsyncWebServerRequest *request) {

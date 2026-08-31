@@ -26,6 +26,20 @@ public:
   /// @param now Current DateTime from TimeManager
   void update(DateTime now);
 
+  /// Runs today's scheduled doses now, without waiting for their hour.
+  ///
+  /// Only what the schedule would have delivered anyway: the volume configured
+  /// for today's day of week, on enabled channels that have not dosed today and
+  /// have the stock for it. A channel already dosed today is left alone —
+  /// pressing a button must not be able to double a dose.
+  ///
+  /// The doses do not start here. They are handed to update(), which owns the
+  /// stagger between pump starts and the one path that books stock and stamps
+  /// the day, so a hand-fired dose behaves exactly like a scheduled one.
+  ///
+  /// @return how many channels are going to dose
+  uint8_t doseTodayNow(DateTime now);
+
   /// Manually dose a specific channel
   /// @param ch Channel index 0-3 (fertilizers) or 4 (prime)
   /// @param ml Volume in mL
@@ -174,8 +188,21 @@ private:
   /// Mark today as dosed for a channel in NVS
   void _markDosed(uint8_t ch, DateTime now);
 
+  /// Is there a channel still owing today's dose?
+  bool _dosePendingToday(uint32_t todayKey, uint8_t dayOfWeek) const;
+
   /// Check if a channel index is valid (0-NUM_FERTS inclusive) (DRY #7)
   bool _isValidChannel(uint8_t ch) const { return ch <= NUM_FERTS; }
+
+  // Today's schedule, released early by doseTodayNow(). Holds the date key so
+  // a request that survives midnight — the board was mid-water-change, say —
+  // dies with the day it belonged to instead of firing into the next one.
+  uint32_t _forceDoseKey = 0;
+
+  // When the last pump was switched on, for the stagger. Separate flag because
+  // millis() is legitimately near zero right after boot.
+  unsigned long _lastPumpStartMs = 0;
+  bool _pumpStarted = false;
 
   // A manual run has no scheduled end, so it gets a hard ceiling instead.
   bool _manualActive[NUM_FERTS + 1] = {};

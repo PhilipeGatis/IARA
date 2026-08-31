@@ -121,6 +121,10 @@ const translations = {
     'tpa.canisterOff': { pt: 'Desligar Canister', en: 'Turn Canister Off', ja: 'キャニスターOFF' },
 
     // ---- FertsTab ----
+    'fert.doseNow': { pt: 'Dosar agora', en: 'Dose now', ja: '今すぐ投与' },
+    'fert.doseNowHint': { pt: 'Aplica as doses de hoje sem esperar o horário. Canais que já dosaram hoje ficam de fora.', en: "Applies today's doses without waiting for their hour. Channels that already dosed today are left out.", ja: '本日分の投与を時刻を待たずに実行します。すでに投与済みのチャンネルは対象外です。' },
+    'fert.doseNowQueued': { pt: '{n} canal(is) dosando agora.', en: '{n} channel(s) dosing now.', ja: '{n}チャンネルが投与中です。' },
+    'fert.doseNowNone': { pt: 'Nada pendente hoje — todos os canais já dosaram, estão sem volume para hoje ou sem estoque.', en: 'Nothing owing today — every channel has already dosed, has no volume for today, or has no stock.', ja: '本日分は残っていません。すべて投与済みか、本日の設定量がないか、在庫切れです。' },
     'fert.loading': { pt: 'Carregando fertilizantes...', en: 'Loading fertilizers...', ja: '肥料を読み込み中...' },
     'fert.selectChannel': { pt: 'Selecionar Canal', en: 'Select Channel', ja: 'チャンネル選択' },
     'fert.channel': { pt: 'CANAL', en: 'CHANNEL', ja: 'チャンネル' },
@@ -155,6 +159,7 @@ const translations = {
     'confirm.tpaStart': { pt: 'Iniciar a TPA agora? O filtro canister será desligado, {pct}% da água será drenada e as bombas vão operar por vários minutos.', en: 'Start the water change now? The canister filter will switch off, {pct}% of the water will be drained and the pumps will run for several minutes.', ja: '今すぐ換水を開始しますか？キャニスターフィルターが停止し、水の{pct}%が排水され、ポンプが数分間動作します。' },
     'confirm.tpaAbort': { pt: 'Abortar a TPA em andamento? Todas as bombas param imediatamente e o ciclo não será concluído.', en: 'Abort the running water change? All pumps stop immediately and the cycle will not complete.', ja: '実行中の換水を中止しますか？全ポンプが即座に停止し、サイクルは完了しません。' },
     'confirm.pumpDrain': { pt: 'Ligar a bomba de DRENAGEM manualmente? Ela vai retirar água do aquário até você parar ou atingir a meta.', en: 'Run the DRAIN pump manually? It will remove water from the aquarium until you stop it or the goal is reached.', ja: '排水ポンプを手動で運転しますか？停止するか目標に達するまで水槽から水を抜きます。' },
+    'confirm.fertDoseNow': { pt: 'Aplicar agora as doses de hoje? O agendamento do dia fica marcado como feito e não repete no horário.', en: "Apply today's doses now? The day is stamped as done, so the schedule will not repeat them at their hour.", ja: '本日分を今すぐ投与しますか？当日分は実施済みとして記録され、予定時刻には繰り返されません。' },
     'confirm.tpaResetLastRun': { pt: 'Zerar a data da última TPA? A próxima vai acontecer no próximo horário agendado.', en: 'Clear the last water change date? The next one will run at the next scheduled time.', ja: '最後の水換え日をクリアしますか？次回は次の予定時刻に実行されます。' },
     'confirm.tpaMarkLastRun': { pt: 'Registrar uma TPA feita agora? A próxima só acontece depois do intervalo completo.', en: 'Record a water change as done now? The next one waits a full interval.', ja: '今、水換えを実施したと記録しますか？次回は間隔が完全に経過してからです。' },
     'confirm.pumpRefill': { pt: 'Ligar a bomba de RECALQUE manualmente? Ela vai enviar água do reservatório para o aquário até você parar ou atingir a meta.', en: 'Run the REFILL pump manually? It will pump water from the reservoir into the aquarium until you stop it or the goal is reached.', ja: '給水ポンプを手動で運転しますか？停止するか目標に達するまでリザーバーから水槽へ送水します。' },

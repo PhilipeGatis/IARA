@@ -34,6 +34,10 @@ void FertManager::update(DateTime now) {
   uint8_t currentHour = now.hour();
   uint8_t currentMinute = now.minute();
 
+  // Today's schedule was released by hand. Every other rule still applies —
+  // the button skips the clock, nothing else.
+  const bool forced = (_forceDoseKey != 0 && _forceDoseKey == todayKey);
+
   for (uint8_t i = 0; i < NUM_FERTS + 1; i++) {
     if (!_enabled[i]) continue;
     // A dose in progress owns its own channel until it ends. The others are
@@ -41,39 +45,89 @@ void FertManager::update(DateTime now) {
     if (_doseActive[i]) continue;
 
     // Check if it's the right time for today's day-of-week (minute precision)
-    if (currentHour == _schedHour[i][currentDow] &&
-        currentMinute == _schedMinute[i][currentDow]) {
-      // Check if it was already dosed today
-      if (_lastDoseKey[i] != todayKey) {
-        float ds = _doseML[i][currentDow];
-        if (ds > 0 && _stockML[i] >= ds) {
-          Serial.printf("[Fert] Scheduled auto-dose CH%d: %.1f ml\n", i + 1,
-                        ds);
-          if (startDose(i, ds, PumpReason::FERT_SCHEDULED)) {
-            // Booked at the start, not on completion. If the dose is cut short
-            // the stock figure is pessimistic, which is the safe direction —
-            // whereas booking it at the end leaves a window in which the same
-            // channel could be scheduled again, and a double dose is the one
-            // failure here that kills livestock.
-            _stockML[i] -= ds;
-            if (_stockML[i] < 0)
-              _stockML[i] = 0;
-            _markDosed(i, now);
-            saveState();
-          }
-        } else if (ds > 0) {
-          Serial.printf(
-              "[Fert] Skipping CH%d: Insufficient stock (%.1f < %.1f)\n", i + 1,
-              _stockML[i], ds);
-        } else if (ds <= 0) {
-          _markDosed(
-              i,
-              now); // Volume is 0 for today, just mark as checked to prevent
-                    // loop repeats if someone sets it via UI during the minute
-        }
-      }
+    if (!forced && (currentHour != _schedHour[i][currentDow] ||
+                    currentMinute != _schedMinute[i][currentDow]))
+      continue;
+
+    // Check if it was already dosed today
+    if (_lastDoseKey[i] == todayKey) continue;
+
+    float ds = _doseML[i][currentDow];
+    if (ds <= 0) {
+      // Volume is 0 for today, just mark as checked to prevent loop repeats if
+      // someone sets it via UI during the minute
+      _markDosed(i, now);
+      continue;
+    }
+    if (_stockML[i] < ds) {
+      Serial.printf("[Fert] Skipping CH%d: Insufficient stock (%.1f < %.1f)\n",
+                    i + 1, _stockML[i], ds);
+      continue;
+    }
+
+    // One pump leaves stall per window. The rest of the due channels are picked
+    // up by the next passes, a fifth of a second apart; see
+    // FERT_START_STAGGER_MS. Breaking rather than continuing keeps the order
+    // stable, so CH1 always starts before CH2.
+    if (_pumpStarted &&
+        (long)(millis() - _lastPumpStartMs) < (long)FERT_START_STAGGER_MS)
+      break;
+
+    Serial.printf("[Fert] %s dose CH%d: %.1f ml\n",
+                  forced ? "Hand-fired" : "Scheduled auto-dose", i + 1, ds);
+    if (startDose(i, ds, PumpReason::FERT_SCHEDULED)) {
+      // Booked at the start, not on completion. If the dose is cut short
+      // the stock figure is pessimistic, which is the safe direction —
+      // whereas booking it at the end leaves a window in which the same
+      // channel could be scheduled again, and a double dose is the one
+      // failure here that kills livestock.
+      _stockML[i] -= ds;
+      if (_stockML[i] < 0)
+        _stockML[i] = 0;
+      _markDosed(i, now);
+      saveState();
     }
   }
+
+  // The request is spent once nothing is left owing today. Clearing it matters:
+  // held past midnight it would fire tomorrow's schedule at 00:00.
+  if (forced && !_dosePendingToday(todayKey, currentDow))
+    _forceDoseKey = 0;
+}
+
+bool FertManager::_dosePendingToday(uint32_t todayKey,
+                                    uint8_t dayOfWeek) const {
+  for (uint8_t ch = 0; ch < NUM_FERTS + 1; ch++) {
+    if (!_enabled[ch]) continue;
+    if (_lastDoseKey[ch] == todayKey) continue;
+    const float ds = _doseML[ch][dayOfWeek];
+    if (ds > 0 && _stockML[ch] >= ds)
+      return true;
+  }
+  return false;
+}
+
+uint8_t FertManager::doseTodayNow(DateTime now) {
+  const uint32_t todayKey = _dateKey(now);
+  const uint8_t dow = now.dayOfTheWeek();
+
+  uint8_t queued = 0;
+  for (uint8_t ch = 0; ch < NUM_FERTS + 1; ch++) {
+    if (!_enabled[ch]) continue;
+    if (_lastDoseKey[ch] == todayKey) continue;
+    const float ds = _doseML[ch][dow];
+    if (ds > 0 && _stockML[ch] >= ds)
+      queued++;
+  }
+
+  if (queued > 0) {
+    _forceDoseKey = todayKey;
+    Serial.printf("[Fert] Dose-now: %u channel(s) released ahead of schedule\n",
+                  (unsigned)queued);
+  } else {
+    Serial.println("[Fert] Dose-now: nothing left owing today");
+  }
+  return queued;
 }
 
 bool FertManager::startDose(uint8_t ch, float ml, PumpReason reason) {
@@ -113,6 +167,8 @@ bool FertManager::startDose(uint8_t ch, float ml, PumpReason reason) {
   _doseActive[ch] = true;
   _doseReason[ch] = reason;
   _doseEndMs[ch] = millis() + durationMs;
+  _lastPumpStartMs = millis();
+  _pumpStarted = true;
   return true;
 }
 
@@ -177,6 +233,12 @@ void FertManager::manualPump(uint8_t ch, bool state) {
   // leave the pump running indefinitely. tickDose() enforces the ceiling.
   _manualActive[ch] = state;
   _manualEndMs[ch] = millis() + MANUAL_FERT_MAX_MS;
+  if (state) {
+    // Counts for the stagger too: a manual run and a scheduled dose starting
+    // together is the same coincident inrush.
+    _lastPumpStartMs = millis();
+    _pumpStarted = true;
+  }
   ledcWrite(ch, state ? _pwm[ch] : 0);
   pumpLogEvent(_pinForChannel(ch), state, PumpReason::FERT_MANUAL);
   Serial.printf("[Fert] Manual pump CH%d set to %s (PWM: %d)\n", ch + 1,

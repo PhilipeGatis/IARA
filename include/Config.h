@@ -114,6 +114,16 @@ constexpr unsigned long TIMEOUT_EMERGENCY_MS = 3UL * 60 * 1000;     // 3 min
 // ~6x the calm-water noise floor and clears in well under the timeout.
 constexpr float EMERGENCY_CLEAR_MARGIN_CM = 2.0f;
 
+// Gap between two dosing pumps leaving stall.
+//
+// The channels dose in parallel, and each pump draws 0.6 A running — but a DC
+// motor starting from rest pulls several times that for a few tens of
+// milliseconds. Five of them at the same instant is a spike on the 12 V rail
+// that one pump alone already made visible enough to need a 470 uF cap, and the
+// sag lands on the ultrasonic reading. Starting them a fifth of a second apart
+// costs under a second in total and removes the coincidence entirely.
+constexpr unsigned long FERT_START_STAGGER_MS = 200;
+
 // Ceiling on a manual fertiliser pump run started from the API. Without it, a
 // closed tab, a dropped connection or a crashed browser between the ON and OFF
 // requests leaves the pump running until someone notices.

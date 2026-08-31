@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { type AQStatus } from '../App';
 import { api } from '../api';
 import { useT } from '../i18n';
+import { useConfirm } from '../Confirm';
 import FertConfigModal from './FertConfigModal';
 
 /**
@@ -202,7 +203,23 @@ export { FertCardCompact as FertCard };
 /* ── Main FertsTab ─────────────────────────────────────────────── */
 export default function FertsTab({ status }: { status: AQStatus | null }) {
     const { t } = useT();
+    const { ask, dialog } = useConfirm();
     const [configChannel, setConfigChannel] = useState<number | null>(null);
+    const [doseMsg, setDoseMsg] = useState<string | null>(null);
+
+    // Fires today's schedule ahead of its hour. The firmware decides what is
+    // owing — a channel that already dosed today is not in it — so the answer
+    // worth showing is how many channels it actually took.
+    const doseNow = async () => {
+        if (!(await ask(t('confirm.fertDoseNow')))) return;
+        const r = await api('POST', '/api/fert/dose-now');
+        if (!r) return; // api() already reported the network failure
+        setDoseMsg(
+            r.queued > 0
+                ? t('fert.doseNowQueued', { n: r.queued })
+                : t('fert.doseNowNone'),
+        );
+    };
 
     if (!status?.stocks) return <div className="card text-center text-sm text-muted">{t('fert.loading')}</div>;
 
@@ -213,7 +230,20 @@ export default function FertsTab({ status }: { status: AQStatus | null }) {
 
     return (
         <>
+            {dialog}
             <div className="flex flex-col gap-3">
+                <section className="card">
+                    <button onClick={doseNow} className="btn btn-p w-full">
+                        {t('fert.doseNow')}
+                    </button>
+                    <span className="hint mt-2 block">{t('fert.doseNowHint')}</span>
+                    {doseMsg && (
+                        <p className="mt-2 rounded-lg bg-accent2/10 px-3 py-2 text-xs text-accent2">
+                            {doseMsg}
+                        </p>
+                    )}
+                </section>
+
                 {channels.map(({ s, i }) => (
                     <FertCardCompact
                         key={i}

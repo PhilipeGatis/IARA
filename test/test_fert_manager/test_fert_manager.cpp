@@ -256,21 +256,95 @@ void test_channels_dose_in_parallel() {
   TEST_ASSERT_FALSE(fm.isDosing());
 }
 
-void test_schedule_starts_every_due_channel_in_one_pass() {
+void test_schedule_staggers_the_pump_starts() {
   FertManager fm = createFM();
   Preferences::mock_clearAll();
   mock_reset_pins();
 
-  // Three channels on the same minute. They used to run one after another,
-  // and any that did not get its turn before the minute elapsed was skipped
-  // for the day in silence.
+  // Every channel is due on the same minute. They run together, but they must
+  // not leave stall together: five motors starting at the same instant is a
+  // spike on the 12 V rail, not a scheduling requirement.
   DateTime dt(2026, 2, 24, 9, 0, 0);
   fm.update(dt);
-
   TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_FERT1]);
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_FERT2]);
+
+  // Still inside the window: nothing else starts, however often loop() calls.
+  mock_millis_value += FERT_START_STAGGER_MS - 1;
+  fm.update(dt);
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_FERT2]);
+
+  mock_millis_value += 2;
+  fm.update(dt);
   TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_FERT2]);
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_FERT3]);
+  // The first one is still running while the second starts — staggered, not
+  // serialised.
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_FERT1]);
+
+  mock_millis_value += FERT_START_STAGGER_MS;
+  fm.update(dt);
   TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_FERT3]);
+
+  mock_millis_value += FERT_START_STAGGER_MS;
+  fm.update(dt);
   TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_FERT4]);
+}
+
+void test_dose_now_fires_todays_schedule_off_hour() {
+  FertManager fm = createFM(); // scheduled for 09:00
+  Preferences::mock_clearAll();
+  mock_reset_pins();
+
+  DateTime dt(2026, 2, 24, 14, 30, 0); // nowhere near the scheduled hour
+
+  // Nothing happens on its own at 14:30.
+  fm.update(dt);
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_FERT1]);
+
+  // 4 ferts + Prime, all enabled with a volume for today.
+  TEST_ASSERT_EQUAL(NUM_FERTS + 1, fm.doseTodayNow(dt));
+
+  fm.update(dt);
+  TEST_ASSERT_EQUAL(HIGH, mock_pin_state[PIN_FERT1]);
+  TEST_ASSERT_TRUE(fm.wasDosedToday(dt));
+}
+
+void test_dose_now_does_not_double_a_dose_already_given() {
+  FertManager fm = createFM();
+  Preferences::mock_clearAll();
+  mock_reset_pins();
+
+  DateTime dt(2026, 2, 24, 9, 0, 0);
+  // Let the whole schedule run, one stagger window at a time.
+  for (uint8_t i = 0; i < NUM_FERTS + 1; i++) {
+    fm.update(dt);
+    mock_millis_value += FERT_START_STAGGER_MS;
+  }
+  const float stockAfterSchedule = fm.getStockML(0);
+
+  // The button is pressed afterwards. Nothing is owing, so nothing runs.
+  DateTime later(2026, 2, 24, 14, 0, 0);
+  TEST_ASSERT_EQUAL(0, fm.doseTodayNow(later));
+  fm.update(later);
+  TEST_ASSERT_EQUAL_FLOAT(stockAfterSchedule, fm.getStockML(0));
+}
+
+void test_dose_now_does_not_survive_into_the_next_day() {
+  FertManager fm = createFM();
+  Preferences::mock_clearAll();
+  mock_reset_pins();
+
+  DateTime today(2026, 2, 24, 14, 0, 0);
+  TEST_ASSERT_TRUE(fm.doseTodayNow(today) > 0);
+
+  // The board was busy — a water change holds fertiliser dosing off — and the
+  // request never got a pass before midnight. It must not fire tomorrow's
+  // schedule at 00:00.
+  DateTime tomorrow(2026, 2, 25, 0, 0, 0);
+  fm.update(tomorrow);
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_FERT1]);
+  TEST_ASSERT_FALSE(fm.wasDosedToday(tomorrow));
 }
 
 void test_abort_stops_every_running_channel() {
@@ -533,7 +607,10 @@ int main(int argc, char **argv) {
   RUN_TEST(test_dose_does_not_block_the_loop);
   RUN_TEST(test_second_dose_on_same_channel_refused);
   RUN_TEST(test_channels_dose_in_parallel);
-  RUN_TEST(test_schedule_starts_every_due_channel_in_one_pass);
+  RUN_TEST(test_schedule_staggers_the_pump_starts);
+  RUN_TEST(test_dose_now_fires_todays_schedule_off_hour);
+  RUN_TEST(test_dose_now_does_not_double_a_dose_already_given);
+  RUN_TEST(test_dose_now_does_not_survive_into_the_next_day);
   RUN_TEST(test_abort_stops_every_running_channel);
   RUN_TEST(test_manual_pump_stops_at_its_ceiling);
   RUN_TEST(test_dose_channel_rejects_invalid);
