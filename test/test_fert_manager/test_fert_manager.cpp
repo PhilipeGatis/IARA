@@ -294,6 +294,63 @@ void test_legacy_settings_migrate_on_every_channel() {
 }
 
 // ----------------------------------------------------------------------------
+// Bottle Capacity
+// ----------------------------------------------------------------------------
+
+void test_bottle_size_defaults_and_persists() {
+  {
+    FertManager fm = createFM();
+    TEST_ASSERT_EQUAL_FLOAT(DEFAULT_STOCK_ML, fm.getCapacityML(1));
+    fm.setCapacityML(1, 450.0f);
+    TEST_ASSERT_EQUAL_FLOAT(450.0f, fm.getCapacityML(1));
+  }
+
+  FertManager reloaded;
+  reloaded.begin();
+  TEST_ASSERT_EQUAL_FLOAT(450.0f, reloaded.getCapacityML(1));
+  TEST_ASSERT_EQUAL_FLOAT(DEFAULT_STOCK_ML, reloaded.getCapacityML(2));
+}
+
+void test_bottle_size_refuses_zero() {
+  FertManager fm = createFM();
+  fm.setCapacityML(1, 450.0f);
+  fm.setCapacityML(1, 0.0f);
+  // A zero would divide the stock bar by nothing, so the last real size stands.
+  TEST_ASSERT_EQUAL_FLOAT(450.0f, fm.getCapacityML(1));
+}
+
+void test_settings_survive_a_blob_missing_the_bottle_size() {
+  // What a device flashed before the field existed has in NVS: the same blob,
+  // shorter by the appended value. Read strictly it would count as no blob at
+  // all, and the channel would fall through to a migration whose keys are gone.
+  {
+    FertManager fm = createFM();
+    fm.setStockML(1, 123.0f);
+    fm.setFlowRate(1, 2.5f);
+    fm.setPWM(1, 180);
+    fm.setDoseML(1, 3, 4.5f);
+    fm.saveState();
+  }
+
+  Preferences nvs;
+  nvs.begin("fert", false);
+  char blob[256];
+  const size_t len = nvs.getBytes("ch1", blob, sizeof(blob));
+  TEST_ASSERT_TRUE(len > sizeof(float));
+  nvs.putBytes("ch1", blob, len - sizeof(float));
+
+  FertManager fm;
+  fm.begin();
+
+  TEST_ASSERT_EQUAL_FLOAT(123.0f, fm.getStockML(1));
+  TEST_ASSERT_EQUAL_FLOAT(2.5f, fm.getFlowRate(1));
+  TEST_ASSERT_EQUAL_UINT8(180, fm.getPWM(1));
+  TEST_ASSERT_EQUAL_FLOAT(4.5f, fm.getDoseML(1, 3));
+  // Nothing stored means the volume the firmware used to assume.
+  TEST_ASSERT_EQUAL_FLOAT(DEFAULT_STOCK_ML, fm.getCapacityML(1));
+}
+
+// ----------------------------------------------------------------------------
 // Per-Channel Reset
 // ----------------------------------------------------------------------------
 
@@ -420,6 +477,11 @@ int main(int argc, char **argv) {
   RUN_TEST(test_legacy_settings_migrate_on_every_channel);
 
   // Per-channel reset
+  // Bottle capacity
+  RUN_TEST(test_bottle_size_defaults_and_persists);
+  RUN_TEST(test_bottle_size_refuses_zero);
+  RUN_TEST(test_settings_survive_a_blob_missing_the_bottle_size);
+
   RUN_TEST(test_reset_channel_restores_defaults);
   RUN_TEST(test_reset_channel_leaves_others_alone);
   RUN_TEST(test_reset_channel_persists_across_reboot);

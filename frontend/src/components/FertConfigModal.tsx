@@ -36,6 +36,7 @@ export default function FertConfigModal({ index, s, time, onClose }: Props) {
     // Calibration States
     const [calibMl, setCalibMl] = useState('');
     const [pwm, setPwm] = useState(s.pwm !== undefined ? s.pwm : 255);
+    const [cap, setCap] = useState(s.cap ? String(s.cap) : '');
     const [enabled, setEnabled] = useState(s.en !== undefined ? s.en : true);
     const [resetDone, setResetDone] = useState(false);
 
@@ -63,7 +64,8 @@ export default function FertConfigModal({ index, s, time, onClose }: Props) {
     useEffect(() => {
         if (s.pwm !== undefined) setPwm(s.pwm);
         if (s.en !== undefined) setEnabled(s.en);
-    }, [s.pwm, s.en]);
+        if (s.cap) setCap(String(s.cap));
+    }, [s.pwm, s.en, s.cap]);
 
     const handleSave = () => {
         api('POST', '/api/fert/schedule', {
@@ -71,6 +73,9 @@ export default function FertConfigModal({ index, s, time, onClose }: Props) {
             doses: doses.map(Number),
             hours: hours.map(Number),
             minutes: mins.map(Number),
+            // Zero is refused by the firmware, so an emptied box leaves the
+            // stored size alone instead of wiping it.
+            capacityML: parseFloat(cap) || 0,
         });
     };
 
@@ -233,6 +238,16 @@ export default function FertConfigModal({ index, s, time, onClose }: Props) {
                                     </div>
                                 );
                             })}
+                        </div>
+
+                        <div className="field mt-3">
+                            <label className="lbl">{t('fert.bottleSize')}</label>
+                            <input
+                                type="number" min="1" max="5000" step="10" placeholder="450"
+                                className="inp remove-arrow"
+                                value={cap} onChange={e => setCap(e.target.value)}
+                            />
+                            <span className="hint">{t('fert.bottleSizeHint')}</span>
                         </div>
 
                         <button onClick={handleSave} className="btn btn-p w-full">

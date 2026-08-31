@@ -82,6 +82,13 @@ public:
   void setStockML(uint8_t ch, float ml);
   void resetStock(uint8_t ch, float ml);
 
+  // ---- Bottle capacity (mL, NVS) ----
+  /// How much the channel's bottle holds when full. Only the stock bar and the
+  /// run-out estimate read it — dosing never does — but a wrong value makes a
+  /// 450 mL bottle report 90 % the moment it is opened.
+  float getCapacityML(uint8_t ch) const;
+  void setCapacityML(uint8_t ch, float ml);
+
   // Enable/Disable Schedule
   bool isEnabled(uint8_t ch) const;
   void setEnabled(uint8_t ch, bool enabled);
@@ -122,6 +129,9 @@ private:
 
   // Remaining stock per channel
   float _stockML[NUM_FERTS + 1];
+
+  // Full-bottle volume per channel
+  float _capacityML[NUM_FERTS + 1];
 
   // Custom names per channel
   String _names[NUM_FERTS + 1];

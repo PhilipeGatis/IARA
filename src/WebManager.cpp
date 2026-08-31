@@ -293,7 +293,8 @@ String WebManager::_buildStatusJSON() {
     for (uint8_t i = 0; i < NUM_FERTS + 1; i++) {
       if (i > 0)
         json += ",";
-      json += "{\"stock\":" + String(_fert->getStockML(i), 0) + ",\"name\":\"" +
+      json += "{\"stock\":" + String(_fert->getStockML(i), 0) +
+              ",\"cap\":" + String(_fert->getCapacityML(i), 0) + ",\"name\":\"" +
               _fert->getName(i) + "\"" + ",\"doses\":[" +
               String(_fert->getDoseML(i, 0), 1) + "," +
               String(_fert->getDoseML(i, 1), 1) + "," +
@@ -884,6 +885,14 @@ void WebManager::_setupRoutes() {
         float lt = _extractFloat(body, "lowStockThreshold");
         if (lt >= 0 && ch >= 0 && ch <= 4 && _fert) {
           _fert->setLowStockThreshold(ch, lt);
+        }
+
+        // Bottle size (optional). Channels hold whatever the bottle on the
+        // shelf holds — 450 mL here — and the stock bar reads as a percentage
+        // of it, so a default of 500 shows a full bottle as nine tenths.
+        float capML = _extractFloat(body, "capacityML");
+        if (capML > 0 && ch >= 0 && ch <= 4 && _fert) {
+          _fert->setCapacityML(ch, capML);
         }
 
         request->send(200, "application/json", "{\"ok\":true}");

@@ -59,6 +59,8 @@ export type AQStatus = {
   stocks: {
     name: string;
     stock: number;
+    /** Full-bottle volume in mL. Absent on firmware older than the setting. */
+    cap?: number;
     doses: number[];
     sH: number[];
     sM: number[];

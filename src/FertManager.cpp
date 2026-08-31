@@ -1,4 +1,5 @@
 #include "FertManager.h"
+#include <stddef.h> // offsetof — see _loadState()
 
 FertManager::FertManager() {
   for (uint8_t i = 0; i < NUM_FERTS + 1; i++) {
@@ -229,6 +230,20 @@ void FertManager::resetStock(uint8_t ch, float ml) {
   }
 }
 
+float FertManager::getCapacityML(uint8_t ch) const {
+  return _isValidChannel(ch) ? _capacityML[ch] : DEFAULT_STOCK_ML;
+}
+
+void FertManager::setCapacityML(uint8_t ch, float ml) {
+  // Zero would make the stock bar divide by nothing and the run-out estimate
+  // meaningless, so an empty bottle size is refused rather than stored.
+  if (_isValidChannel(ch) && ml > 0) {
+    _capacityML[ch] = ml;
+    saveState();
+    Serial.printf("[Fert] CH%d bottle size set to %.0f mL\n", ch + 1, ml);
+  }
+}
+
 void FertManager::setLowStockThreshold(uint8_t ch, float ml) {
   if (_isValidChannel(ch) && ml >= 0) {
     _lowStockThreshold[ch] = ml;
@@ -287,6 +302,11 @@ struct FertChannelData {
   uint32_t lastDoseKey;
   uint8_t pwm;
   bool enabled;
+  // Appended fields go at the end and nowhere else: _loadState() accepts a
+  // blob shorter than the struct so a device flashed before the field existed
+  // keeps its settings, and that only works while the old bytes still mean
+  // what they used to.
+  float capacityML;
 };
 
 void FertManager::resetChannel(uint8_t ch) {
@@ -329,6 +349,7 @@ void FertManager::saveState() {
       data.schedMinute[d] = _schedMinute[i][d];
     }
     data.stockML = _stockML[i];
+    data.capacityML = _capacityML[i];
     data.flowRateMLps = _flowRateMLps[i];
     data.lowStockThreshold = _lowStockThreshold[i];
     data.lastDoseKey = _lastDoseKey[i];
@@ -363,6 +384,7 @@ void FertManager::_applyDefaults(uint8_t ch) {
     _schedMinute[ch][d] = DEFAULT_FERT_MINUTE;
   }
   _stockML[ch] = DEFAULT_STOCK_ML;
+  _capacityML[ch] = DEFAULT_STOCK_ML;
   _names[ch] = (ch < NUM_FERTS) ? String("CH") + String(ch + 1) : "Prime";
   _lastDoseKey[ch] = 0;
   _flowRateMLps[ch] = FLOW_RATE_ML_PER_SEC; // Default 1.5 mL/s
@@ -400,14 +422,24 @@ void FertManager::_loadState() {
     _names[i] = _prefs.getString(key, defaultName);
 
     snprintf(key, sizeof(key), "ch%d", i);
-    FertChannelData data;
-    if (_prefs.getBytes(key, &data, sizeof(FertChannelData)) == sizeof(FertChannelData)) {
+    // Zeroed first so a blob written before a field was appended leaves that
+    // field reading as absent instead of as stack garbage.
+    FertChannelData data = {};
+    // A short read is a blob from an older firmware, not a corrupt one. It has
+    // to be accepted here: falling through to the pre-blob migration below
+    // would look for keys that migration already deleted, and the channel
+    // would come back with factory settings.
+    const size_t stored = _prefs.getBytes(key, &data, sizeof(FertChannelData));
+    if (stored >= offsetof(FertChannelData, capacityML)) {
       for (uint8_t d = 0; d < 7; d++) {
         _doseML[i][d] = data.doseML[d];
         _schedHour[i][d] = data.schedHour[d];
         _schedMinute[i][d] = data.schedMinute[d];
       }
       _stockML[i] = data.stockML;
+      // Absent in a blob written before the field existed, and in that case the
+      // bottle size is whatever the firmware used to assume.
+      _capacityML[i] = data.capacityML > 0 ? data.capacityML : DEFAULT_STOCK_ML;
       _flowRateMLps[i] = data.flowRateMLps;
       _lowStockThreshold[i] = data.lowStockThreshold;
       _lastDoseKey[i] = data.lastDoseKey;

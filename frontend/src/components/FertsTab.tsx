@@ -4,6 +4,43 @@ import { api } from '../api';
 import { useT } from '../i18n';
 import FertConfigModal from './FertConfigModal';
 
+/**
+ * The day the bottle cannot cover its next dose.
+ *
+ * Walks the weekly schedule forward one day at a time instead of dividing the
+ * stock by a weekly average: a channel that doses 5 mL on Saturdays alone runs
+ * out on a Saturday, and an average would name a Tuesday. Doses already past
+ * their hour today are skipped, because the stock reported already reflects
+ * them.
+ *
+ * Null when nothing is scheduled or the channel is off — there is no date to
+ * give, and printing one from a stale schedule is worse than printing none.
+ */
+export function runOutDate(s: AQStatus['stocks'][0], from = new Date()): Date | null {
+    if (s.en === false) return null;
+    const doses = s.doses ?? [];
+    if (!doses.some(d => d > 0)) return null;
+
+    let stock = s.stock;
+    const day = new Date(from);
+    // Ten years. A channel dosing a tenth of a millilitre a week outlives any
+    // answer worth printing, and the loop has to end somewhere.
+    for (let i = 0; i < 3660; i++) {
+        const dow = day.getDay();
+        const dose = doses[dow] ?? 0;
+        if (dose > 0) {
+            const due = new Date(day);
+            due.setHours(s.sH?.[dow] ?? 0, s.sM?.[dow] ?? 0, 0, 0);
+            if (due >= from) {
+                if (stock < dose) return due;
+                stock -= dose;
+            }
+        }
+        day.setDate(day.getDate() + 1);
+    }
+    return null;
+}
+
 /* ── Compact summary card ──────────────────────────────────────── */
 function FertCardCompact({
     index,
@@ -14,7 +51,8 @@ function FertCardCompact({
     s: AQStatus['stocks'][0];
     onConfig: () => void;
 }) {
-    const { t } = useT();
+    const { t, lang } = useT();
+    const dateLocale = lang === 'ja' ? 'ja-JP' : lang === 'en' ? 'en-US' : 'pt-BR';
     const [name, setName] = useState(s.name || '');
     const [showRefill, setShowRefill] = useState(false);
     const [resetVol, setResetVol] = useState('');
@@ -24,7 +62,13 @@ function FertCardCompact({
         if (!name && s.name) setName(s.name);
     }, [s.name]);
 
-    const pct = Math.min(100, (s.stock / 500) * 100);
+    // Older firmware does not report a bottle size; 500 is what it assumed.
+    const cap = s.cap && s.cap > 0 ? s.cap : 500;
+    const pct = Math.min(100, (s.stock / cap) * 100);
+    const runOut = runOutDate(s);
+    const daysLeft = runOut
+        ? Math.max(0, Math.round((runOut.getTime() - Date.now()) / 86400000))
+        : null;
     const activeDays = s.doses
         ? s.doses.map((dose, i) => ({ dose, i })).filter(d => d.dose > 0)
         : [];
@@ -53,7 +97,7 @@ function FertCardCompact({
                 />
                 <span className="flex-none items-baseline whitespace-nowrap">
                     <span className="text-xl font-bold tabular-nums text-text">{s.stock.toFixed(0)}</span>
-                    <span className="ml-0.5 text-[11px] font-medium text-muted">mL</span>
+                    <span className="ml-0.5 text-[11px] font-medium text-muted">/{cap.toFixed(0)} mL</span>
                 </span>
             </div>
 
@@ -65,6 +109,14 @@ function FertCardCompact({
                         style={{ width: `${pct}%` }}
                     />
                 </div>
+                {runOut && (
+                    <p className="mt-1.5 text-[11px] text-muted">
+                        {t('fert.runOut', {
+                            d: runOut.toLocaleDateString(dateLocale, { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                            n: String(daysLeft),
+                        })}
+                    </p>
+                )}
             </div>
 
             {/* Schedule mini-table */}
@@ -123,7 +175,12 @@ function FertCardCompact({
             {/* Footer buttons */}
             <div className="flex border-t border-border/50">
                 <button
-                    onClick={() => setShowRefill(!showRefill)}
+                    onClick={() => {
+                        // A refill is almost always a whole bottle, so offer that
+                        // number rather than an empty box.
+                        if (!showRefill) setResetVol(String(cap));
+                        setShowRefill(!showRefill);
+                    }}
                     className="flex min-h-[48px] flex-1 items-center justify-center gap-1.5 border-r border-border/50 text-[11px] font-bold uppercase tracking-wider text-accent2 transition active:bg-white/10"
                 >
                     <span>📦</span> {t('fert.refill')}
