@@ -75,6 +75,28 @@ unsigned long lastWiFiRetryTime = 0;
 const unsigned long WIFI_RETRY_INTERVAL_MS = 30000; // 30 seconds
 bool wifiWasConnected = false; // Track WiFi state transitions for mDNS restoration
 
+// Credentials are kept around after setup() so the recovery ladder can rebuild
+// the station interface, which needs them again after a full radio restart.
+String wifiSSID;
+String wifiPass;
+
+// How long the station has been down, and how many retries that took. Zero
+// while connected.
+unsigned long wifiDownSinceMs = 0;
+uint16_t wifiRetryCount = 0;
+bool apFallbackActive = false;
+
+// Last disconnect reason code from the WiFi event handler, exposed on
+// /api/status so the cause survives until someone looks.
+volatile int lastWifiDisconnectReason = -1;
+
+// Offline for this long and the AP comes up, so the dashboard stays reachable
+// even while the station keeps failing.
+const unsigned long WIFI_AP_FALLBACK_MS = 120000UL; // 2 minutes
+// Offline for this long and the board reboots, which is the only step that
+// reliably clears a wedged radio or an exhausted socket pool.
+const unsigned long WIFI_REBOOT_MS = 900000UL; // 15 minutes
+
 // ---- Boot diagnostics (exposed via /api/status) ----
 const char *bootResetReason = "UNKNOWN";
 unsigned long bootTimeMs = 0; // millis() at end of setup
@@ -155,9 +177,11 @@ void setup() {
   displayMgr.showBootStatus("WiFi scan");
   Preferences wifiPref;
   wifiPref.begin("wifi", true); // true = readonly
-  String savedSSID = wifiPref.getString("ssid", String(WIFI_SSID));
-  String savedPass = wifiPref.getString("pass", String(WIFI_PASSWORD));
+  wifiSSID = wifiPref.getString("ssid", String(WIFI_SSID));
+  wifiPass = wifiPref.getString("pass", String(WIFI_PASSWORD));
   wifiPref.end();
+  String &savedSSID = wifiSSID;
+  String &savedPass = wifiPass;
 
   Serial.printf("[WiFi] SSID: '%s'\n", savedSSID.c_str());
   Serial.printf("[WiFi] PASS: len=%d\n", savedPass.length());
@@ -166,6 +190,7 @@ void setup() {
   // Add Event Listener to catch specific disconnect reasons
   WiFi.onEvent([](arduino_event_id_t event, arduino_event_info_t info) {
     if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+      lastWifiDisconnectReason = info.wifi_sta_disconnected.reason;
       Serial.printf("\n[WiFi Event] Disconnected! Reason Code: %d\n",
                     info.wifi_sta_disconnected.reason);
     }
@@ -289,6 +314,7 @@ void setup() {
     Serial.println("[WiFi] Starting AP mode fallback");
     WiFi.mode(WIFI_AP_STA); // AP + keep trying STA in background
     WiFi.softAP(AP_SSID, AP_PASSWORD);
+    apFallbackActive = true;
     Serial.printf("[WiFi] AP started: SSID='%s' PASS='%s'\n", AP_SSID,
                   AP_PASSWORD);
     Serial.print("[WiFi] AP IP: ");
@@ -391,32 +417,90 @@ void loop() {
   webMgr.processSerialCommands();
   webMgr.update(); // handle SSE and HTTP clients
 
-  // ---- 4. WIFI RETRY LOGIC (Every 30 seconds) ----
+  // ---- 4. WIFI RECOVERY LADDER (checked every 30 seconds) ----
+  //
+  // A station that drops *after* boot used to be unrecoverable without a power
+  // cycle: the AP fallback only ran inside setup(), and the loop did nothing
+  // but call reconnect() forever. The controller kept dosing and kept the
+  // filter running, but nothing on the network could see it. Each step below
+  // escalates, and the board reboots rather than staying invisible.
   bool wifiConnected = (WiFi.status() == WL_CONNECTED);
 
   if (!wifiConnected) {
     wifiWasConnected = false;
+    if (wifiDownSinceMs == 0) {
+      wifiDownSinceMs = millis();
+      Serial.println("\n[WiFi] Station down — recovery ladder started.");
+    }
+    unsigned long downMs = millis() - wifiDownSinceMs;
+
     if (millis() - lastWiFiRetryTime >= WIFI_RETRY_INTERVAL_MS) {
-      Serial.println("\n[WiFi] Connection lost/failed. Retrying connection...");
-
-      // If AP is active, we don't want to kill it, just ask STA to reconnect
-      WiFi.reconnect();
-
       lastWiFiRetryTime = millis();
-    }
-  } else if (!wifiWasConnected) {
-    // WiFi just reconnected — restore mDNS so http://iara.local works again
-    wifiWasConnected = true;
-    Serial.println("[WiFi] Reconnected! IP: " + WiFi.localIP().toString());
+      wifiRetryCount++;
+      Serial.printf("[WiFi] Down %lus, attempt %u, last reason %d, heap %u\n",
+                    downMs / 1000, wifiRetryCount, lastWifiDisconnectReason,
+                    ESP.getFreeHeap());
 
-    // mDNS does not survive WiFi disconnection; must be restarted
-    MDNS.end();
-    if (MDNS.begin("iara")) {
-      MDNS.addService("http", "tcp", 80);
-      Serial.println("[mDNS] Restored: http://iara.local");
-    } else {
-      Serial.println("[mDNS] ERROR: Failed to restart mDNS!");
+      if (wifiRetryCount % 3 != 0) {
+        // Cheap step: ask the existing association to come back.
+        WiFi.reconnect();
+      } else {
+        // reconnect() reuses the stored association, so it never succeeds once
+        // the router has moved channel or aged the session out. Every third
+        // attempt rebuilds the station from scratch, keeping the AP if it is up.
+        Serial.println("[WiFi] Restarting station interface...");
+        WiFi.disconnect(true, true);
+        delay(200);
+        WiFi.mode(apFallbackActive ? WIFI_AP_STA : WIFI_STA);
+        WiFi.begin(wifiSSID.c_str(), wifiPass.c_str());
+      }
     }
+
+    // Two minutes offline: bring the AP up so the dashboard is reachable
+    // directly even while the station keeps failing.
+    if (downMs >= WIFI_AP_FALLBACK_MS && !apFallbackActive) {
+      apFallbackActive = true;
+      WiFi.mode(WIFI_AP_STA);
+      WiFi.softAP(AP_SSID, AP_PASSWORD);
+      Serial.printf("[WiFi] AP fallback up: SSID='%s' IP=%s\n", AP_SSID,
+                    WiFi.softAPIP().toString().c_str());
+      MDNS.end();
+      if (MDNS.begin("iara")) {
+        MDNS.addService("http", "tcp", 80);
+      }
+    }
+
+    // Last resort. A reboot clears a wedged radio and an exhausted socket
+    // pool alike, but it must not cut a running pump: an interrupted drain or
+    // refill is water on the floor, and the schedule can wait for the next slot.
+    if (downMs >= WIFI_REBOOT_MS && !waterMgr.isRunning() &&
+        !fertMgr.isDosing() && !safety.isMaintenanceMode() &&
+        !safety.isEmergency()) {
+      Serial.printf("[WiFi] Offline for %lus with nothing running — rebooting "
+                    "to recover.\n",
+                    downMs / 1000);
+      Serial.flush();
+      ESP.restart();
+    }
+  } else {
+    if (!wifiWasConnected) {
+      // WiFi just reconnected — restore mDNS so http://iara.local works again
+      wifiWasConnected = true;
+      Serial.printf("[WiFi] Reconnected after %lus: %s\n",
+                    wifiDownSinceMs ? (millis() - wifiDownSinceMs) / 1000 : 0,
+                    WiFi.localIP().toString().c_str());
+
+      // mDNS does not survive WiFi disconnection; must be restarted
+      MDNS.end();
+      if (MDNS.begin("iara")) {
+        MDNS.addService("http", "tcp", 80);
+        Serial.println("[mDNS] Restored: http://iara.local");
+      } else {
+        Serial.println("[mDNS] ERROR: Failed to restart mDNS!");
+      }
+    }
+    wifiDownSinceMs = 0;
+    wifiRetryCount = 0;
   }
 
   // ---- 5. SCHEDULING (only if not in maintenance and not running TPA) ----

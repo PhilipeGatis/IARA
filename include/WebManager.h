@@ -147,6 +147,11 @@ private:
   bool _rebootPending = false;
   unsigned long _rebootMs = 0;
 
+  // Consecutive 30 s diagnostics that saw the heap under the floor. A heap that
+  // never recovers means the server has already stopped answering, or is about
+  // to, and only a reboot brings it back.
+  uint8_t _lowHeapStreak = 0;
+
   // Calibration state
   int8_t _calibratingFertChannel = -1;
   uint32_t _calibrationStartMs = 0;

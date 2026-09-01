@@ -163,9 +163,27 @@ void WebManager::update() {
     uint32_t freeHeap = ESP.getFreeHeap();
     size_t clients = _events.count();
 
-    if (freeHeap < 20000) {
-      Serial.printf("[HEAP] WARNING: Free heap low: %u bytes, SSE clients: %d\n",
-                    freeHeap, clients);
+    Serial.printf("[HEAP] free=%u min=%u maxBlock=%u sse=%u%s\n", freeHeap,
+                  ESP.getMinFreeHeap(), ESP.getMaxAllocHeap(),
+                  (unsigned)clients, freeHeap < 20000 ? "  <-- LOW" : "");
+
+    // Heap that stays on the floor for five straight minutes does not come
+    // back: the SSE sends are already being skipped and new connections fail,
+    // so the board looks dead from the network while it keeps dosing happily.
+    // Reboot, but never across a running pump — an interrupted drain or refill
+    // puts water on the floor, and the schedule survives a restart.
+    if (freeHeap < 12000) {
+      _lowHeapStreak++;
+      if (_lowHeapStreak >= 10 && !_rebootPending &&
+          (!_water || !_water->isRunning()) &&
+          (!_fert || !_fert->isDosing()) &&
+          (!_safety || (!_safety->isMaintenanceMode() && !_safety->isEmergency()))) {
+        Serial.println("[HEAP] Exhausted for 5 min with nothing running — rebooting.");
+        Serial.flush();
+        ESP.restart();
+      }
+    } else {
+      _lowHeapStreak = 0;
     }
   }
 
@@ -203,6 +221,19 @@ String WebManager::_buildStatusJSON() {
   extern const char *bootResetReason;
   json += "\"resetReason\":\"" + String(bootResetReason) + "\",";
   json += "\"uptimeMs\":" + String(millis()) + ",";
+
+  // Network health. Without these the only symptom of a dropped station or a
+  // leaking socket pool is the dashboard going silent, which says nothing
+  // about why.
+  extern volatile int lastWifiDisconnectReason;
+  extern unsigned long wifiDownSinceMs;
+  json += "\"wifiDisconnectReason\":" + String(lastWifiDisconnectReason) + ",";
+  json += "\"wifiDownMs\":" +
+          String(wifiDownSinceMs ? (millis() - wifiDownSinceMs) : 0) + ",";
+  json += "\"freeHeap\":" + String(ESP.getFreeHeap()) + ",";
+#ifdef USE_WEBSERVER
+  json += "\"sseClients\":" + String(_events.count()) + ",";
+#endif
   json += "\"firmwareVersion\":\"" + String(FIRMWARE_VERSION) + "\",";
   if (_time) {
     json += "\"time\":\"" + _time->getFormattedTime() + "\",";
