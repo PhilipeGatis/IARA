@@ -44,12 +44,12 @@ export default function LevelBadge({ status }: { status: AQStatus | null }) {
 /**
  * The level sensor's own health, next to the other header states.
  *
- * StateIcon is wrong for this one: it dims what is off, and a sensor that is
- * off is the case that needs attention, not the case to fade out. So this
- * swaps glyph and lights up when the sensor goes quiet, and sits dimmed when
- * it is fine — the inverse of every other icon up there, because the alarming
- * state is the inverse too. Two glyphs rather than two colours: emoji do not
- * take a text colour, and the header has to read at a glance.
+ * StateIcon is wrong for this one. It dims what is off, and neither of this
+ * icon's states wants dimming: a working sensor dimmed reads as a broken one,
+ * and a broken sensor dimmed is the case that most needs to be seen. So both
+ * states stay lit and the glyph carries the meaning — a dish when the sensor
+ * is answering, a warning when it has gone quiet, pulsing so it catches the
+ * eye. Two glyphs rather than two colours: emoji do not take a text colour.
  */
 export function SensorIcon({ ok, okLabel, downLabel }: { ok?: boolean; okLabel: string; downLabel: string }) {
     const down = ok === false;
@@ -57,7 +57,7 @@ export function SensorIcon({ ok, okLabel, downLabel }: { ok?: boolean; okLabel: 
         <span
             title={down ? downLabel : okLabel}
             aria-label={down ? downLabel : okLabel}
-            className={`text-base leading-none transition-opacity ${down ? 'animate-pulse opacity-100' : 'opacity-25 grayscale'}`}
+            className={`text-base leading-none transition-opacity ${down ? 'animate-pulse' : ''}`}
         >
             {down ? '⚠️' : '📡'}
         </span>
