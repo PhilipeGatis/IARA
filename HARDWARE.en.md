@@ -240,7 +240,7 @@ Assembly: **NO** (normally open) reed with a magnet held nearby by an EVA float,
 >
 > The same check covers what the reed is not: a dead pump, a kinked hose, an empty reservoir, and — the case that motivated it — a **frozen ultrasonic reading**. A sensor that goes quiet already raises an error through `areSensorsConnected()`; one that keeps answering with a stale number is indistinguishable from a tank that stopped filling, and until now the pump ran to the timeout against it.
 >
-> **GPIO4**, previously the XKC-Y25 capacitive sensor (never installed, dropped from the project), is free. Wiring a second reed to it would give the firmware that visibility back, but requires a code change.
+> **GPIO4**, previously the XKC-Y25 capacitive sensor (never installed, dropped from the project), now carries the display's SDA line. The free pin today is **GPIO23**, which SDA vacated. Wiring a second reed to it would give the firmware that visibility back, but requires a code change.
 
 #### Holding the magnet and the reed: the printed seesaw
 
@@ -279,7 +279,7 @@ Printing: four parts in PETG or ASA — PLA absorbs moisture and warps near wate
 | **CS** | D15 | GPIO15 | Chip Select |
 | **RESET** | EN pin | — | Hardware reset shared with ESP32 |
 | **A0 (DC)** | TX2 | GPIO17 | Data/Command |
-| **SDA (MOSI)** | D23 | GPIO23 | SPI Data |
+| **SDA (MOSI)** | D4 | GPIO4 | SPI Data |
 | **SCK** | RX2 | GPIO16 | SPI Clock |
 | **LED** | 3.3V | — | Fixed backlight (no free GPIO available) |
 
@@ -289,7 +289,7 @@ ESP32 GND   ────►  GND
 ESP32 D15   ────►  CS
 ESP32 EN    ────►  RESET
 ESP32 TX2   ────►  A0 (DC)
-ESP32 D23   ────►  SDA (MOSI)
+ESP32 D4    ────►  SDA (MOSI)
 ESP32 RX2   ────►  SCK
 ESP32 3.3V  ────►  LED (fixed backlight)
 ```

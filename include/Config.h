@@ -27,6 +27,11 @@ constexpr uint8_t PIN_REFILL = 33;   // CH7 - Refill pump (recalque)
 constexpr uint8_t PIN_SOLENOID = 32; // CH8 - Solenoid valve
 
 // Filtration
+// GPIO2 is a strapping pin the ROM samples at boot, with the on-board LED
+// hanging off it on most dev boards, so the SSR's gate gets driven for a
+// moment before the firmware runs. Kept anyway: the relay is one wire into the
+// gap the display's block leaves open, and the pre-boot GPIO forcing in
+// main.cpp already holds it at the level that keeps the filter off.
 constexpr uint8_t PIN_CANISTER = 2; // Relay SSR for canister filter
 
 // --- Sensors ---
@@ -39,14 +44,25 @@ constexpr uint8_t PIN_US_RX = 34; // Ultrasonic A02 UART RX (from TX on sensor)
 // never installed and has been dropped: max-level protection is now a physical
 // reed switch wired in series with the refill pump's +12 V line, which cuts the
 // pump independently of the firmware. Being on the power side rather than on
-// the gate signal, it also covers the MOSFET failing shorted. GPIO4 is free.
+// the gate signal, it also covers the MOSFET failing shorted. GPIO4 now carries
+// the display's SDA line.
 constexpr uint8_t PIN_FLOAT =
     19; // Horizontal float switch reservoir (Moved from 5 to 19 for stability)
 // --- TFT Display (ST7735, SPI) ---
 // Board pins: VCC, GND, CS, RESET, A0, SDA, SCK, LED
+//
+// Every line the module needs now sits in one unbroken run at the bottom of the
+// right-hand header — 3V3, GND, D15, D4, D16, D17 — so the display leaves the
+// board as a single ribbon instead of four wires crossing it. GPIO4 was free
+// (the XKC-Y25 that owned it was never installed) and GPIO2, the one gap in
+// that run, keeps the canister relay — one wire into the middle of the block.
+// GPIO23, which SDA vacated, is now the free pin.
+//
+// Software SPI (see the Adafruit_ST7735 constructor in DisplayManager), so
+// these are ordinary GPIOs with no VSPI/HSPI constraint.
 constexpr uint8_t PIN_TFT_CS = 15;   // CS   — Chip Select
 constexpr uint8_t PIN_TFT_DC = 17;   // A0   — Data/Command
-constexpr uint8_t PIN_TFT_MOSI = 23; // SDA  — SPI Data
+constexpr uint8_t PIN_TFT_MOSI = 4;  // SDA  — SPI Data
 constexpr uint8_t PIN_TFT_SCK = 16;  // SCK  — SPI Clock
 constexpr int8_t PIN_TFT_RST = -1;   // RESET — Tied to ESP32 EN
 

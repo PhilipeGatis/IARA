@@ -240,7 +240,7 @@ Montagem: reed **NA** (normalmente aberto) com um ímã mantido próximo por uma
 >
 > A mesma verificação cobre o que o reed não é: bomba morta, mangueira dobrada, reservatório vazio e — o caso que motivou a checagem — **leitura congelada do ultrassônico**. Sensor que emudece já dispara erro por `areSensorsConnected()`; sensor que continua respondendo com um número velho é indistinguível de um tanque que parou de encher, e antes disso a bomba rodava até o timeout contra um número parado.
 >
-> O **GPIO4**, que era do sensor capacitivo XKC-Y25 (nunca instalado, removido do projeto), está livre. Ligar um segundo reed nele devolveria essa visibilidade ao firmware, mas exige mudança de código.
+> O **GPIO4**, que era do sensor capacitivo XKC-Y25 (nunca instalado, removido do projeto), passou a ser o SDA do display. O pino livre hoje é o **GPIO23**, de onde o SDA saiu — ligar um segundo reed nele devolveria essa visibilidade ao firmware, mas exige mudança de código.
 
 #### Como segurar o ímã e o reed: a gangorra impressa
 
@@ -279,7 +279,7 @@ Display colorido 1.8" 128×160 pixels. Opera em **3.3V** — incompatível com 5
 | **CS** | D15 | GPIO15 | Chip Select |
 | **RESET** | Pino EN | — | Reset hardware compartilhado com o ESP32 |
 | **A0 (DC)** | TX2 | GPIO17 | Data/Command |
-| **SDA (MOSI)** | D23 | GPIO23 | Dados SPI |
+| **SDA (MOSI)** | D4 | GPIO4 | Dados SPI |
 | **SCK** | RX2 | GPIO16 | Clock SPI |
 | **LED** | 3.3V | — | Backlight fixo (sem GPIO livre disponível) |
 
@@ -289,7 +289,7 @@ ESP32 GND   ────►  GND
 ESP32 D15   ────►  CS
 ESP32 EN    ────►  RESET
 ESP32 TX2   ────►  A0 (DC)
-ESP32 D23   ────►  SDA (MOSI)
+ESP32 D4    ────►  SDA (MOSI)
 ESP32 RX2   ────►  SCK
 ESP32 3.3V  ────►  LED (backlight fixo)
 ```
