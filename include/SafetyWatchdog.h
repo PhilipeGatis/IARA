@@ -145,6 +145,12 @@ private:
   uint8_t _medianIndex = 0;
   uint8_t _medianCount = 0;
 
+#ifndef UNIT_TEST
+  /// Serialises readUltrasonic(). Several web handlers ask for a level, and
+  /// those run on the AsyncTCP task, not the loop — see readUltrasonic().
+  SemaphoreHandle_t _sensorMutex = nullptr;
+#endif
+
   /// Check if water level is dangerously high
   void _checkOverflow();
 

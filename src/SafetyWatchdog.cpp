@@ -10,6 +10,10 @@ SafetyWatchdog::SafetyWatchdog()
       _emergencyDrainStart(0), _medianIndex(0), _medianCount(0) {}
 
 void SafetyWatchdog::begin() {
+#ifndef UNIT_TEST
+  _sensorMutex = xSemaphoreCreateMutex();
+#endif
+
   // Ultrasonic A02YYUW UART. Nothing here ever writes to Serial2 — the sensor
   // streams frames on its own — but PIN_US_TX stays assigned so the control
   // lead wired to it is held at the idle-high level continuous mode needs.
@@ -36,6 +40,20 @@ void SafetyWatchdog::begin() {
 // ============================================================================
 
 float SafetyWatchdog::readUltrasonic() {
+#ifndef UNIT_TEST
+  // Half a dozen web handlers ask for a level, and every one of them runs on
+  // the AsyncTCP task rather than the loop. Two tasks draining the same UART
+  // interleave their reads mid-frame and rewrite the median buffer under each
+  // other: the frames one steals are frames the other never sees, and the
+  // level that comes out belongs to neither. Whoever loses the race gets the
+  // last filtered reading rather than waiting, because the async server task
+  // must never sit still — a blocked callback stops the whole web server.
+  if (_sensorMutex &&
+      xSemaphoreTake(_sensorMutex, pdMS_TO_TICKS(50)) != pdTRUE) {
+    return _lastDistance;
+  }
+#endif
+
   bool newData = false;
   static unsigned long lastValidMs = millis();
 
@@ -146,6 +164,10 @@ float SafetyWatchdog::readUltrasonic() {
       Serial.println("[Safety] Ultrasonic A02 disconnected (timeout) — safety checks disabled.");
     }
   }
+
+#ifndef UNIT_TEST
+  if (_sensorMutex) xSemaphoreGive(_sensorMutex);
+#endif
 
   return _lastDistance;
 }
