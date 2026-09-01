@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 660 520" width="660" height="520" role="img" aria-label="給水ポンプの+12 Vに直列に入ったノーマルオープンのリードスイッチと、1 kΩ抵抗と100 nFコンデンサを介してモジュールGNDへ落ちるGPIO33からIN7への信号。">
+<style>
+  svg {
+    --bg: #ffffff;
+    --ink: #16201a;
+    --muted: #5b6a61;
+    --edge: #c8d2c8;
+    --node: #1d3a2c;
+    --node-ink: #dceae1;
+    --live: #b4362c;
+    --neutral: #22598f;
+    --earth: #2c7a51;
+    --sig: #6a4b9c;
+    --warm: #a96a09;
+    --gnd: #55665c;
+  }
+  @media (prefers-color-scheme: dark) {
+    svg {
+      --bg: #11160f;
+      --ink: #e6ece6;
+      --muted: #9aa89f;
+      --edge: #333f37;
+      --node: #1f4130;
+      --node-ink: #d8e6dd;
+      --live: #e8776a;
+      --neutral: #6ea8e0;
+      --earth: #6cc493;
+      --sig: #b294e6;
+      --warm: #e5a63f;
+      --gnd: #9aaaa0;
+    }
+  }
+  .n { fill: var(--node); }
+  .nt { fill: var(--node-ink); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; font-weight: 600; }
+  .ns { fill: var(--node-ink); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 11px; opacity: .72; }
+  .c { fill: none; stroke: var(--edge); stroke-width: 1.5; }
+  .ct { fill: var(--ink); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 11.5px; }
+  .l { fill: var(--muted); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 11.5px; }
+  .lb { fill: var(--ink); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 12px; font-weight: 600; }
+  .w { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .dot { stroke: none; }
+</style>
+<rect x="0" y="0" width="660" height="520" fill="var(--bg)"/>
+<rect x="24" y="40" width="120" height="46" rx="6" class="n"/><text x="84.0" y="61.0" text-anchor="middle" class="nt">+12 V</text><text x="84.0" y="76.0" text-anchor="middle" class="ns">電源</text>
+<polyline points="144,63 214,63" class="w" style="stroke: var(--live)"/>
+<rect x="214" y="42" width="150" height="42" rx="4" class="c" style="stroke: var(--live)"/><text x="289.0" y="61.0" text-anchor="middle" class="ct">リードスイッチ NO</text><text x="289.0" y="75.0" text-anchor="middle" class="l">磁石あり = 閉</text>
+<polyline points="364,63 470,63" class="w" style="stroke: var(--live)"/>
+<rect x="470" y="34" width="150" height="92" rx="6" class="n"/><text x="545.0" y="78.0" text-anchor="middle" class="nt">給水ポンプ</text><text x="545.0" y="93.0" text-anchor="middle" class="ns">12 V・400 mA</text>
+<text x="458" y="52" text-anchor="end" class="lb">+</text>
+<text x="458" y="124" text-anchor="end" class="lb">−</text>
+<polyline points="470,110 400,110 400,168" class="w" style="stroke: var(--gnd)"/>
+<rect x="250" y="168" width="200" height="52" rx="6" class="n"/><text x="350.0" y="192.0" text-anchor="middle" class="nt">MOSFETモジュール・OUT−</text><text x="350.0" y="207.0" text-anchor="middle" class="ns">チャンネル7</text>
+<rect x="24" y="262" width="150" height="50" rx="6" class="n"/><text x="99.0" y="285.0" text-anchor="middle" class="nt">ESP32</text><text x="99.0" y="300.0" text-anchor="middle" class="ns">GPIO33</text>
+<polyline points="174,287 330,287" class="w" style="stroke: var(--sig)"/>
+<rect x="330" y="262" width="160" height="50" rx="6" class="n"/><text x="410.0" y="285.0" text-anchor="middle" class="nt">IN7</text><text x="410.0" y="300.0" text-anchor="middle" class="ns">チャンネル7入力</text>
+<circle cx="266" cy="287" r="3.5" class="dot" style="fill: var(--sig)"/>
+<polyline points="266,287 266,330" class="w" style="stroke: var(--sig)"/>
+<rect x="214" y="330" width="104" height="34" rx="4" class="c" style="stroke: var(--warm)"/><text x="266.0" y="351.0" text-anchor="middle" class="ct">1 kΩ</text>
+<polyline points="266,364 266,386" class="w" style="stroke: var(--sig)"/>
+<rect x="214" y="386" width="104" height="34" rx="4" class="c" style="stroke: var(--warm)"/><text x="266.0" y="407.0" text-anchor="middle" class="ct">100 nF</text>
+<polyline points="266,420 266,448" class="w" style="stroke: var(--gnd)"/>
+<text x="276" y="452" text-anchor="start" class="l">モジュールGND</text>
+<text x="24" y="500" text-anchor="start" class="l">インターロックは信号ではなく電源側に入れます。MOSFETはショート状態で故障するため、ゲートを切っても止まりません。</text>
+</svg>

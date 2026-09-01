@@ -31,25 +31,9 @@ A arquitetura da entrada de energia foca em simplicidade e máxima segurança el
 
 ### Esquema de Ligação
 
-```text
-[ TOMADA IEC C14 ]
-      │
-      ├─── [ PINO TERRA (Verde) ] ────────┬─────────► [ Borne G (TERRA) da Fonte ]
-      │                                   │
-      │                                   └─────────► [ Pino TERRA - Tomada Canister ]
-      │         
-      ├─── [ PINO NEUTRO (Azul) ] ────────┬─────────► [ Borne N (NEUTRO) da Fonte ]
-      │                                   │
-      │                                   └─────────► [ Pino NEUTRO - Tomada Canister ]
-      │
-      └─── [ PINO FASE (Marrom) ] ─── [ FUSÍVEL ] ──┐
-                                                    │
-             ┌──────────────────────────────────────┘
-             │                                  
-             ├───────────────────► [ Borne L (FASE) da Fonte ]
-             │
-             └───► [ Parafuso 1 do Relé SSR ] ── INTERRUPTOR ──► [ Parafuso 2 do Relé SSR ] ──► [ Pino FASE - Tomada Canister ]
-```
+<p align="center">
+  <img src="docs/diagrams/pt/ac-entrada.svg" alt="Entrada AC: tomada IEC C14 dividindo terra, neutro e fase; a fase passa por fusível e pelo relé SSR antes da tomada do canister." width="820">
+</p>
 
 ---
 
@@ -69,25 +53,9 @@ Responsável por converter a potência para os níveis lógicos e manter a estab
 
 ### Esquema de Ligação
 
-```text
-[ FONTE 12.53V ]
-   │              │
- (V+)           (V─) ──────────────────────────────┐ (GND ESTRELA)
-   │              │                                │
-[FUSÍVEL T5A]     │                                │
-   │              │                                │
-   ├──────────────┼────────────────┐               │
-   │              │                │               │
-[LM2596 IN+]  [LM2596 IN─]    [MOSFET VIN]   [MOSFET GND]
-   │              │                │               │
-(Saída 5.1V)      │         (1× 470µF 16V)         │
-   │              │                │               │
-(4× 1000µF 10V)   │                │               │
-   │              │                │               │
-[ESP32 VIN]   [ESP32 GND]          │               │
-   │              │         [ 8 CANAIS MOSFET ]    │
-   │              └────────────────┴───────────────┘
-```
+<p align="center">
+  <img src="docs/diagrams/pt/barramento-dc.svg" alt="Barramento DC: fonte de 12,53 V alimentando o LM2596 e o módulo MOSFET, com todos os retornos de potência em estrela no borne V menos." width="820">
+</p>
 
 > [!IMPORTANT]
 > **GND de POTÊNCIA — estrela na fonte**: As referências negativas de **potência** (módulo MOSFET, LM2596, bombas, solenoide) devem retornar diretamente ao borne V− da fonte colmeia, para evitar loops de terra.
@@ -119,14 +87,9 @@ Responsável por mitigar o ruído indutivo (Flyback) e estabilizar a leitura dos
 
 ### Esquema de Ligação — Atuadores
 
-```
-[ CANAL MOSFET ] ──────────── (Fio 1.2m) ──────┬────────── (BOMBA +)
-                                               │
-                                         [ DIODO FLYBACK ]
-                                         (Listra no POS+)
-                                               │
-[ GND BARRAMENTO ] ─────────── (Fio 1.2m) ─────┴────────── (BOMBA ─)
-```
+<p align="center">
+  <img src="docs/diagrams/pt/atuadores.svg" alt="Canal MOSFET e GND do barramento chegando à bomba por fios de 1,2 metro, com o diodo flyback instalado junto ao motor." width="820">
+</p>
 
 > [!CAUTION]
 > **Diodos Flyback**: Devem ser instalados obrigatoriamente **na ponta do fio** (junto ao motor) para evitar que o cabo de 1,2m irradie ruído como uma antena.
@@ -144,19 +107,9 @@ Sensor ultrassônico à prova d'água que envia a distância por **UART**. Não 
 
 > A cor dos dois fios de dados varia entre lotes; só vermelho e preto são consistentes. Para identificar a saída, alimente o sensor e meça: o **TX** repousa em ~3.3V e apresenta atividade; o RX fica inerte.
 
-```
-   ESP32 3.3V ──────┬──────────────────►  VCC  (vermelho)
-                    │
-                [ 10 kΩ ]                        A02YYUW
-                    │                        (à prova d'água)
-   ESP32 GPIO34 ────┴──────────────────►  TX   (saída de dados)
-    (RX2)
-
-   ESP32 3.3V ─────────────────────────►  RX   (controle, não usado)
-
-   ESP32 GND ──────────────────────────►  GND  (preto)
-    (pino da placa, nunca o borne da fonte)
-```
+<p align="center">
+  <img src="docs/diagrams/pt/ultrassonico.svg" alt="Sensor ultrassônico A02YYUW ligado ao ESP32: VCC em 3,3 volts, TX no GPIO34 com pull-up de 10 kilo-ohms, RX fixo em 3,3 volts e GND no pino da placa." width="820">
+</p>
 
 > [!WARNING]
 > **Alimente com 3.3V, nunca com 5V.** O A02YYUW aceita 3.3–5V, mas o nível lógico da saída acompanha o VCC. Em 5V a linha de TX entregaria 5V ao GPIO34 e o danificaria permanentemente. É justamente por operar em 3.3V que a ligação dispensa divisor de tensão.
@@ -203,19 +156,9 @@ Montagem: reed **NA** (normalmente aberto) com um ímã mantido próximo por uma
 | Fio rompido | — | — | cortado | **parada** |
 | MOSFET em curto | afastado | aberto | cortado | **parada** |
 
-```
-  +12V ──────[ REED ]────────── bomba de recalque (+)
-
-  bomba (−) ─────────────────── OUT− do módulo MOSFET (canal 7)
-
-  ESP32 GPIO33 ──────────────── IN7 (módulo MOSFET, canal 7)
-                                 │
-                             [ 1 kΩ ]
-                                 │
-                             [ 100 nF ]
-                                 │
-                           GND do módulo
-```
+<p align="center">
+  <img src="docs/diagrams/pt/reed-nivel-maximo.svg" alt="Reed switch normalmente aberto em série com o mais 12 volts da bomba de recalque, e o sinal do GPIO33 indo ao IN7 com resistor de 1 kilo-ohm e capacitor de 100 nanofarads para o GND do módulo." width="820">
+</p>
 
 > [!CAUTION]
 > **O resistor de 1 kΩ continua valendo, agora por outro motivo.** Com o reed fora do fio de sinal, a linha nunca fica aberta em operação — mas o GPIO33 flutua durante o boot e o reset do ESP32. A entrada do MOSFET funciona por carga acumulada: sem o resistor, o gate flutuante retém carga e pode manter o MOSFET parcialmente conduzindo.
@@ -283,16 +226,9 @@ Display colorido 1.8" 128×160 pixels. Opera em **3.3V** — incompatível com 5
 | **SCK** | RX2 | GPIO16 | Clock SPI |
 | **LED** | 3.3V | — | Backlight fixo (sem GPIO livre disponível) |
 
-```
-ESP32 3.3V  ────►  VCC
-ESP32 GND   ────►  GND
-ESP32 D15   ────►  CS
-ESP32 EN    ────►  RESET
-ESP32 TX2   ────►  A0 (DC)
-ESP32 D4    ────►  SDA (MOSI)
-ESP32 RX2   ────►  SCK
-ESP32 3.3V  ────►  LED (backlight fixo)
-```
+<p align="center">
+  <img src="docs/diagrams/pt/display-tft.svg" alt="Display ST7735 ligado ao ESP32 com seis pinos seguidos na base do header direito e o RESET no pino EN." width="820">
+</p>
 
 > [!WARNING]
 > O pino **RESET** do display deve ir ao pino **EN** do ESP32 (não a um GPIO). Isso garante que o display é resetado junto com o microcontrolador. Com o pino EN em HIGH (nível normal de operação), o display funciona normalmente.
@@ -311,11 +247,9 @@ Boia horizontal que indica reservatório cheio. Fecha o solenoide no estado `FIL
 | **Terminal 1** | GPIO19 | GPIO19 | `INPUT_PULLUP` — ativo em LOW |
 | **Terminal 2** | **Pino GND do ESP32** | — | ⚠️ Nunca no borne da fonte |
 
-```
-ESP32 GPIO19 ─────── [ BOIA ] ─────── ESP32 GND (pino da placa)
-         INPUT_PULLUP, ativo em LOW (cheio = LOW)
-         Os 2 fios saem juntos, no mesmo cabo, o caminho todo
-```
+<p align="center">
+  <img src="docs/diagrams/pt/boia-reservatorio.svg" alt="Boia do reservatório entre o GPIO19 e o pino GND do ESP32." width="820">
+</p>
 
 > [!NOTE]
 > A boia usava GPIO5 originalmente, mas aquele pino é um strapping pin do ESP32 e sofria interferência (~2,5 V em repouso). Foi movida para GPIO19, que antes era do botão de navegação do painel.

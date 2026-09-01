@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 931 482" width="931" height="482" role="img" aria-label="AC input: IEC C14 inlet splitting earth, neutral and live; live passes through the fuse and the SSR relay before the canister socket.">
+<style>
+  svg {
+    --bg: #ffffff;
+    --ink: #16201a;
+    --muted: #5b6a61;
+    --edge: #c8d2c8;
+    --node: #1d3a2c;
+    --node-ink: #dceae1;
+    --live: #b4362c;
+    --neutral: #22598f;
+    --earth: #2c7a51;
+    --sig: #6a4b9c;
+    --warm: #a96a09;
+    --gnd: #55665c;
+  }
+  @media (prefers-color-scheme: dark) {
+    svg {
+      --bg: #11160f;
+      --ink: #e6ece6;
+      --muted: #9aa89f;
+      --edge: #333f37;
+      --node: #1f4130;
+      --node-ink: #d8e6dd;
+      --live: #e8776a;
+      --neutral: #6ea8e0;
+      --earth: #6cc493;
+      --sig: #b294e6;
+      --warm: #e5a63f;
+      --gnd: #9aaaa0;
+    }
+  }
+  .n { fill: var(--node); }
+  .nt { fill: var(--node-ink); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; font-weight: 600; }
+  .ns { fill: var(--node-ink); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 11px; opacity: .72; }
+  .c { fill: none; stroke: var(--edge); stroke-width: 1.5; }
+  .ct { fill: var(--ink); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 11.5px; }
+  .l { fill: var(--muted); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 11.5px; }
+  .lb { fill: var(--ink); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 12px; font-weight: 600; }
+  .w { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .dot { stroke: none; }
+</style>
+<rect x="0" y="0" width="931" height="482" fill="var(--bg)"/>
+<rect x="24" y="300" width="124" height="54" rx="6" class="n"/><text x="86.0" y="325.0" text-anchor="middle" class="nt">IEC C14 INLET</text><text x="86.0" y="340.0" text-anchor="middle" class="ns">AC input</text>
+<polyline points="148,327 200,327" class="w" style="stroke: var(--muted)"/>
+<polyline points="200,70 200,340" class="w" style="stroke: var(--muted)"/>
+<polyline points="200,70 330,70" class="w" style="stroke: var(--earth)"/>
+<circle cx="200" cy="70" r="3.5" class="dot" style="fill: var(--earth)"/>
+<text x="210" y="60" text-anchor="start" class="lb">EARTH (green)</text>
+<polyline points="330,70 330,36 560,36" class="w" style="stroke: var(--earth)"/>
+<polyline points="330,70 330,124 560,124" class="w" style="stroke: var(--earth)"/>
+<circle cx="330" cy="70" r="3.5" class="dot" style="fill: var(--earth)"/>
+<rect x="560" y="12" width="131" height="48" rx="6" class="n"/><text x="625.5" y="34.0" text-anchor="middle" class="nt">PSU terminal G</text><text x="625.5" y="49.0" text-anchor="middle" class="ns">12.53 V supply</text>
+<rect x="560" y="103" width="196" height="42" rx="6" class="n"/><text x="658.0" y="128.0" text-anchor="middle" class="nt">Canister socket · earth</text>
+<polyline points="200,210 330,210" class="w" style="stroke: var(--neutral)"/>
+<circle cx="200" cy="210" r="3.5" class="dot" style="fill: var(--neutral)"/>
+<text x="210" y="200" text-anchor="start" class="lb">NEUTRAL (blue)</text>
+<polyline points="330,210 330,176 560,176" class="w" style="stroke: var(--neutral)"/>
+<polyline points="330,210 330,264 560,264" class="w" style="stroke: var(--neutral)"/>
+<circle cx="330" cy="210" r="3.5" class="dot" style="fill: var(--neutral)"/>
+<rect x="560" y="152" width="131" height="48" rx="6" class="n"/><text x="625.5" y="174.0" text-anchor="middle" class="nt">PSU terminal N</text><text x="625.5" y="189.0" text-anchor="middle" class="ns">12.53 V supply</text>
+<rect x="560" y="243" width="210" height="42" rx="6" class="n"/><text x="665.0" y="268.0" text-anchor="middle" class="nt">Canister socket · neutral</text>
+<polyline points="200,340 330,340" class="w" style="stroke: var(--live)"/>
+<circle cx="200" cy="340" r="3.5" class="dot" style="fill: var(--live)"/>
+<text x="210" y="330" text-anchor="start" class="lb">LIVE (brown)</text>
+<rect x="330" y="322" width="90" height="36" rx="4" class="c" style="stroke: var(--live)"/><text x="375.0" y="344.0" text-anchor="middle" class="ct">FUSE</text>
+<polyline points="420,340 470,340" class="w" style="stroke: var(--live)"/>
+<polyline points="470,306 470,400" class="w" style="stroke: var(--live)"/>
+<circle cx="470" cy="340" r="3.5" class="dot" style="fill: var(--live)"/>
+<polyline points="470,306 560,306" class="w" style="stroke: var(--live)"/>
+<rect x="560" y="282" width="131" height="48" rx="6" class="n"/><text x="625.5" y="304.0" text-anchor="middle" class="nt">PSU terminal L</text><text x="625.5" y="319.0" text-anchor="middle" class="ns">12.53 V supply</text>
+<polyline points="470,400 500,400" class="w" style="stroke: var(--live)"/>
+<rect x="500" y="376" width="179" height="48" rx="4" class="c" style="stroke: var(--live)"/><text x="589.5" y="398.0" text-anchor="middle" class="ct">SSR RELAY</text><text x="589.5" y="412.0" text-anchor="middle" class="l">screw 1 → switch → screw 2</text>
+<polyline points="679,400 719,400" class="w" style="stroke: var(--live)"/>
+<rect x="719" y="379" width="188" height="42" rx="6" class="n"/><text x="813.0" y="404.0" text-anchor="middle" class="nt">Canister socket · live</text>
+<text x="24" y="462" text-anchor="start" class="l">Every 110/220 V joint goes inside heat-shrink.</text>
+</svg>

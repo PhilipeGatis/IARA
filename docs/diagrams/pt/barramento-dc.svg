@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 576" width="760" height="576" role="img" aria-label="Barramento DC: fonte de 12,53 V alimentando o LM2596 e o módulo MOSFET, com todos os retornos de potência em estrela no borne V menos.">
+<style>
+  svg {
+    --bg: #ffffff;
+    --ink: #16201a;
+    --muted: #5b6a61;
+    --edge: #c8d2c8;
+    --node: #1d3a2c;
+    --node-ink: #dceae1;
+    --live: #b4362c;
+    --neutral: #22598f;
+    --earth: #2c7a51;
+    --sig: #6a4b9c;
+    --warm: #a96a09;
+    --gnd: #55665c;
+  }
+  @media (prefers-color-scheme: dark) {
+    svg {
+      --bg: #11160f;
+      --ink: #e6ece6;
+      --muted: #9aa89f;
+      --edge: #333f37;
+      --node: #1f4130;
+      --node-ink: #d8e6dd;
+      --live: #e8776a;
+      --neutral: #6ea8e0;
+      --earth: #6cc493;
+      --sig: #b294e6;
+      --warm: #e5a63f;
+      --gnd: #9aaaa0;
+    }
+  }
+  .n { fill: var(--node); }
+  .nt { fill: var(--node-ink); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; font-weight: 600; }
+  .ns { fill: var(--node-ink); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 11px; opacity: .72; }
+  .c { fill: none; stroke: var(--edge); stroke-width: 1.5; }
+  .ct { fill: var(--ink); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 11.5px; }
+  .l { fill: var(--muted); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 11.5px; }
+  .lb { fill: var(--ink); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 12px; font-weight: 600; }
+  .w { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .dot { stroke: none; }
+</style>
+<rect x="0" y="0" width="760" height="576" fill="var(--bg)"/>
+<rect x="24" y="24" width="280" height="56" rx="6" class="n"/><text x="164.0" y="50.0" text-anchor="middle" class="nt">FONTE 12,53 V</text><text x="164.0" y="65.0" text-anchor="middle" class="ns">colmeia</text>
+<polyline points="80,80 80,120" class="w" style="stroke: var(--live)"/>
+<text x="90" y="106" text-anchor="start" class="lb">V+</text>
+<rect x="25.0" y="120" width="110" height="38" rx="4" class="c" style="stroke: var(--live)"/><text x="80.0" y="143.0" text-anchor="middle" class="ct">FUSÍVEL T5A</text>
+<polyline points="80,158 80,200" class="w" style="stroke: var(--live)"/>
+<polyline points="80,200 450,200" class="w" style="stroke: var(--live)"/>
+<circle cx="80" cy="200" r="3.5" class="dot" style="fill: var(--live)"/>
+<polyline points="250,80 250,500" class="w" style="stroke: var(--gnd)"/>
+<text x="260" y="106" text-anchor="start" class="lb">V−</text>
+<polyline points="150,500 640.0,500" class="w" style="stroke: var(--gnd)"/>
+<circle cx="250" cy="500" r="3.5" class="dot" style="fill: var(--gnd)"/>
+<text x="150" y="526" text-anchor="start" class="l">GND de potência: estrela no borne V− da fonte</text>
+<polyline points="80,200 80,240" class="w" style="stroke: var(--live)"/>
+<rect x="24" y="240" width="190" height="50" rx="6" class="n"/><text x="119.0" y="263.0" text-anchor="middle" class="nt">LM2596</text><text x="119.0" y="278.0" text-anchor="middle" class="ns">saída 5,1 V</text>
+<polyline points="80,290 80,322" class="w" style="stroke: var(--live)"/>
+<rect x="24" y="322" width="190" height="40" rx="4" class="c" style="stroke: var(--warm)"/><text x="119.0" y="346.0" text-anchor="middle" class="ct">4 × 1000 µF 10 V</text>
+<polyline points="80,362 80,400" class="w" style="stroke: var(--live)"/>
+<rect x="24" y="400" width="190" height="50" rx="6" class="n"/><text x="119.0" y="423.0" text-anchor="middle" class="nt">ESP32</text><text x="119.0" y="438.0" text-anchor="middle" class="ns">VIN / GND</text>
+<polyline points="150,450 150,500" class="w" style="stroke: var(--gnd)"/>
+<circle cx="150" cy="500" r="3.5" class="dot" style="fill: var(--gnd)"/>
+<polyline points="450,200 450,250" class="w" style="stroke: var(--live)"/>
+<rect x="355" y="250" width="190" height="40" rx="4" class="c" style="stroke: var(--warm)"/><text x="450.0" y="274.0" text-anchor="middle" class="ct">1 × 470 µF 16 V</text>
+<polyline points="450,290 450,340" class="w" style="stroke: var(--live)"/>
+<rect x="345.0" y="340" width="210" height="62" rx="6" class="n"/><text x="450.0" y="369.0" text-anchor="middle" class="nt">MÓDULO MOSFET</text><text x="450.0" y="384.0" text-anchor="middle" class="ns">8 canais · VIN / GND</text>
+<polyline points="450,402 450,500" class="w" style="stroke: var(--gnd)"/>
+<circle cx="450" cy="500" r="3.5" class="dot" style="fill: var(--gnd)"/>
+<polyline points="555.0,371 595.0,371" class="w" style="stroke: var(--live)"/>
+<rect x="595.0" y="340" width="90" height="62" rx="6" class="n"/><text x="640.0" y="375.0" text-anchor="middle" class="nt">Bombas</text>
+<polyline points="640.0,402 640.0,500" class="w" style="stroke: var(--gnd)"/>
+<circle cx="640.0" cy="500" r="3.5" class="dot" style="fill: var(--gnd)"/>
+<text x="24" y="556" text-anchor="start" class="l">GND de sinal é o oposto: boia e ultrassônico voltam ao pino GND do ESP32, nunca ao borne da fonte.</text>
+</svg>

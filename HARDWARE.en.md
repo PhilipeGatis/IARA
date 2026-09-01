@@ -31,25 +31,9 @@ The power input architecture focuses on simplicity and maximum electrical safety
 
 ### Wiring Diagram
 
-```text
-[ IEC C14 INLET ]
-      │
-      ├─── [ GROUND PIN (Green) ] ────────┬───────► [ PSU GROUND (G) Terminal ]
-      │                                   │
-      │                                   └───────► [ Canister Outlet GROUND ]
-      │         
-      ├─── [ NEUTRAL PIN (Blue) ] ────────┬───────► [ PSU NEUTRAL (N) Terminal ]
-      │                                   │
-      │                                   └───────► [ Canister Outlet NEUTRAL ]
-      │
-      └─── [ LIVE PIN (Brown) ] ─── [ FUSE ] ─────┐
-                                                  │
-             ┌────────────────────────────────────┘
-             │                                  
-             ├───────────────────► [ PSU LIVE (L) Terminal ]
-             │
-             └───► [ SSR Relay Screw 1 ] ── SWITCH ──► [ SSR Relay Screw 2 ] ──► [ Canister Outlet LIVE ]
-```
+<p align="center">
+  <img src="docs/diagrams/en/ac-entrada.svg" alt="AC input: IEC C14 inlet splitting earth, neutral and live; live passes through the fuse and the SSR relay before the canister socket." width="820">
+</p>
 
 ---
 
@@ -69,25 +53,9 @@ Responsible for converting power to logic levels and maintaining ESP32 stability
 
 ### Wiring Diagram
 
-```text
-[ PSU 12.53V ]
-   │              │
- (V+)           (V─) ──────────────────────────────┐ (STAR GND)
-   │              │                                │
-[T5A FUSE]        │                                │
-   │              │                                │
-   ├──────────────┼────────────────┐               │
-   │              │                │               │
-[LM2596 IN+]  [LM2596 IN─]    [MOSFET VIN]   [MOSFET GND]
-   │              │                │               │
-(Output 5.1V)     │         (1× 470µF 16V)         │
-   │              │                │               │
-(4× 1000µF 10V)   │                │               │
-   │              │                │               │
-[ESP32 VIN]   [ESP32 GND]          │               │
-   │              │         [ 8-CH MOSFET ]        │
-   │              └────────────────┴───────────────┘
-```
+<p align="center">
+  <img src="docs/diagrams/en/barramento-dc.svg" alt="DC bus: the 12.53 volt supply feeding the LM2596 and the MOSFET module, with every power return starred at the V minus terminal." width="820">
+</p>
 
 > [!IMPORTANT]
 > **POWER GND — star at the PSU**: **Power** negative references (MOSFET module, LM2596, pumps, solenoid) must return directly to the PSU V− terminal, to avoid ground loops.
@@ -119,14 +87,9 @@ Responsible for mitigating inductive noise (Flyback) and stabilizing sensor read
 
 ### Wiring Diagram — Actuators
 
-```
-[ MOSFET CHANNEL ] ──────────── (1.2m Wire) ──────┬────────── (PUMP +)
-                                                   │
-                                             [ FLYBACK DIODE ]
-                                             (Stripe on POS+)
-                                                   │
-[ BUS GND ] ─────────────────── (1.2m Wire) ───────┴────────── (PUMP ─)
-```
+<p align="center">
+  <img src="docs/diagrams/en/atuadores.svg" alt="MOSFET channel and bus GND reaching the pump over 1.2 metre wires, with the flyback diode fitted at the motor." width="820">
+</p>
 
 > [!CAUTION]
 > **Flyback Diodes**: Must be installed at the **cable end** (next to the motor) to prevent the 1.2m cable from radiating noise like an antenna.
@@ -144,19 +107,9 @@ Waterproof ultrasonic sensor that reports distance over **UART**. No TRIG/ECHO, 
 
 > The colors of the two data wires vary between batches; only red and black are consistent. To identify the output, power the sensor and measure: **TX** idles at ~3.3V and shows activity; RX stays inert.
 
-```
-   ESP32 3.3V ──────┬──────────────────►  VCC  (red)
-                    │
-                [ 10 kΩ ]                        A02YYUW
-                    │                           (waterproof)
-   ESP32 GPIO34 ────┴──────────────────►  TX   (data output)
-    (RX2)
-
-   ESP32 3.3V ─────────────────────────►  RX   (control, unused)
-
-   ESP32 GND ──────────────────────────►  GND  (black)
-    (board pin, never the PSU terminal)
-```
+<p align="center">
+  <img src="docs/diagrams/en/ultrassonico.svg" alt="A02YYUW ultrasonic sensor wired to the ESP32: VCC at 3.3 volts, TX on GPIO34 with a 10 kilo-ohm pull-up, RX tied to 3.3 volts and GND on the board pin." width="820">
+</p>
 
 > [!WARNING]
 > **Power it at 3.3V, never 5V.** The A02YYUW accepts 3.3–5V, but its output logic level follows VCC. At 5V the TX line would drive 5V into GPIO34 and permanently damage it. Running at 3.3V is precisely what makes the direct connection possible without a divider.
@@ -203,19 +156,9 @@ Assembly: **NO** (normally open) reed with a magnet held nearby by an EVA float,
 | Broken wire | — | — | broken | **stopped** |
 | MOSFET shorted | away | open | broken | **stopped** |
 
-```
-  +12V ──────[ REED ]────────── refill pump (+)
-
-  pump (−) ──────────────────── OUT− of the MOSFET module (channel 7)
-
-  ESP32 GPIO33 ──────────────── IN7 (MOSFET module, channel 7)
-                                 │
-                             [ 1 kΩ ]
-                                 │
-                             [ 100 nF ]
-                                 │
-                            module GND
-```
+<p align="center">
+  <img src="docs/diagrams/en/reed-nivel-maximo.svg" alt="Normally-open reed switch in series with the refill pump's plus 12 volts, and the GPIO33 signal reaching IN7 with a 1 kilo-ohm resistor and a 100 nanofarad capacitor to module GND." width="820">
+</p>
 
 > [!CAUTION]
 > **The 1 kΩ resistor still applies, now for a different reason.** With the reed out of the signal wire that line is never open in operation — but GPIO33 floats during the ESP32's boot and reset. The MOSFET input works by stored charge: without the resistor, the floating gate holds its charge and can keep the MOSFET partially conducting.
@@ -283,16 +226,9 @@ Printing: four parts in PETG or ASA — PLA absorbs moisture and warps near wate
 | **SCK** | RX2 | GPIO16 | SPI Clock |
 | **LED** | 3.3V | — | Fixed backlight (no free GPIO available) |
 
-```
-ESP32 3.3V  ────►  VCC
-ESP32 GND   ────►  GND
-ESP32 D15   ────►  CS
-ESP32 EN    ────►  RESET
-ESP32 TX2   ────►  A0 (DC)
-ESP32 D4    ────►  SDA (MOSI)
-ESP32 RX2   ────►  SCK
-ESP32 3.3V  ────►  LED (fixed backlight)
-```
+<p align="center">
+  <img src="docs/diagrams/en/display-tft.svg" alt="ST7735 display wired to the ESP32 with six consecutive pins at the bottom of the right-hand header and RESET on the EN pin." width="820">
+</p>
 
 > [!WARNING]
 > The display **RESET** pin must connect to the ESP32 **EN** pin (not a GPIO). This ensures the display resets together with the microcontroller. With EN HIGH (normal operation), the display works normally.
@@ -311,11 +247,9 @@ Horizontal float switch that signals "reservoir full". It closes the solenoid du
 | **Terminal 1** | GPIO19 | GPIO19 | `INPUT_PULLUP` — active LOW |
 | **Terminal 2** | **ESP32 GND pin** | — | ⚠️ Never the PSU terminal |
 
-```
-ESP32 GPIO19 ─────── [ FLOAT ] ─────── ESP32 GND (board pin)
-         INPUT_PULLUP, active LOW (full = LOW)
-         Both wires leave together, in the same cable, the whole way
-```
+<p align="center">
+  <img src="docs/diagrams/en/boia-reservatorio.svg" alt="Reservoir float switch between GPIO19 and the ESP32's GND pin." width="820">
+</p>
 
 > [!NOTE]
 > The float switch originally used GPIO5, but that pin is an ESP32 strapping pin and suffered interference (~2.5 V at rest). It was moved to GPIO19, which previously drove the panel navigation button.

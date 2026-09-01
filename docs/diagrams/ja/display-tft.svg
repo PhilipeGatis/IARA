@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 710 420" width="710" height="420" role="img" aria-label="ST7735ディスプレイとESP32の配線：右側ヘッダ下端の連続した6ピンと、ENピンのRESET。">
+<style>
+  svg {
+    --bg: #ffffff;
+    --ink: #16201a;
+    --muted: #5b6a61;
+    --edge: #c8d2c8;
+    --node: #1d3a2c;
+    --node-ink: #dceae1;
+    --live: #b4362c;
+    --neutral: #22598f;
+    --earth: #2c7a51;
+    --sig: #6a4b9c;
+    --warm: #a96a09;
+    --gnd: #55665c;
+  }
+  @media (prefers-color-scheme: dark) {
+    svg {
+      --bg: #11160f;
+      --ink: #e6ece6;
+      --muted: #9aa89f;
+      --edge: #333f37;
+      --node: #1f4130;
+      --node-ink: #d8e6dd;
+      --live: #e8776a;
+      --neutral: #6ea8e0;
+      --earth: #6cc493;
+      --sig: #b294e6;
+      --warm: #e5a63f;
+      --gnd: #9aaaa0;
+    }
+  }
+  .n { fill: var(--node); }
+  .nt { fill: var(--node-ink); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; font-weight: 600; }
+  .ns { fill: var(--node-ink); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 11px; opacity: .72; }
+  .c { fill: none; stroke: var(--edge); stroke-width: 1.5; }
+  .ct { fill: var(--ink); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 11.5px; }
+  .l { fill: var(--muted); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 11.5px; }
+  .lb { fill: var(--ink); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 12px; font-weight: 600; }
+  .w { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .dot { stroke: none; }
+</style>
+<rect x="0" y="0" width="710" height="420" fill="var(--bg)"/>
+<rect x="24" y="40" width="160" height="300" rx="6" class="n"/><text x="104.0" y="188.0" text-anchor="middle" class="nt">ESP32</text><text x="104.0" y="203.0" text-anchor="middle" class="ns">ソフトウェアSPI</text>
+<rect x="470" y="40" width="170" height="300" rx="6" class="n"/><text x="555.0" y="188.0" text-anchor="middle" class="nt">ST7735</text><text x="555.0" y="203.0" text-anchor="middle" class="ns">TFT 128×160・3.3 V</text>
+<text x="196" y="72" text-anchor="start" class="lb">3V3</text>
+<polyline points="184,78 470,78" class="w" style="stroke: var(--live)"/>
+<text x="462" y="72" text-anchor="end" class="l">VCC + LED</text>
+<text x="196" y="114" text-anchor="start" class="lb">GND</text>
+<polyline points="184,120 470,120" class="w" style="stroke: var(--gnd)"/>
+<text x="462" y="114" text-anchor="end" class="l">GND</text>
+<text x="196" y="156" text-anchor="start" class="lb">D15</text>
+<polyline points="184,162 470,162" class="w" style="stroke: var(--warm)"/>
+<text x="462" y="156" text-anchor="end" class="l">CS</text>
+<text x="196" y="198" text-anchor="start" class="lb">D4</text>
+<polyline points="184,204 470,204" class="w" style="stroke: var(--warm)"/>
+<text x="462" y="198" text-anchor="end" class="l">SDA</text>
+<text x="196" y="240" text-anchor="start" class="lb">D16</text>
+<polyline points="184,246 470,246" class="w" style="stroke: var(--warm)"/>
+<text x="462" y="240" text-anchor="end" class="l">SCK</text>
+<text x="196" y="282" text-anchor="start" class="lb">D17</text>
+<polyline points="184,288 470,288" class="w" style="stroke: var(--warm)"/>
+<text x="462" y="282" text-anchor="end" class="l">A0 / DC</text>
+<text x="196" y="324" text-anchor="start" class="lb">EN</text>
+<polyline points="184,330 470,330" class="w" style="stroke: var(--sig)"/>
+<text x="462" y="324" text-anchor="end" class="l">RESET</text>
+<path d="M 652 62 L 664 62 L 664 306 L 652 306" fill="none" stroke="var(--warm)" stroke-width="1.5"/>
+<text x="682" y="184" text-anchor="middle" class="l" style="fill: var(--warm)" transform="rotate(90 682 184)">連続した6ピンのブロック</text>
+<text x="24" y="380" text-anchor="start" class="l">最初の6本は右側ヘッダの下端に並びます。ブロックから出るのはENに行くRESETだけです。</text>
+<text x="24" y="402" text-anchor="start" class="l">LEDはVCCに接続します。バックライトは常時点灯でGPIOを使いません。</text>
+</svg>
