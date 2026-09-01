@@ -68,7 +68,11 @@ public:
   float getUsLastRaw() const { return _lastRawCm; }
   /// Bytes sitting unread in the UART buffer. A number stuck between 1 and 3
   /// means a partial frame the 4-byte read loop can never consume.
-  int getUsPending() const { return Serial2.available(); }
+  /// Bytes waiting in the UART buffer as of the last read. Deliberately a
+  /// cached number: this getter is called from _buildStatusJSON(), which runs
+  /// on the AsyncTCP task, and Serial2.available() would take the UART lock
+  /// the loop holds while it drains frames — the async task must never block.
+  int getUsPending() const { return _usPending; }
 
   // ---- Emergency actions ----
 
@@ -144,6 +148,8 @@ private:
   float _rejectMax = 0;       ///< move from a burst of bad echoes
   uint8_t _medianIndex = 0;
   uint8_t _medianCount = 0;
+
+  int _usPending = 0;          ///< Serial2.available() at the last read
 
 #ifndef UNIT_TEST
   /// Serialises readUltrasonic(). Several web handlers ask for a level, and

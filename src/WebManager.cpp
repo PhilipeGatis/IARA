@@ -210,7 +210,11 @@ void WebManager::update() {
 
 String WebManager::_buildStatusJSON() {
   String json;
-  json.reserve(1200); // Prevent heap fragmentation and speed up concatenation
+  // Sized past what the payload actually measures. usDiag and the network
+  // health block pushed it well over the old 1200, and every byte past the
+  // reservation is a reallocation on a string the SSE tick rebuilds every
+  // three seconds — the cheapest way there is to fragment the heap.
+  json.reserve(1800);
   json += "{";
 
   // WiFi Connection Status

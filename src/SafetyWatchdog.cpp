@@ -165,6 +165,8 @@ float SafetyWatchdog::readUltrasonic() {
     }
   }
 
+  _usPending = Serial2.available();
+
 #ifndef UNIT_TEST
   if (_sensorMutex) xSemaphoreGive(_sensorMutex);
 #endif
