@@ -96,6 +96,10 @@ void WebManager::begin(TimeManager *time, WaterManager *water,
   _safety = safety;
   _notify = notify;
 
+#ifndef UNIT_TEST
+  _statusMutex = xSemaphoreCreateMutex();
+#endif
+
   _loadParams();
 
   if (_water) {
@@ -187,6 +191,15 @@ void WebManager::update() {
     }
   }
 
+  // The payload is rebuilt here, on the loop task, and published for the async
+  // server to copy. Building it walks every manager, and the async task pays
+  // for that with the whole web server: a callback that sits for five seconds
+  // trips the task watchdog on async_tcp and reboots the board. That is exactly
+  // what an SSE client connecting used to do while the radio was thrashing.
+  if ((now - _statusJSONMs) >= 1000 || _statusJSONMs == 0) {
+    _refreshStatusCache();
+  }
+
   // Send SSE telemetry every 3 seconds to reduce network congestion
   // The send() call itself cleans up disconnected clients internally.
   // Skip if heap is critically low to prevent crash.
@@ -194,8 +207,10 @@ void WebManager::update() {
     uint32_t freeHeap = ESP.getFreeHeap();
     if (freeHeap > 15000) {  // Guard: need ~1.5KB for JSON + overhead
       _lastSSEMs = now;
-      String json = _buildStatusJSON();
-      _events.send(json.c_str(), "status", millis());
+      String json;
+      if (_copyStatusCache(json)) {
+        _events.send(json.c_str(), "status", millis());
+      }
     } else {
       Serial.println("[SSE] Skipped send — heap too low");
     }
@@ -207,6 +222,32 @@ void WebManager::update() {
 // ============================================================================
 // STATUS JSON
 // ============================================================================
+
+void WebManager::_refreshStatusCache() {
+  String fresh = _buildStatusJSON();
+#ifndef UNIT_TEST
+  if (_statusMutex && xSemaphoreTake(_statusMutex, pdMS_TO_TICKS(50)) != pdTRUE)
+    return; // a reader is mid-copy; the next tick publishes this anyway
+#endif
+  _statusJSON = fresh;
+  _statusJSONMs = millis();
+#ifndef UNIT_TEST
+  if (_statusMutex) xSemaphoreGive(_statusMutex);
+#endif
+}
+
+bool WebManager::_copyStatusCache(String &out) {
+#ifndef UNIT_TEST
+  if (_statusMutex && xSemaphoreTake(_statusMutex, pdMS_TO_TICKS(20)) != pdTRUE)
+    return false;
+#endif
+  const bool ready = _statusJSON.length() > 0;
+  if (ready) out = _statusJSON;
+#ifndef UNIT_TEST
+  if (_statusMutex) xSemaphoreGive(_statusMutex);
+#endif
+  return ready;
+}
 
 String WebManager::_buildStatusJSON() {
   String json;
@@ -410,13 +451,26 @@ void WebManager::_setupRoutes() {
   // ---- SSE Events ----
   _events.onConnect([this](AsyncEventSourceClient *client) {
     Serial.println("[Web] SSE client connected");
-    client->send(_buildStatusJSON().c_str(), "status", millis());
+    // Nothing but a copy of what the loop already published. If it is not
+    // ready, the client waits for the next 3 s tick rather than the server
+    // task doing the work here.
+    String json;
+    if (_copyStatusCache(json)) {
+      client->send(json.c_str(), "status", millis());
+    }
   });
   _server.addHandler(&_events);
 
   // ---- GET /api/status ----
   _server.on("/api/status", HTTP_GET, [this](AsyncWebServerRequest *request) {
-    request->send(200, "application/json", _buildStatusJSON());
+    String json;
+    if (_copyStatusCache(json)) {
+      request->send(200, "application/json", json);
+    } else {
+      // At most a second old normally; 503 only while the loop is mid-publish
+      // or has not published yet, and the dashboard retries on its own.
+      request->send(503, "application/json", "{\"error\":\"status not ready\"}");
+    }
   });
 
 

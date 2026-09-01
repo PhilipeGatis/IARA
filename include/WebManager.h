@@ -147,6 +147,14 @@ private:
   bool _rebootPending = false;
   unsigned long _rebootMs = 0;
 
+  /// The status payload the async server hands out, rebuilt on the loop task.
+  /// Two tasks touch it, so every access goes through _statusMutex.
+  String _statusJSON;
+  unsigned long _statusJSONMs = 0;
+#ifndef UNIT_TEST
+  SemaphoreHandle_t _statusMutex = nullptr;
+#endif
+
   // Consecutive 30 s diagnostics that saw the heap under the floor. A heap that
   // never recovers means the server has already stopped answering, or is about
   // to, and only a reboot brings it back.
@@ -162,7 +170,18 @@ private:
 
   // Telemetry
   void _updateTelemetry();
+
+  /// Builds the status payload. Call only from the loop task — it reads state
+  /// from every manager, and the async server task must not do that work.
   String _buildStatusJSON();
+
+  /// Publishes a freshly built payload for the async task to hand out.
+  void _refreshStatusCache();
+
+  /// Copies the published payload under the lock. Returns false when the lock
+  /// was busy, which the caller answers by skipping rather than waiting: the
+  /// whole point of the cache is that the async task never blocks here.
+  bool _copyStatusCache(String &out);
 
   // Serial UI
   void _printStatus();

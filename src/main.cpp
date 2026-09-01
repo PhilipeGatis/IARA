@@ -191,8 +191,26 @@ void setup() {
   WiFi.onEvent([](arduino_event_id_t event, arduino_event_info_t info) {
     if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
       lastWifiDisconnectReason = info.wifi_sta_disconnected.reason;
-      Serial.printf("\n[WiFi Event] Disconnected! Reason Code: %d\n",
-                    info.wifi_sta_disconnected.reason);
+
+      // A radio the AP keeps refusing produces dozens of these a second, and
+      // an unthrottled printf turns that into a serial flood that buries every
+      // other line in the log. One summary per second says the same thing.
+      static unsigned long lastLogMs = 0;
+      static uint16_t suppressed = 0;
+      const unsigned long nowMs = millis();
+      if (nowMs - lastLogMs >= 1000) {
+        if (suppressed) {
+          Serial.printf("\n[WiFi Event] Disconnected! Reason Code: %d (+%u more)\n",
+                        info.wifi_sta_disconnected.reason, (unsigned)suppressed);
+        } else {
+          Serial.printf("\n[WiFi Event] Disconnected! Reason Code: %d\n",
+                        info.wifi_sta_disconnected.reason);
+        }
+        lastLogMs = nowMs;
+        suppressed = 0;
+      } else if (suppressed < 0xFFFF) {
+        suppressed++;
+      }
     }
   });
 
