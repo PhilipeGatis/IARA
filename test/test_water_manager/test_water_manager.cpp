@@ -539,6 +539,86 @@ void test_uncalibrated_defaults_are_short() {
   TEST_ASSERT_EQUAL(TPAState::ERROR, wm.getState());
 }
 
+// --- Nominal (datasheet) pump ratings ---
+
+// The rating is measured at zero head, so the real pump can only ever be
+// slower. A measurement above it is a broken measurement, and storing it is
+// what sized a refill timeout at three minutes for a four-minute job.
+void test_measurement_above_the_rating_is_refused() {
+  WaterManager wm = makeWM();
+  wm.setRefillNominalLPM(5.0f); // 300 L/h pump
+
+  wm.setRefillFlowLPM(19.19f);
+  TEST_ASSERT_EQUAL_FLOAT(0.0f, wm.getRefillFlowLPM());
+
+  // Just inside the noise tolerance is still accepted.
+  wm.setRefillFlowLPM(5.5f);
+  TEST_ASSERT_EQUAL_FLOAT(5.5f, wm.getRefillFlowLPM());
+}
+
+// Order at boot is loadCalibration() first, ratings second, so declaring one
+// has to reach backwards and re-test what is already stored.
+void test_declaring_the_rating_discards_a_stored_impossible_rate() {
+  WaterManager wm = makeWM();
+  wm.setRefillFlowLPM(19.19f); // no rating yet, so it is accepted
+  TEST_ASSERT_EQUAL_FLOAT(19.19f, wm.getRefillFlowLPM());
+
+  wm.setRefillNominalLPM(5.0f);
+  TEST_ASSERT_EQUAL_FLOAT(0.0f, wm.getRefillFlowLPM());
+}
+
+// Zero means "not declared" and must not start refusing every measurement.
+void test_no_rating_accepts_any_measurement() {
+  WaterManager wm = makeWM();
+  wm.setRefillFlowLPM(19.19f);
+  TEST_ASSERT_EQUAL_FLOAT(19.19f, wm.getRefillFlowLPM());
+  TEST_ASSERT_EQUAL_FLOAT(19.19f, wm.planningRefillLPM());
+}
+
+// Planning takes the slower of the two: being wrong in the fast direction is
+// what aborts an honest water change half-finished.
+void test_planning_rate_takes_the_slower_of_the_two() {
+  WaterManager wm = makeWM();
+
+  wm.setRefillNominalLPM(5.0f);
+  wm.setRefillFlowLPM(3.0f); // head loss: below the rating, so believed
+  TEST_ASSERT_EQUAL_FLOAT(3.0f, wm.planningRefillLPM());
+
+  // With nothing measured, the rating alone still sizes a timeout.
+  WaterManager wm2 = makeWM();
+  wm2.setDrainNominalLPM(4.0f);
+  TEST_ASSERT_EQUAL_FLOAT(4.0f, wm2.planningDrainLPM());
+
+  // And with neither, callers get zero and fall back to their own defaults.
+  WaterManager wm3 = makeWM();
+  TEST_ASSERT_EQUAL_FLOAT(0.0f, wm3.planningRefillLPM());
+}
+
+// The stall check expects the level to move at the planning rate. Sized from
+// the overstated measurement it demanded more than the pump can deliver; the
+// rating brings the expectation back to something physical.
+void test_stall_check_expects_no_more_than_the_rating() {
+  WaterManager wm = makeWM();
+  wm.setLitersPerCm(1.8f);
+  wm.setRefillNominalLPM(5.0f);
+  wm.setRefillFlowLPM(19.19f); // refused, so planning falls back to 5.0
+  TEST_ASSERT_EQUAL_FLOAT(5.0f, wm.planningRefillLPM());
+  wm.setTimeoutRefillMs(600000);
+
+  goToRefilling(wm);
+  setDistance(24.0f);
+  wm.update();
+
+  mock_millis_value += 21000;
+  wm.update();
+
+  // 2.8 cm/min of real movement against an expectation built on 5 L/min.
+  mock_millis_value += 31000;
+  setDistance(22.6f);
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::REFILLING, wm.getState());
+}
+
 void test_is_calibrated_getter() {
   WaterManager wm = makeWM();
   TEST_ASSERT_FALSE(wm.isCalibrated());
@@ -703,6 +783,11 @@ int main(int argc, char **argv) {
   RUN_TEST(test_refill_survives_a_wildly_overstated_calibration);
   RUN_TEST(test_dynamic_timeout_refill);
   RUN_TEST(test_uncalibrated_defaults_are_short);
+  RUN_TEST(test_measurement_above_the_rating_is_refused);
+  RUN_TEST(test_declaring_the_rating_discards_a_stored_impossible_rate);
+  RUN_TEST(test_no_rating_accepts_any_measurement);
+  RUN_TEST(test_planning_rate_takes_the_slower_of_the_two);
+  RUN_TEST(test_stall_check_expects_no_more_than_the_rating);
   RUN_TEST(test_is_calibrated_getter);
 
   // Sensor-based progress

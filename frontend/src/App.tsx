@@ -51,6 +51,8 @@ export type AQStatus = {
   feedingLeft?: number;
   drainFlowRate: number;
   refillFlowRate: number;
+  drainNominalLPH: number;
+  refillNominalLPH: number;
   primeRatio: number;
   reservoirVolume: number;
   reservoirSafetyML: number;

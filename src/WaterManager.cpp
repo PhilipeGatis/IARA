@@ -330,10 +330,10 @@ void WaterManager::update() {
     _handleManualReservoirFill();
     break;
   case TPAState::MANUAL_PUMP_DRAIN:
-    _handleManualPump(PIN_DRAIN, _drainFlowLPM);
+    _handleManualPump(PIN_DRAIN, planningDrainLPM());
     break;
   case TPAState::MANUAL_PUMP_REFILL:
-    _handleManualPump(PIN_REFILL, _refillFlowLPM);
+    _handleManualPump(PIN_REFILL, planningRefillLPM());
     break;
   default:
     break;
@@ -403,7 +403,7 @@ void WaterManager::_handleDraining() {
     // Live flow rate recalibration during operation
     if (dist > 0 && _calStartMs > 0 && _litersPerCm > 0) {
       float liveRate = _calcFlowRate(_calStartLevel, dist, _calStartMs);
-      if (liveRate > 0.01f) _drainFlowLPM = liveRate;
+      if (liveRate > 0.01f) setDrainFlowLPM(liveRate);
     }
 
     if (dist >= _drainTargetCm) {
@@ -424,8 +424,9 @@ void WaterManager::_handleDraining() {
       float dist = _safety->readUltrasonic();
       float flowRate = _calcFlowRate(_calStartLevel, dist, _calStartMs);
       if (flowRate > 0) {
-        _drainFlowLPM = flowRate;
-        Serial.printf("[TPA] Drain calibrated on timeout: %.2f L/min\n", _drainFlowLPM);
+        setDrainFlowLPM(flowRate);
+        if (_drainFlowLPM > 0)
+          Serial.printf("[TPA] Drain calibrated on timeout: %.2f L/min\n", _drainFlowLPM);
       }
     }
     _error("Drain timeout exceeded!");
@@ -572,9 +573,11 @@ void WaterManager::_handleRefilling() {
     // recalibration below overwrites _refillFlowLPM as the run goes: a refill
     // that stalls would otherwise lower the bar it is measured against.
     _refillProgressMs = 0;
-    _refillProgressCmMin = (_litersPerCm > 0 && _refillFlowLPM > 0)
-                               ? _refillFlowLPM / _litersPerCm
-                               : 0.0f;
+    // Planning rate, not the measured one: expecting the pump to beat its own
+    // datasheet is what turns this stall detector against an honest refill.
+    const float expectLPM = planningRefillLPM();
+    _refillProgressCmMin =
+        (_litersPerCm > 0 && expectLPM > 0) ? expectLPM / _litersPerCm : 0.0f;
   }
 
   // Ultrasonic setpoint check + live recalibration
@@ -584,7 +587,7 @@ void WaterManager::_handleRefilling() {
     // Live flow rate recalibration during operation
     if (dist > 0 && _calStartMs > 0 && _litersPerCm > 0) {
       float liveRate = _calcFlowRate(_calStartLevel, dist, _calStartMs);
-      if (liveRate > 0.01f) _refillFlowLPM = liveRate;
+      if (liveRate > 0.01f) setRefillFlowLPM(liveRate);
     }
 
     if (dist > 0 && dist <= _refillTargetCm) {
@@ -856,6 +859,60 @@ void WaterManager::_handleManualPump(uint8_t pin, float flowLPM) {
   }
 }
 
+// ============================================================================
+// FLOW RATES: measured vs nominal
+// ============================================================================
+
+float WaterManager::_plausibleFlow(float measured, float nominal,
+                                   const char *what) const {
+  if (measured <= 0 || nominal <= 0)
+    return measured; // nothing declared to test it against
+  const float ceiling = nominal * NOMINAL_FLOW_TOLERANCE;
+  if (measured <= ceiling)
+    return measured;
+  Serial.printf("[TPA] %s flow %.2f L/min rejected: the pump is rated %.2f "
+                "L/min and cannot exceed it. Keeping it uncalibrated.\n",
+                what, measured, nominal);
+  return 0;
+}
+
+void WaterManager::setDrainFlowLPM(float lpm) {
+  _drainFlowLPM = _plausibleFlow(lpm, _drainNominalLPM, "Drain");
+}
+
+void WaterManager::setRefillFlowLPM(float lpm) {
+  _refillFlowLPM = _plausibleFlow(lpm, _refillNominalLPM, "Refill");
+}
+
+void WaterManager::setDrainNominalLPM(float lpm) {
+  _drainNominalLPM = lpm > 0 ? lpm : 0;
+  // Re-test what is already stored, so declaring the rating is enough to throw
+  // out a measurement taken against a sensor that was not tracking.
+  _drainFlowLPM = _plausibleFlow(_drainFlowLPM, _drainNominalLPM, "Stored drain");
+}
+
+void WaterManager::setRefillNominalLPM(float lpm) {
+  _refillNominalLPM = lpm > 0 ? lpm : 0;
+  _refillFlowLPM = _plausibleFlow(_refillFlowLPM, _refillNominalLPM, "Stored refill");
+}
+
+/// Slower of the two, ignoring whichever is absent.
+static float slowerFlow(float measured, float nominal) {
+  if (measured <= 0)
+    return nominal > 0 ? nominal : 0;
+  if (nominal <= 0)
+    return measured;
+  return measured < nominal ? measured : nominal;
+}
+
+float WaterManager::planningDrainLPM() const {
+  return slowerFlow(_drainFlowLPM, _drainNominalLPM);
+}
+
+float WaterManager::planningRefillLPM() const {
+  return slowerFlow(_refillFlowLPM, _refillNominalLPM);
+}
+
 // DRY #4: Extract flow rate calculation
 float WaterManager::_calcFlowRate(float startLevel, float endLevel, unsigned long startMs) const {
   if (_litersPerCm <= 0 || startMs == 0) return 0;
@@ -881,13 +938,42 @@ float WaterManager::_calcFlowRate(float startLevel, float endLevel, unsigned lon
   return 0;
 }
 
+/// Says why a sample was thrown away. _calcFlowRate() returns a bare zero for
+/// three quite different reasons, and a capture that quietly does nothing is
+/// how a stale flow rate outlives every run that was supposed to replace it —
+/// a manual top-up that moved less than CALIBRATION_MIN_DELTA_PCT of the tank
+/// looks, from the outside, exactly like one that recalibrated successfully.
+void WaterManager::_reportRejectedSample(const char *what, float startLevel,
+                                         float endLevel) const {
+  const float movedCm = fabsf(endLevel - startLevel);
+  if (_aqEffectiveHeightCm > 0) {
+    const float minCm = _aqEffectiveHeightCm * (CALIBRATION_MIN_DELTA_PCT / 100.0f);
+    if (movedCm < minCm) {
+      Serial.printf("[TPA] %s sample discarded: level moved %.2f cm, needs "
+                    "%.2f cm (%.0f%% of the tank, about %.1f L). Flow rate "
+                    "left unchanged.\n",
+                    what, movedCm, minCm, CALIBRATION_MIN_DELTA_PCT,
+                    minCm * _litersPerCm);
+      return;
+    }
+  }
+  Serial.printf("[TPA] %s sample discarded: run too short to measure "
+                "(%.2f cm in %.0f s). Flow rate left unchanged.\n",
+                what, movedCm, (millis() - _calStartMs) / 1000.0f);
+}
+
 void WaterManager::_captureDrainCalibration() {
   if (_calStartMs > 0 && _litersPerCm > 0 && _safety) {
     float dist = _safety->readUltrasonic();
     float flowRate = _calcFlowRate(_calStartLevel, dist, _calStartMs);
     if (flowRate > 0) {
-      _drainFlowLPM = flowRate;
-      Serial.printf("[TPA] Drain calibrated: %.2f L/min\n", _drainFlowLPM);
+      // Through the setter, so a measurement the pump cannot physically have
+      // produced is refused here too, not only on the paths that call it.
+      setDrainFlowLPM(flowRate);
+      if (_drainFlowLPM > 0)
+        Serial.printf("[TPA] Drain calibrated: %.2f L/min\n", _drainFlowLPM);
+    } else {
+      _reportRejectedSample("Drain", _calStartLevel, dist);
     }
   }
 }
@@ -897,8 +983,11 @@ void WaterManager::_captureRefillCalibration() {
     float dist = _safety->readUltrasonic();
     float flowRate = _calcFlowRate(_calStartLevel, dist, _calStartMs);
     if (flowRate > 0) {
-      _refillFlowLPM = flowRate;
-      Serial.printf("[TPA] Refill calibrated: %.2f L/min\n", _refillFlowLPM);
+      setRefillFlowLPM(flowRate);
+      if (_refillFlowLPM > 0)
+        Serial.printf("[TPA] Refill calibrated: %.2f L/min\n", _refillFlowLPM);
+    } else {
+      _reportRejectedSample("Refill", _calStartLevel, dist);
     }
   }
 }
@@ -1034,10 +1123,17 @@ void WaterManager::_stopAllTpaActuators(PumpReason reason) {
 void WaterManager::saveCalibration() {
   Preferences calPref;
   calPref.begin("pumpcal", false);
+  // A rate sitting at zero is not merely "unknown": the plausibility check
+  // zeroes one it has refused, and leaving the stored copy behind would bring
+  // the same impossible number back on the next boot.
   if (_drainFlowLPM > 0)
     calPref.putFloat("drainLPM", _drainFlowLPM);
+  else
+    calPref.remove("drainLPM");
   if (_refillFlowLPM > 0)
     calPref.putFloat("refillLPM", _refillFlowLPM);
+  else
+    calPref.remove("refillLPM");
   calPref.end();
   Serial.printf("[TPA] Calibration saved: drain=%.2f refill=%.2f L/min\n",
                 _drainFlowLPM, _refillFlowLPM);
@@ -1049,12 +1145,15 @@ void WaterManager::loadCalibration() {
   float drainLPM = calPref.getFloat("drainLPM", 0);
   float refillLPM = calPref.getFloat("refillLPM", 0);
   calPref.end();
+  // Through the setters. The nominal rates are read from a different namespace
+  // by WebManager and are still zero at this point, so nothing is rejected
+  // here — setDrainNominalLPM() re-tests these values once they arrive.
   if (drainLPM > 0) {
-    _drainFlowLPM = drainLPM;
+    setDrainFlowLPM(drainLPM);
     Serial.printf("[TPA] Loaded drain calibration: %.2f L/min\n", drainLPM);
   }
   if (refillLPM > 0) {
-    _refillFlowLPM = refillLPM;
+    setRefillFlowLPM(refillLPM);
     Serial.printf("[TPA] Loaded refill calibration: %.2f L/min\n", refillLPM);
   }
   if (drainLPM <= 0 && refillLPM <= 0) {

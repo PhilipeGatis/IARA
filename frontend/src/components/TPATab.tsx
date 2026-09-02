@@ -91,6 +91,10 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
     const [primeEnabled, setPrimeEnabled] = useState(true);
     const [mechFloat, setMechFloat] = useState(false);
     const [fillTimeout, setFillTimeout] = useState('40');
+    // Datasheet ratings, in L/h — the unit printed on the pump. Empty means
+    // "not declared", which leaves every check that depends on them inert.
+    const [drainNominal, setDrainNominal] = useState('');
+    const [refillNominal, setRefillNominal] = useState('');
     const [drainGoal, setDrainGoal] = useState('');
     const [refillGoal, setRefillGoal] = useState('');
 
@@ -139,6 +143,8 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
             if (status.primeEnabled !== undefined) setPrimeEnabled(status.primeEnabled);
             if (status.reservoirMechFloat !== undefined) setMechFloat(status.reservoirMechFloat);
             if (status.reservoirFillTimeoutMin !== undefined) setFillTimeout(String(status.reservoirFillTimeoutMin));
+            if (status.drainNominalLPH) setDrainNominal(String(status.drainNominalLPH));
+            if (status.refillNominalLPH) setRefillNominal(String(status.refillNominalLPH));
         }
     }, [status]);
 
@@ -497,6 +503,31 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                         </span>
                     </div>
                 </div>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div>
+                        <label className="lbl">{t('tpa.drainNominal')}</label>
+                        <input
+                            type="number" inputMode="decimal" min={0} step={10}
+                            className="inp" value={drainNominal} placeholder="300"
+                            onChange={(e) => setDrainNominal(e.target.value)}
+                            onBlur={() => api('POST', '/api/config/aquarium', {
+                                drainNominalLPH: parseFloat(drainNominal) || 0,
+                            })}
+                        />
+                    </div>
+                    <div>
+                        <label className="lbl">{t('tpa.refillNominal')}</label>
+                        <input
+                            type="number" inputMode="decimal" min={0} step={10}
+                            className="inp" value={refillNominal} placeholder="300"
+                            onChange={(e) => setRefillNominal(e.target.value)}
+                            onBlur={() => api('POST', '/api/config/aquarium', {
+                                refillNominalLPH: parseFloat(refillNominal) || 0,
+                            })}
+                        />
+                    </div>
+                </div>
+                <p className="hint">{t('tpa.nominalHint')}</p>
                 <button onClick={handleCalibrateBoth} className="btn btn-p2 mt-3 w-full">
                     {(status?.drainFlowRate && status?.refillFlowRate)
                         ? t('tpa.recalibrateBoth')

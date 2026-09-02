@@ -72,16 +72,28 @@ void WebManager::syncFlowRatesFromWater() {
   // WaterManager measures the flow; WebManager holds the copy that
   // isTpaConfigReady() and /api/status read. Whichever side has a value wins,
   // so this also migrates an older install where only WebManager had one.
+  // Ratings first. They are what decides whether the measurements below are
+  // believable, and declaring one re-tests whatever WaterManager already holds.
+  _water->setDrainNominalLPM(_drainNominalLPH / 60.0f);
+  _water->setRefillNominalLPM(_refillNominalLPH / 60.0f);
+
   if (_water->getDrainFlowLPM() > 0) {
     _drainFlowRate = _water->getDrainFlowLPM() * LPM_TO_ML_PER_SEC;
   } else if (_drainFlowRate > 0) {
     _water->setDrainFlowLPM(_drainFlowRate * ML_PER_SEC_TO_LPM);
+    // The setter refuses a rate the pump cannot physically deliver. When it
+    // does, this copy is the one that has been wrong all along — drop it,
+    // rather than pushing the same impossible number back on every sync.
+    if (_water->getDrainFlowLPM() <= 0)
+      _drainFlowRate = 0;
   }
 
   if (_water->getRefillFlowLPM() > 0) {
     _refillFlowRate = _water->getRefillFlowLPM() * LPM_TO_ML_PER_SEC;
   } else if (_refillFlowRate > 0) {
     _water->setRefillFlowLPM(_refillFlowRate * ML_PER_SEC_TO_LPM);
+    if (_water->getRefillFlowLPM() <= 0)
+      _refillFlowRate = 0;
   }
 
   _saveParams();
@@ -330,6 +342,8 @@ String WebManager::_buildStatusJSON() {
   json += "\"litersPerCm\":" + String(lPerCm, 2) + ",";
   json += "\"drainFlowRate\":" + String(_drainFlowRate, 2) + ",";
   json += "\"refillFlowRate\":" + String(_refillFlowRate, 2) + ",";
+  json += "\"drainNominalLPH\":" + String(_drainNominalLPH, 0) + ",";
+  json += "\"refillNominalLPH\":" + String(_refillNominalLPH, 0) + ",";
   json += "\"primeRatio\":" + String(_primeRatio, 5) + ",";
   json += "\"primeEnabled\":" + String(_primeEnabled ? "true" : "false") + ",";
   json += "\"reservoirMechFloat\":" + String(_reservoirMechFloat ? "true" : "false") + ",";
@@ -722,6 +736,20 @@ void WebManager::_setupRoutes() {
           _feedPauseMin = fpm;
           changed = true;
         }
+        // Datasheet ratings, in L/h. Setting one is also how a calibration
+        // measured against a broken level reading gets thrown out: the sync
+        // below re-tests the stored rate against it. 0 clears the declaration
+        // and every check that depends on it goes back to inert.
+        float dn = _extractFloat(body, "drainNominalLPH");
+        if (dn >= 0 && dn <= NOMINAL_FLOW_MAX_LPH) {
+          _drainNominalLPH = dn;
+          changed = true;
+        }
+        float rn = _extractFloat(body, "refillNominalLPH");
+        if (rn >= 0 && rn <= NOMINAL_FLOW_MAX_LPH) {
+          _refillNominalLPH = rn;
+          changed = true;
+        }
 
         if (changed) {
           // Auto-calculate primeML from reservoirVolume × ratio
@@ -732,6 +760,10 @@ void WebManager::_setupRoutes() {
           }
           _saveParams();
           syncAquariumGeometryToWater();
+          // Pushes the ratings and re-tests the stored flow rates against them,
+          // so an impossible calibration dies the moment the pump's real
+          // capability is written down.
+          syncFlowRatesFromWater();
           if (_safety) {
             _safety->setOverflowThresholdCm(getOverflowThresholdCm());
           }
@@ -1604,6 +1636,8 @@ void WebManager::_loadParams() {
       "usMin", (uint16_t)(ULTRASONIC_MIN_DISTANCE_DEFAULT_CM * 10));
   _drainFlowRate = _prefs.getFloat("drFR", 0);
   _refillFlowRate = _prefs.getFloat("rfFR", 0);
+  _drainNominalLPH = _prefs.getFloat("drNom", 0);
+  _refillNominalLPH = _prefs.getFloat("rfNom", 0);
   _primeRatio = _prefs.getFloat("pRat", PRIME_LABEL_ML_PER_L);
   _primeEnabled = _prefs.getBool("pEn", true);
   _reservoirMechFloat = _prefs.getBool("resMF", false);
@@ -1657,6 +1691,8 @@ void WebManager::_saveParams() {
   _prefs.putUShort("usMin", _ultrasonicMinMm);
   _prefs.putFloat("drFR", _drainFlowRate);
   _prefs.putFloat("rfFR", _refillFlowRate);
+  _prefs.putFloat("drNom", _drainNominalLPH);
+  _prefs.putFloat("rfNom", _refillNominalLPH);
   _prefs.putFloat("pRat", _primeRatio);
   _prefs.putBool("pEn", _primeEnabled);
   _prefs.putBool("resMF", _reservoirMechFloat);
@@ -1927,8 +1963,12 @@ bool WebManager::triggerTPA(bool manual) {
   // A measured rate near zero makes this quotient enormous; assigning it to an
   // unsigned long is undefined behaviour, and the value that lands there is a
   // timeout that will never fire. Clamp before the conversion, not after.
-  const float drainLPM = _water->getDrainFlowLPM();
-  const float refillLPM = _water->getRefillFlowLPM();
+  // The SLOWER of measured and nominal. A timeout sized from a rate the pump
+  // cannot reach expires while the water is still legitimately on its way:
+  // that is how a refill leg was cut off after three minutes of a job that
+  // physically needed four.
+  const float drainLPM = _water->planningDrainLPM();
+  const float refillLPM = _water->planningRefillLPM();
   // The legs move different volumes now: the drain removes only what is left
   // after the shortfall, the refill puts back the whole change.
   if (drainLPM > 0)

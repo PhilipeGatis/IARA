@@ -326,6 +326,23 @@ constexpr float REFILL_PROGRESS_MIN_FRACTION = 0.35f;
 // answering the question it is actually for: is the water moving at all.
 constexpr float REFILL_PROGRESS_MIN_CM = 0.5f;
 
+// -- Nominal (datasheet) pump flow --
+//
+// The rating printed on a pump is measured at zero head. Every centimetre of
+// lift and every metre of hose only subtracts from it, so the real rate is
+// always at or below the nominal one. A *measured* rate above it is therefore
+// not a fast pump, it is a bad measurement, and the tolerance below exists
+// only to absorb sensor noise rather than to admit impossible numbers.
+//
+// This is the guard that was missing when a 300 L/h pump reported 19 L/min:
+// the number fed the dynamic timeouts, and a refill leg was cut off minutes
+// before the water could physically arrive.
+constexpr float NOMINAL_FLOW_TOLERANCE = 1.15f;
+
+// Declared per pump, in L/h, because that is the unit on the datasheet.
+// 0 means "not declared", and every check that depends on it stays inert.
+constexpr float NOMINAL_FLOW_MAX_LPH = 20000.0f;
+
 // Upper bound for a calibration run. It normally ends earlier, as soon as the
 // level has moved CALIBRATION_MIN_DELTA_PCT.
 constexpr unsigned long PUMP_CALIBRATION_MAX_MS = 5UL * 60 * 1000; // 5 min

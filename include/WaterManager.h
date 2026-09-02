@@ -135,11 +135,34 @@ public:
   /// failed for want of mains pressure looks exactly like one that succeeded,
   /// and the cycle will drain the aquarium before discovering it.
   void setReservoirHasMechanicalFloat(bool has) { _reservoirMechFloat = has; }
-  void setDrainFlowLPM(float lpm) { _drainFlowLPM = lpm; }
-  void setRefillFlowLPM(float lpm) { _refillFlowLPM = lpm; }
+  /// Store a measured flow rate. Rejected, and left at zero, when the pump has
+  /// a declared nominal rate and the measurement exceeds it: see
+  /// NOMINAL_FLOW_TOLERANCE.
+  void setDrainFlowLPM(float lpm);
+  void setRefillFlowLPM(float lpm);
   float getDrainFlowLPM() const { return _drainFlowLPM; }
   float getRefillFlowLPM() const { return _refillFlowLPM; }
   bool isCalibrated() const { return _drainFlowLPM > 0 && _refillFlowLPM > 0; }
+
+  /// The pump's datasheet rating, in L/min. 0 = not declared.
+  ///
+  /// Declaring it re-tests whatever measurement is already stored, so a rate
+  /// calibrated against a broken sensor is discarded the moment the real
+  /// capability of the pump is written down, rather than waiting for the next
+  /// calibration run that nobody remembers to do.
+  void setDrainNominalLPM(float lpm);
+  void setRefillNominalLPM(float lpm);
+  float getDrainNominalLPM() const { return _drainNominalLPM; }
+  float getRefillNominalLPM() const { return _refillNominalLPM; }
+
+  /// The rate to size a timeout or an expectation from: the SLOWER of the
+  /// measured and the nominal one, falling back to whichever exists alone.
+  ///
+  /// Slower, because every consumer of these is asking "how long may this
+  /// legitimately take" — and being wrong in the fast direction is what aborts
+  /// an honest water change half-finished.
+  float planningDrainLPM() const;
+  float planningRefillLPM() const;
 
   /// Save calibrated flow rates to NVS
   void saveCalibration();
@@ -218,6 +241,13 @@ private:
   unsigned long _calStartMs;  // millis() at state entry
   float _drainFlowLPM;        // Calibrated drain flow rate (L/min)
   float _refillFlowLPM;       // Calibrated refill flow rate (L/min)
+  float _drainNominalLPM = 0; // Datasheet rating (L/min), 0 = not declared
+  float _refillNominalLPM = 0;
+
+  /// Returns `measured` when the pump could plausibly have produced it, 0 when
+  /// it could not. Logs the rejection: a silently discarded sample is how the
+  /// bad rate survived every manual run that should have replaced it.
+  float _plausibleFlow(float measured, float nominal, const char *what) const;
 
   // Refill flow verification. The expected rate is snapshotted when the pump
   // starts, BEFORE the live recalibration below can touch _refillFlowLPM --
@@ -263,6 +293,10 @@ private:
   /// Capture inline calibration flow rate
   void _captureDrainCalibration();
   void _captureRefillCalibration();
+
+  /// Explain on the serial log why a capture produced nothing.
+  void _reportRejectedSample(const char *what, float startLevel,
+                             float endLevel) const;
 
   /// Calculate flow rate from calibration data (DRY helper)
   float _calcFlowRate(float startLevel, float endLevel, unsigned long startMs) const;

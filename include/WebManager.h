@@ -129,6 +129,11 @@ private:
                                   // leitura é ring-down, não distância
   float _drainFlowRate;      // mL/s
   float _refillFlowRate;     // mL/s
+  // Datasheet ratings, in L/h because that is the unit printed on the pump.
+  // 0 = not declared. Held here because this is the side that persists config;
+  // WaterManager gets them in L/min through syncFlowRatesFromWater().
+  float _drainNominalLPH = 0;
+  float _refillNominalLPH = 0;
   float _primeRatio;         // mL per liter (manufacturer ratio)
   bool _primeEnabled;
   bool _reservoirMechFloat;
