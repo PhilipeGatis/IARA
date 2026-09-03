@@ -472,8 +472,10 @@ void test_refill_stall_check_uses_snapshot_not_live_rate() {
   setDistance(23.9f);
   wm.update();
 
-  mock_millis_value += 31000;
-  setDistance(23.8f); // 0.1 cm in 31 s against 1.29 cm expected
+  // Past the window this rate earns: at 2.5 cm/min it is 34 s, not the bare
+  // REFILL_PROGRESS_WINDOW_MS floor.
+  mock_millis_value += 40000;
+  setDistance(23.8f); // 0.1 cm in 40 s against a 0.5 cm threshold
   wm.update();
   TEST_ASSERT_EQUAL(TPAState::ERROR, wm.getState());
 }
@@ -584,26 +586,62 @@ void test_planning_rate_takes_the_slower_of_the_two() {
   wm.setRefillFlowLPM(3.0f); // head loss: below the rating, so believed
   TEST_ASSERT_EQUAL_FLOAT(3.0f, wm.planningRefillLPM());
 
-  // With nothing measured, the rating alone still sizes a timeout.
+  // With nothing measured the rating does NOT stand in for one. It is taken at
+  // zero head and ran ~6x the real rate here, so handing it over shortens a
+  // timeout and inflates a stall expectation — both abort a healthy cycle.
+  // Zero puts callers back on their own conservative defaults.
   WaterManager wm2 = makeWM();
   wm2.setDrainNominalLPM(4.0f);
-  TEST_ASSERT_EQUAL_FLOAT(4.0f, wm2.planningDrainLPM());
+  TEST_ASSERT_EQUAL_FLOAT(0.0f, wm2.planningDrainLPM());
 
   // And with neither, callers get zero and fall back to their own defaults.
   WaterManager wm3 = makeWM();
   TEST_ASSERT_EQUAL_FLOAT(0.0f, wm3.planningRefillLPM());
 }
 
-// The stall check expects the level to move at the planning rate. Sized from
-// the overstated measurement it demanded more than the pump can deliver; the
-// rating brings the expectation back to something physical.
-void test_stall_check_expects_no_more_than_the_rating() {
+// A measurement inside NOMINAL_FLOW_TOLERANCE is stored, but planning still
+// caps it at the rating: the tolerance exists to absorb sensor noise, not to
+// let an expectation exceed what the pump can deliver.
+void test_planning_caps_a_measurement_at_the_rating() {
   WaterManager wm = makeWM();
-  wm.setLitersPerCm(1.8f);
   wm.setRefillNominalLPM(5.0f);
-  wm.setRefillFlowLPM(19.19f); // refused, so planning falls back to 5.0
-  TEST_ASSERT_EQUAL_FLOAT(5.0f, wm.planningRefillLPM());
+  wm.setRefillFlowLPM(5.5f); // within tolerance, so accepted...
+  TEST_ASSERT_EQUAL_FLOAT(5.5f, wm.getRefillFlowLPM());
+  TEST_ASSERT_EQUAL_FLOAT(5.0f, wm.planningRefillLPM()); // ...but capped here
+}
+
+// The regression this guards: making the stall check fall back to the rating
+// turned a check that had been OFF (no measurement) into one expecting the
+// zero-head catalogue rate, and it aborted refills that were filling normally.
+void test_uncalibrated_refill_does_not_arm_the_stall_check() {
+  WaterManager wm = makeWM();
+  wm.setLitersPerCm(3.05f);
+  wm.setRefillNominalLPM(4.67f); // 280 L/h rating, no measurement
   wm.setTimeoutRefillMs(600000);
+
+  goToRefilling(wm);
+  setDistance(24.0f);
+  wm.update();
+
+  // Real movement of a slow-but-healthy refill: ~0.26 cm/min. Against the
+  // rating this looks like a stall; against nothing, the check stays off.
+  mock_millis_value += 21000;
+  wm.update();
+  mock_millis_value += 31000;
+  setDistance(23.87f);
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::REFILLING, wm.getState());
+}
+
+// A slow expectation has to buy a longer window, not a threshold that sinks
+// under the sensor noise. At 0.26 cm/min the 30 s window would demand 0.05 cm —
+// unmeasurable — so the window stretches and the threshold stays at 0.5 cm.
+void test_slow_refill_stretches_the_progress_window() {
+  WaterManager wm = makeWM();
+  wm.setLitersPerCm(3.05f);
+  wm.setRefillNominalLPM(4.67f);
+  wm.setRefillFlowLPM(0.8f); // measured: ~0.26 cm/min
+  wm.setTimeoutRefillMs(1800000);
 
   goToRefilling(wm);
   setDistance(24.0f);
@@ -612,11 +650,40 @@ void test_stall_check_expects_no_more_than_the_rating() {
   mock_millis_value += 21000;
   wm.update();
 
-  // 2.8 cm/min of real movement against an expectation built on 5 L/min.
+  // Well past the old fixed 30 s, and still filling at the expected rate.
+  // The window has not closed yet, so nothing is judged.
   mock_millis_value += 31000;
-  setDistance(22.6f);
+  setDistance(23.87f);
   wm.update();
   TEST_ASSERT_EQUAL(TPAState::REFILLING, wm.getState());
+
+  // Carry on to the stretched window with honest movement throughout.
+  mock_millis_value += 300000;
+  setDistance(22.5f);
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::REFILLING, wm.getState());
+}
+
+// The check must still catch a genuine stall, just later.
+void test_stretched_window_still_catches_a_real_stall() {
+  WaterManager wm = makeWM();
+  wm.setLitersPerCm(3.05f);
+  wm.setRefillFlowLPM(0.8f);
+  wm.setTimeoutRefillMs(1800000);
+
+  goToRefilling(wm);
+  setDistance(24.0f);
+  wm.update();
+
+  mock_millis_value += 21000;
+  wm.update();
+
+  // Level frozen across the whole stretched window: pump dead, hose kinked,
+  // reservoir empty or a stuck reading — all look like this.
+  mock_millis_value += 331000;
+  setDistance(24.0f);
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::ERROR, wm.getState());
 }
 
 void test_is_calibrated_getter() {
@@ -787,7 +854,10 @@ int main(int argc, char **argv) {
   RUN_TEST(test_declaring_the_rating_discards_a_stored_impossible_rate);
   RUN_TEST(test_no_rating_accepts_any_measurement);
   RUN_TEST(test_planning_rate_takes_the_slower_of_the_two);
-  RUN_TEST(test_stall_check_expects_no_more_than_the_rating);
+  RUN_TEST(test_planning_caps_a_measurement_at_the_rating);
+  RUN_TEST(test_uncalibrated_refill_does_not_arm_the_stall_check);
+  RUN_TEST(test_slow_refill_stretches_the_progress_window);
+  RUN_TEST(test_stretched_window_still_catches_a_real_stall);
   RUN_TEST(test_is_calibrated_getter);
 
   // Sensor-based progress

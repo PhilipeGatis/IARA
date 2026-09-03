@@ -313,7 +313,17 @@ constexpr unsigned long REFILL_SETTLE_MS = 3000; // 3 s
 // own noise: at a typical couple of cm/min, 30 s moves the level about a
 // centimetre, well past MAX_LEVEL_STEP_CM.
 constexpr unsigned long REFILL_PROGRESS_GRACE_MS = 20UL * 1000;  // 20 s
+// Floor for the window. It is a floor and not the window itself: fixing the
+// duration at 30 s fixes the wrong end of the problem. The threshold then
+// scales with whatever rate is expected, and on a slow refill it lands under
+// the sensor's own noise -- at 0.26 cm/min it works out to 0.05 cm against a
+// MAX_LEVEL_STEP_CM of 1.0, so the check passes on noise and stops detecting
+// anything. Hold the threshold at REFILL_PROGRESS_MIN_CM instead and let the
+// window stretch until the expected movement can actually produce it.
 constexpr unsigned long REFILL_PROGRESS_WINDOW_MS = 30UL * 1000; // 30 s
+// Ceiling for that stretch. A stall still has to surface well inside the
+// refill timeout, which is measured in tens of minutes.
+constexpr unsigned long REFILL_PROGRESS_MAX_WINDOW_MS = 6UL * 60 * 1000; // 6 min
 // Fraction of the expected movement that still counts as progress. Generous on
 // purpose: this is a stall detector, not a flow meter, and a false positive
 // aborts a legitimate water change.

@@ -611,7 +611,7 @@ void WaterManager::_handleRefilling() {
       if (_refillProgressMs == 0) {
         _refillProgressMs = millis();
         _refillProgressLevel = dist;
-      } else if (millis() - _refillProgressMs >= REFILL_PROGRESS_WINDOW_MS) {
+      } else if (millis() - _refillProgressMs >= _refillProgressWindowMs()) {
         const float mins = (millis() - _refillProgressMs) / 60000.0f;
         const float expected = _refillProgressCmMin * mins;
         // Smaller of the two: a calibration that reads high must not be able
@@ -896,21 +896,55 @@ void WaterManager::setRefillNominalLPM(float lpm) {
   _refillFlowLPM = _plausibleFlow(_refillFlowLPM, _refillNominalLPM, "Stored refill");
 }
 
-/// Slower of the two, ignoring whichever is absent.
-static float slowerFlow(float measured, float nominal) {
+/// The rating caps a measurement; it never stands in for a missing one.
+///
+/// Substituting it was a mistake worth naming. The rating is taken at zero
+/// head and ran about 6x the real rate on this rig, so handing it to a caller
+/// that has no measurement SHORTENS a timeout and INFLATES a stall
+/// expectation — both in the direction that aborts a healthy cycle. Returning
+/// zero puts every caller back on its own conservative default, which is what
+/// they did before a rating could be declared at all.
+static float cappedFlow(float measured, float nominal) {
   if (measured <= 0)
-    return nominal > 0 ? nominal : 0;
+    return 0;
   if (nominal <= 0)
     return measured;
   return measured < nominal ? measured : nominal;
 }
 
+/// How long the progress window has to be for a real stall to stand out from
+/// sensor noise.
+///
+/// The comparison only means something if the threshold it produces sits above
+/// the level reading's own spread. Solve for the duration that makes the
+/// expected movement, discounted by REFILL_PROGRESS_MIN_FRACTION, reach
+/// REFILL_PROGRESS_MIN_CM -- so the threshold is pinned at that floor and the
+/// time adapts instead.
+///
+/// This is what makes the check survive a refill whose rate legitimately falls
+/// as the reservoir drains: a slower expectation buys a longer window rather
+/// than a threshold that quietly sinks into the noise.
+unsigned long WaterManager::_refillProgressWindowMs() const {
+  if (_refillProgressCmMin <= 0)
+    return REFILL_PROGRESS_WINDOW_MS;
+
+  const float minutes = (REFILL_PROGRESS_MIN_CM / REFILL_PROGRESS_MIN_FRACTION) /
+                        _refillProgressCmMin;
+  const unsigned long ms = (unsigned long)(minutes * 60000.0f);
+
+  if (ms < REFILL_PROGRESS_WINDOW_MS)
+    return REFILL_PROGRESS_WINDOW_MS;
+  if (ms > REFILL_PROGRESS_MAX_WINDOW_MS)
+    return REFILL_PROGRESS_MAX_WINDOW_MS;
+  return ms;
+}
+
 float WaterManager::planningDrainLPM() const {
-  return slowerFlow(_drainFlowLPM, _drainNominalLPM);
+  return cappedFlow(_drainFlowLPM, _drainNominalLPM);
 }
 
 float WaterManager::planningRefillLPM() const {
-  return slowerFlow(_refillFlowLPM, _refillNominalLPM);
+  return cappedFlow(_refillFlowLPM, _refillNominalLPM);
 }
 
 // DRY #4: Extract flow rate calculation

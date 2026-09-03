@@ -298,6 +298,9 @@ private:
   void _reportRejectedSample(const char *what, float startLevel,
                              float endLevel) const;
 
+  /// Progress window sized so its threshold clears the sensor's noise.
+  unsigned long _refillProgressWindowMs() const;
+
   /// Calculate flow rate from calibration data (DRY helper)
   float _calcFlowRate(float startLevel, float endLevel, unsigned long startMs) const;
 
