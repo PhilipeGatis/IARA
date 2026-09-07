@@ -309,7 +309,23 @@ const translations = {
     'logs.refresh': { pt: 'Atualizar', en: 'Refresh', ja: '更新' },
     'logs.all': { pt: 'TODOS', en: 'ALL', ja: 'すべて' },
     'logs.empty': { pt: 'Nenhum evento registrado desde o último boot.', en: 'No events recorded since last boot.', ja: '前回起動以降のイベントなし。' },
-    'logs.info': { pt: '💡 O log armazena os últimos 100 eventos de bomba em flash (LittleFS). Os dados sobrevivem reboots. Útil para diagnosticar ativações inesperadas durante a noite.', en: '💡 The log stores the last 100 pump events in flash (LittleFS). Data survives reboots. Useful for diagnosing unexpected overnight activations.', ja: '💡 ログはフラッシュ（LittleFS）に最後の100件のポンプイベントを保存します。再起動後もデータは保持されます。夜間の予期せぬ動作の診断に役立ちます。' },
+    'logs.info': { pt: '💡 O log guarda os últimos 100 eventos de bomba em RAM e é zerado a cada reinício — escrever em LittleFS travava o loop contra o web server. Útil para diagnosticar ativações inesperadas durante a noite.', en: '💡 The log keeps the last 100 pump events in RAM and is cleared by every reset — writing to LittleFS deadlocked the loop against the web server. Useful for diagnosing unexpected overnight activations.', ja: '💡 ログは最後の100件のポンプイベントをRAMに保持し、リセットごとに消去されます（LittleFSへの書き込みがWebサーバーとループをデッドロックさせるため）。夜間の予期せぬ動作の診断に役立ちます。' },
+
+    // ---- Boot log ----
+    'boot.title': { pt: 'Log de Boot', en: 'Boot Log', ja: '起動ログ' },
+    'boot.boots': { pt: 'reinícios', en: 'boots', ja: '起動' },
+    'boot.empty': { pt: 'Nenhum reinício registrado ainda.', en: 'No boots recorded yet.', ja: '記録された起動はまだありません。' },
+    'boot.info': { pt: '💡 Cada reinício fica gravado na NVS com o motivo, o horário e quanto tempo a placa ficou de pé antes. BROWNOUT é queda de tensão na alimentação, não falha de software — veja HARDWARE.md.', en: '💡 Every reset is stored in NVS with its cause, its time and how long the board had been up beforehand. BROWNOUT is a supply voltage collapse, not a software fault — see HARDWARE.md.', ja: '💡 各リセットは原因・時刻・直前の連続稼働時間とともにNVSへ保存されます。BROWNOUTはソフトウェア障害ではなく電源電圧の低下です — HARDWARE.mdを参照。' },
+    'boot.ranFor': { pt: 'rodou {d} antes', en: 'ran {d} before', ja: '直前は{d}稼働' },
+    'boot.unknownRun': { pt: 'duração anterior não registrada', en: 'previous run length not recorded', ja: '直前の稼働時間は未記録' },
+    'boot.noClock': { pt: 'relógio ainda não sincronizado', en: 'clock not yet synced', ja: '時刻未同期' },
+    'boot.abnormal': { pt: '⚠️ {n} de {total} reinícios foram anormais.', en: '⚠️ {n} of {total} boots were abnormal.', ja: '⚠️ {total}件中{n}件が異常な起動でした。' },
+    'boot.allNormal': { pt: '✅ Nenhum reinício anormal registrado.', en: '✅ No abnormal boots recorded.', ja: '✅ 異常な起動は記録されていません。' },
+    'boot.why.BROWNOUT': { pt: 'Tensão de alimentação caiu abaixo do mínimo', en: 'Supply voltage fell below the minimum', ja: '電源電圧が下限を下回りました' },
+    'boot.why.PANIC_EXCEPTION': { pt: 'Firmware travou numa exceção', en: 'Firmware crashed on an exception', ja: 'ファームウェアが例外で停止' },
+    'boot.why.INTERRUPT_WATCHDOG': { pt: 'Interrupção bloqueada tempo demais', en: 'An interrupt was blocked for too long', ja: '割り込みが長時間ブロックされました' },
+    'boot.why.TASK_WATCHDOG': { pt: 'Uma task parou de responder', en: 'A task stopped responding', ja: 'タスクが応答を停止しました' },
+    'boot.why.OTHER_WATCHDOG': { pt: 'Watchdog do hardware disparou', en: 'A hardware watchdog fired', ja: 'ハードウェアウォッチドッグが作動' },
 } as const;
 
 type TranslationKey = keyof typeof translations;
