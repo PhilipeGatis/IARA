@@ -1,6 +1,7 @@
 #include "nvs_flash.h"
 #include "WebManager.h"
 #include "TpaPlan.h"
+#include "BootLog.h"
 #include "PumpLog.h"
 #include "FertManager.h"
 #include "NotifyManager.h"
@@ -1297,6 +1298,12 @@ void WebManager::_setupRoutes() {
   _server.on(
       "/api/pump/log", HTTP_GET, [](AsyncWebServerRequest *request) {
         request->send(200, "application/json", pumpLogGetJSON());
+      });
+
+  // ---- GET /api/boot/log ----
+  _server.on(
+      "/api/boot/log", HTTP_GET, [](AsyncWebServerRequest *request) {
+        request->send(200, "application/json", bootLogGetJSON());
       });
 
   // ---- GET /api/notify/status ----

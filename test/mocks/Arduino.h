@@ -44,9 +44,20 @@ public:
   String(const std::string &s) : _str(s) {}
   String(int val) : _str(std::to_string(val)) {}
   String(float val) : _str(std::to_string(val)) {}
+  // Arduino's String has overloads for the unsigned types too. Without them an
+  // unsigned argument is an ambiguous conversion between the int and float
+  // constructors, and any firmware that builds on device fails to compile here.
+  String(unsigned int val) : _str(std::to_string(val)) {}
+  String(long val) : _str(std::to_string(val)) {}
+  String(unsigned long val) : _str(std::to_string(val)) {}
 
   const char *c_str() const { return _str.c_str(); }
   int length() const { return (int)_str.length(); }
+  void reserve(unsigned int size) { _str.reserve(size); }
+  int indexOf(const char *needle) const {
+    auto pos = _str.find(needle);
+    return (pos == std::string::npos) ? -1 : (int)pos;
+  }
   void trim() {
     auto start = _str.find_first_not_of(" \t\n\r");
     auto end = _str.find_last_not_of(" \t\n\r");

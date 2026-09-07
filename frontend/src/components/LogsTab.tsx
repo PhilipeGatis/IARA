@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useT } from '../i18n';
+import BootLog from './BootLog';
 
 type PumpLogEntry = {
     t: string;
@@ -66,6 +67,11 @@ export default function LogsTab({ rtcConnected, rtcLostPower }: { rtcConnected?:
 
     return (
         <div className="flex flex-col gap-3">
+            {/* Why the board restarted, above the pump log: a reset explains
+                gaps in the log below it, and the pump log itself does not
+                survive one. */}
+            <BootLog />
+
             {/* Header + filters */}
             <section className="card">
                 <div className="card-h">

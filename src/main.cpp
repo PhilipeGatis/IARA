@@ -12,6 +12,7 @@
 //   - WebManager:     Embedded web dashboard + Serial command interface
 // =============================================================================
 
+#include "BootLog.h"
 #include "Config.h"
 #include "PumpLog.h"
 #include "DisplayManager.h"
@@ -116,22 +117,13 @@ void setup() {
   delay(2000);
 
   // --- Step 2a: Log reset reason (diagnostic) ---
-  esp_reset_reason_t resetReason = esp_reset_reason();
-  const char *resetStr = "UNKNOWN";
-  switch (resetReason) {
-    case ESP_RST_POWERON:  resetStr = "POWER_ON"; break;
-    case ESP_RST_EXT:      resetStr = "EXTERNAL"; break;
-    case ESP_RST_SW:       resetStr = "SOFTWARE"; break;
-    case ESP_RST_PANIC:    resetStr = "PANIC_EXCEPTION"; break;
-    case ESP_RST_INT_WDT:  resetStr = "INTERRUPT_WATCHDOG"; break;
-    case ESP_RST_TASK_WDT: resetStr = "TASK_WATCHDOG"; break;
-    case ESP_RST_WDT:      resetStr = "OTHER_WATCHDOG"; break;
-    case ESP_RST_DEEPSLEEP:resetStr = "DEEP_SLEEP"; break;
-    case ESP_RST_BROWNOUT: resetStr = "BROWNOUT"; break;
-    case ESP_RST_SDIO:     resetStr = "SDIO"; break;
-    default:               resetStr = "UNKNOWN"; break;
-  }
+  // Recorded here rather than at the end of setup() on purpose: WiFi below can
+  // hold the boot for 30 s, and a board resetting inside that window is
+  // precisely the case the log exists to catch.
+  const uint8_t resetReason = (uint8_t)esp_reset_reason();
+  const char *resetStr = bootResetReasonName(resetReason);
   bootResetReason = resetStr;
+  bootLogBegin(resetReason);
 
   Serial.println("\n==========================================");
   Serial.println("  AQUARIUM AUTOMATION - ESP32 Firmware");
@@ -410,6 +402,18 @@ void loop() {
   // have nothing left to switch its pump off.
   fertMgr.tickDose();
 
+  // ---- 1b. BOOT LOG HOUSEKEEPING ----
+  // Above the emergency early-return, which loops forever without reaching the
+  // rest of this function: an emergency that lasts hours would otherwise freeze
+  // the uptime counter and make the next boot's entry claim the board had only
+  // been up until the emergency started. The tick touches RTC RAM only; the
+  // stamp writes NVS once, the first time the clock is trustworthy, and is a
+  // no-op on every call after that.
+  bootLogTick();
+  if (timeMgr.isTimeValid()) {
+    bootLogStampTime((uint32_t)timeMgr.now().unixtime());
+  }
+
   // If in emergency, skip all scheduling and just process commands
   if (safety.isEmergency()) {
     if (!emergencyNotified) {
@@ -430,7 +434,6 @@ void loop() {
 
   // ---- 2. TIME SYNC (periodic NTP re-sync) ----
   timeMgr.update();
-
   // ---- 3. SERIAL COMMANDS + WEB ----
   webMgr.processSerialCommands();
   webMgr.update(); // handle SSE and HTTP clients

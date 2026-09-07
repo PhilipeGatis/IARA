@@ -13,7 +13,10 @@
 
 class Preferences {
 public:
-  void begin(const char *ns, bool readOnly = false) { _namespace = ns; }
+  bool begin(const char *ns, bool readOnly = false) {
+    _namespace = ns;
+    return true;
+  }
   void end() {}
 
   // ---- Write ----
