@@ -98,6 +98,13 @@ public:
   /// Process serial commands (always active)
   void processSerialCommands();
 
+  /// @brief Dashboards currently streaming status over SSE.
+  ///
+  /// Each one is a push every three seconds, which is the only sustained
+  /// transmit this board does on its own — worth recording next to a reset
+  /// that looks like a supply event.
+  uint8_t sseClientCount() { return (uint8_t)_events.count(); }
+
 private:
   // Manager pointers
   TimeManager *_time;

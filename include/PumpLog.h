@@ -103,6 +103,12 @@ String pumpLogGetJSON();
 /// @brief Get the number of entries currently in the ring buffer.
 uint8_t pumpLogCount();
 
+/// @brief Bitmask of actuators currently on, bit N = OUTPUT_PINS[N].
+///
+/// Tracks the logical state the log records, not the pad level, so the
+/// canister's active-LOW SSR reads the same way here as it does in the log.
+uint16_t pumpLogActiveMask();
+
 /// @brief The newest entry, or a zeroed entry when the log is empty.
 ///
 /// Exists so a test can assert on what was recorded rather than on what a pad

@@ -10,6 +10,9 @@
 
 static TimeFormatCallback _timeCb = nullptr;
 
+// Actuators believed to be on, bit N = OUTPUT_PINS[N].
+static uint16_t _activeMask = 0;
+
 // Ring buffer
 static PumpLogEntry _logBuffer[PUMP_LOG_MAX];
 static uint8_t _logHead = 0;  // Next write position
@@ -165,6 +168,15 @@ const char *reasonName(PumpReason r) {
 // ============================================================================
 
 static void _addEntry(uint8_t pin, bool state, PumpReason reason) {
+  // Every path that changes an actuator lands here, which makes this the one
+  // place the mask can be kept honest.
+  for (uint8_t i = 0; i < NUM_OUTPUT_PINS; i++) {
+    if (OUTPUT_PINS[i] != pin) continue;
+    if (state) _activeMask |= (uint16_t)(1u << i);
+    else _activeMask &= (uint16_t)~(1u << i);
+    break;
+  }
+
   PumpLogEntry &entry = _logBuffer[_logHead];
 
   // Timestamp
@@ -196,6 +208,8 @@ PumpLogEntry pumpLogLast() {
 }
 
 uint8_t pumpLogCount() { return _logCount; }
+
+uint16_t pumpLogActiveMask() { return _activeMask; }
 
 String pumpLogGetJSON() {
   String json = "{\"count\":";

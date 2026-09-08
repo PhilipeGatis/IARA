@@ -326,6 +326,16 @@ const translations = {
     'boot.why.INTERRUPT_WATCHDOG': { pt: 'Interrupção bloqueada tempo demais', en: 'An interrupt was blocked for too long', ja: '割り込みが長時間ブロックされました' },
     'boot.why.TASK_WATCHDOG': { pt: 'Uma task parou de responder', en: 'A task stopped responding', ja: 'タスクが応答を停止しました' },
     'boot.why.OTHER_WATCHDOG': { pt: 'Watchdog do hardware disparou', en: 'A hardware watchdog fired', ja: 'ハードウェアウォッチドッグが作動' },
+    'boot.snap.wifiUnknown': { pt: 'WiFi —', en: 'WiFi —', ja: 'WiFi —' },
+    'boot.snap.wifiOk': { pt: 'WiFi conectado', en: 'WiFi connected', ja: 'WiFi接続中' },
+    'boot.snap.wifiDown': { pt: 'WiFi caído', en: 'WiFi down', ja: 'WiFi切断' },
+    'boot.snap.wifiAp': { pt: 'modo AP', en: 'AP mode', ja: 'APモード' },
+    'boot.snap.drops': { pt: '{n} quedas', en: '{n} drops', ja: '切断{n}回' },
+    'boot.snap.retries': { pt: '{n} tentativas', en: '{n} retries', ja: '再試行{n}回' },
+    'boot.snap.lastDrop': { pt: 'última há {d}', en: 'last {d} ago', ja: '最後は{d}前' },
+    'boot.snap.panels': { pt: '{n} painel(is) aberto(s)', en: '{n} dashboard(s) open', ja: 'ダッシュボード{n}件' },
+    'boot.snap.noOutputs': { pt: 'nenhum atuador ligado', en: 'no actuator on', ja: '作動中の機器なし' },
+    'boot.snap.outputs': { pt: 'atuadores 0x{mask}', en: 'actuators 0x{mask}', ja: '機器 0x{mask}' },
 } as const;
 
 type TranslationKey = keyof typeof translations;

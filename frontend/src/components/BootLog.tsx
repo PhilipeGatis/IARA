@@ -2,6 +2,22 @@ import { useState, useEffect, useCallback } from 'react';
 import { useT } from '../i18n';
 import { dateFromDeviceEpoch } from '../api';
 
+/** What the board was doing when the run ended, carried across the reset. */
+type BootSnap = {
+    /** 0 unknown, 1 connected, 2 down, 3 AP fallback. */
+    wifi: number;
+    /** null when the station was not associated. */
+    rssi: number | null;
+    retries: number;
+    reason: number;
+    /** 65535 = the station never dropped during that run. */
+    quietS: number;
+    drops: number;
+    sse: number;
+    outputs: number;
+    heapKb: number;
+};
+
 type BootEntry = {
     seq: number;
     reason: string;
@@ -9,6 +25,8 @@ type BootEntry = {
     epoch: number;
     /** null when the uptime counter did not survive the reset. */
     prevUptimeS: number | null;
+    /** Absent on entries written before the snapshot existed. */
+    snap?: BootSnap;
 };
 
 type BootLogResponse = {
@@ -30,6 +48,16 @@ const WHY_KEYS = {
     TASK_WATCHDOG: 'boot.why.TASK_WATCHDOG',
     OTHER_WATCHDOG: 'boot.why.OTHER_WATCHDOG',
 } as const;
+
+const WIFI_STATE_KEYS = [
+    'boot.snap.wifiUnknown',
+    'boot.snap.wifiOk',
+    'boot.snap.wifiDown',
+    'boot.snap.wifiAp',
+] as const;
+
+/** The station never dropped during that run — not an age of 65535 seconds. */
+const NEVER_DROPPED = 65535;
 
 /** Seconds to something readable at every scale a reset can happen at. */
 function formatUptime(s: number): string {
@@ -68,6 +96,34 @@ export default function BootLog() {
     useEffect(() => {
         fetchBoots();
     }, [fetchBoots]);
+
+    /**
+     * One line saying what the radio and the actuators were doing.
+     *
+     * Only rendered for faults. On a boot the user caused this is noise; on a
+     * brownout it is the entire reason the snapshot exists.
+     */
+    const describeSnap = (s: BootSnap): string | null => {
+        // An all-zero snapshot is a pre-upgrade entry, or a run that ended
+        // before the first snapshot landed. Say nothing rather than report a
+        // dead radio and no heap.
+        if (s.wifi === 0 && s.rssi === null && s.heapKb === 0) return null;
+
+        const parts: string[] = [t(WIFI_STATE_KEYS[s.wifi] ?? WIFI_STATE_KEYS[0])];
+        if (s.rssi !== null) parts.push(`${s.rssi} dBm`);
+        if (s.drops > 0) parts.push(t('boot.snap.drops', { n: s.drops }));
+        if (s.retries > 0) parts.push(t('boot.snap.retries', { n: s.retries }));
+        if (s.drops > 0 && s.quietS !== NEVER_DROPPED) {
+            parts.push(t('boot.snap.lastDrop', { d: formatUptime(s.quietS) }));
+        }
+        if (s.sse > 0) parts.push(t('boot.snap.panels', { n: s.sse }));
+        parts.push(
+            s.outputs === 0
+                ? t('boot.snap.noOutputs')
+                : t('boot.snap.outputs', { mask: s.outputs.toString(16) })
+        );
+        return parts.join(' · ');
+    };
 
     const boots = data?.boots ?? [];
     const abnormal = boots.filter((b) => !NORMAL_REASONS.has(b.reason)).length;
@@ -146,6 +202,11 @@ export default function BootLog() {
                                             : t('boot.ranFor', { d: formatUptime(b.prevUptimeS) })}
                                         {whyKey && ` · ${t(whyKey)}`}
                                     </div>
+                                    {fault && b.snap && describeSnap(b.snap) && (
+                                        <div className="mt-0.5 pl-4 font-mono text-[10px] tabular-nums text-muted/70">
+                                            {describeSnap(b.snap)}
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}

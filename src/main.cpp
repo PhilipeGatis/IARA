@@ -91,6 +91,12 @@ bool apFallbackActive = false;
 // /api/status so the cause survives until someone looks.
 volatile int lastWifiDisconnectReason = -1;
 
+// How many times the station has dropped this run, and when the last one
+// landed. A brownout that keeps arriving seconds after a reassociation says
+// something a reason code on its own does not.
+volatile uint16_t wifiDisconnectCount = 0;
+volatile unsigned long lastWifiEventMs = 0;
+
 // Offline for this long and the AP comes up, so the dashboard stays reachable
 // even while the station keeps failing.
 const unsigned long WIFI_AP_FALLBACK_MS = 120000UL; // 2 minutes
@@ -183,6 +189,8 @@ void setup() {
   WiFi.onEvent([](arduino_event_id_t event, arduino_event_info_t info) {
     if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
       lastWifiDisconnectReason = info.wifi_sta_disconnected.reason;
+      if (wifiDisconnectCount < 0xFFFF) wifiDisconnectCount++;
+      lastWifiEventMs = millis();
 
       // A radio the AP keeps refusing produces dozens of these a second, and
       // an unthrottled printf turns that into a serial flood that buries every
@@ -412,6 +420,41 @@ void loop() {
   bootLogTick();
   if (timeMgr.isTimeValid()) {
     bootLogStampTime((uint32_t)timeMgr.now().unixtime());
+  }
+
+  // Once a second, not every pass: WiFi.RSSI() reaches into the driver, and
+  // nothing here changes fast enough for twenty samples a second to say more.
+  {
+    static unsigned long lastSnapshotMs = 0;
+    if (millis() - lastSnapshotMs >= 1000) {
+      lastSnapshotMs = millis();
+
+      const bool connected = (WiFi.status() == WL_CONNECTED);
+      BootSnapshot snap{};
+      snap.wifiState = (uint8_t)(connected      ? BootWifiState::CONNECTED
+                                 : apFallbackActive ? BootWifiState::AP_FALLBACK
+                                                    : BootWifiState::DOWN);
+      // RSSI only means anything while associated, and 0 dBm cannot occur, so
+      // it doubles as "no reading".
+      snap.rssi = connected ? (int8_t)WiFi.RSSI() : BOOT_RSSI_UNKNOWN;
+      snap.wifiRetries = wifiRetryCount;
+      snap.wifiReason = (int16_t)lastWifiDisconnectReason;
+      snap.wifiDisconnects = wifiDisconnectCount;
+      // 0xFFFF is "the station has not dropped once this run", which is a
+      // different statement from "it dropped 65535 seconds ago".
+      const unsigned long lastEvt = lastWifiEventMs;
+      if (lastEvt == 0) {
+        snap.wifiQuietS = 0xFFFF;
+      } else {
+        const unsigned long quiet = (millis() - lastEvt) / 1000;
+        snap.wifiQuietS = (quiet > 0xFFFEUL) ? 0xFFFE : (uint16_t)quiet;
+      }
+      snap.sseClients = webMgr.sseClientCount();
+      snap.outputsMask = pumpLogActiveMask();
+      snap.freeHeapKb = (uint16_t)(ESP.getFreeHeap() / 1024);
+
+      bootLogUpdateSnapshot(snap);
+    }
   }
 
   // If in emergency, skip all scheduling and just process commands

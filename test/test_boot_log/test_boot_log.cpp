@@ -143,6 +143,156 @@ void test_json_empty_when_nothing_logged() {
   TEST_ASSERT_NOT_EQUAL(-1, json.indexOf("\"boots\":[]"));
 }
 
+// --- Migration from the format already on the device ---
+//
+// These structs deliberately restate the v1 layout instead of sharing it with
+// the implementation: they are what is actually sitting in NVS on a deployed
+// board, so a test that moved with the code would prove nothing.
+
+struct V1Entry {
+    uint32_t seq;
+    uint32_t epoch;
+    uint32_t prevUptimeS;
+    uint8_t reason;
+    uint8_t pad[3];
+};
+
+struct V1Store {
+    uint32_t magic;
+    uint8_t version;
+    uint8_t head;
+    uint8_t count;
+    uint8_t pad;
+    V1Entry entries[32];
+};
+
+static void writeV1Store(uint8_t count) {
+    V1Store v1;
+    memset(&v1, 0, sizeof(v1));
+    v1.magic = 0x424C4F47; // "BLOG"
+    v1.version = 1;
+    v1.count = count;
+    v1.head = (uint8_t)(count % 32);
+    for (uint8_t i = 0; i < count; i++) {
+        v1.entries[i].seq = i + 1;
+        v1.entries[i].epoch = 1788779563UL + i;
+        v1.entries[i].prevUptimeS = 100 + i;
+        v1.entries[i].reason = ESP_RST_BROWNOUT;
+    }
+    Preferences prefs;
+    prefs.begin("bootlog", false);
+    prefs.putBytes("ring", &v1, sizeof(v1));
+    prefs.end();
+}
+
+void test_v1_history_survives_the_upgrade() {
+    writeV1Store(5); // what the deployed board is carrying
+
+    bootLogBegin(ESP_RST_BROWNOUT);
+
+    TEST_ASSERT_EQUAL_UINT8(6, bootLogCount());
+    TEST_ASSERT_EQUAL_UINT32(6, bootLogLast().seq);
+
+    // The old entries kept their identity, and gained an empty snapshot rather
+    // than a fabricated one.
+    String json = bootLogGetJSON();
+    TEST_ASSERT_NOT_EQUAL(-1, json.indexOf("\"seq\":1"));
+    TEST_ASSERT_NOT_EQUAL(-1, json.indexOf("\"prevUptimeS\":104"));
+    TEST_ASSERT_NOT_EQUAL(-1, json.indexOf("\"rssi\":null"));
+}
+
+void test_v1_migration_keeps_the_newest_when_the_ring_shrinks() {
+    writeV1Store(32); // v1 held 32; v2 holds BOOT_LOG_MAX
+
+    bootLogBegin(ESP_RST_SW);
+
+    TEST_ASSERT_EQUAL_UINT8(BOOT_LOG_MAX, bootLogCount());
+    TEST_ASSERT_EQUAL_UINT32(33, bootLogLast().seq);
+
+    // Oldest boots are the ones that fall off, not the newest.
+    String json = bootLogGetJSON();
+    TEST_ASSERT_EQUAL(-1, json.indexOf("\"seq\":1,"));
+    TEST_ASSERT_NOT_EQUAL(-1, json.indexOf("\"seq\":32,"));
+}
+
+void test_corrupt_store_starts_fresh_without_crashing() {
+    Preferences prefs;
+    prefs.begin("bootlog", false);
+    const uint8_t junk[64] = {0xDE, 0xAD, 0xBE, 0xEF};
+    prefs.putBytes("ring", junk, sizeof(junk));
+    prefs.end();
+
+    bootLogBegin(ESP_RST_PANIC);
+
+    TEST_ASSERT_EQUAL_UINT8(1, bootLogCount());
+    TEST_ASSERT_EQUAL_UINT32(1, bootLogLast().seq);
+}
+
+// --- Snapshot ---
+
+void test_snapshot_carried_across_reset() {
+  bootLogBegin(ESP_RST_POWERON);
+
+  BootSnapshot snap{};
+  snap.wifiState = (uint8_t)BootWifiState::CONNECTED;
+  snap.rssi = -84;
+  snap.wifiRetries = 7;
+  snap.wifiReason = 201;
+  snap.wifiDisconnects = 3;
+  snap.wifiQuietS = 12;
+  snap.sseClients = 2;
+  snap.outputsMask = 0x0104;
+  snap.freeHeapKb = 185;
+  bootLogUpdateSnapshot(snap);
+
+  bootLogBegin(ESP_RST_BROWNOUT);
+
+  BootLogEntry e = bootLogLast();
+  TEST_ASSERT_EQUAL_UINT8(ESP_RST_BROWNOUT, e.reason);
+  TEST_ASSERT_EQUAL_INT8(-84, e.snap.rssi);
+  TEST_ASSERT_EQUAL_UINT16(7, e.snap.wifiRetries);
+  TEST_ASSERT_EQUAL_INT16(201, e.snap.wifiReason);
+  TEST_ASSERT_EQUAL_UINT16(3, e.snap.wifiDisconnects);
+  TEST_ASSERT_EQUAL_UINT8(2, e.snap.sseClients);
+  TEST_ASSERT_EQUAL_UINT16(0x0104, e.snap.outputsMask);
+  TEST_ASSERT_EQUAL_UINT16(185, e.snap.freeHeapKb);
+}
+
+void test_snapshot_reset_for_the_new_run() {
+  bootLogBegin(ESP_RST_POWERON);
+  BootSnapshot snap{};
+  snap.rssi = -70;
+  snap.sseClients = 4;
+  bootLogUpdateSnapshot(snap);
+
+  bootLogBegin(ESP_RST_BROWNOUT);
+  // The second boot consumed it. A third must not inherit the same values, or
+  // every entry after a busy run would blame the radio for it.
+  bootLogBegin(ESP_RST_BROWNOUT);
+
+  TEST_ASSERT_EQUAL_INT8(0, bootLogLast().snap.rssi);
+  TEST_ASSERT_EQUAL_UINT8(0, bootLogLast().snap.sseClients);
+}
+
+void test_json_reports_missing_rssi_as_null() {
+  bootLogBegin(ESP_RST_POWERON);
+  String json = bootLogGetJSON();
+  TEST_ASSERT_NOT_EQUAL(-1, json.indexOf("\"rssi\":null"));
+}
+
+void test_json_carries_snapshot_fields() {
+  bootLogBegin(ESP_RST_POWERON);
+  BootSnapshot snap{};
+  snap.rssi = -84;
+  snap.sseClients = 2;
+  bootLogUpdateSnapshot(snap);
+  bootLogBegin(ESP_RST_BROWNOUT);
+
+  String json = bootLogGetJSON();
+  TEST_ASSERT_NOT_EQUAL(-1, json.indexOf("\"rssi\":-84"));
+  TEST_ASSERT_NOT_EQUAL(-1, json.indexOf("\"sse\":2"));
+}
+
 // --- Reason names ---
 
 void test_reason_names() {
@@ -166,6 +316,13 @@ int main(int argc, char **argv) {
   RUN_TEST(test_json_lists_newest_first);
   RUN_TEST(test_json_reports_unknown_uptime_as_null);
   RUN_TEST(test_json_empty_when_nothing_logged);
+  RUN_TEST(test_v1_history_survives_the_upgrade);
+  RUN_TEST(test_v1_migration_keeps_the_newest_when_the_ring_shrinks);
+  RUN_TEST(test_corrupt_store_starts_fresh_without_crashing);
+  RUN_TEST(test_snapshot_carried_across_reset);
+  RUN_TEST(test_snapshot_reset_for_the_new_run);
+  RUN_TEST(test_json_reports_missing_rssi_as_null);
+  RUN_TEST(test_json_carries_snapshot_fields);
   RUN_TEST(test_reason_names);
 
   UNITY_END();

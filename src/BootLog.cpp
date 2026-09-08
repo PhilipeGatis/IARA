@@ -26,7 +26,32 @@ static const char *NVS_NAMESPACE = "bootlog";
 static const char *NVS_KEY = "ring";
 
 static const uint32_t STORE_MAGIC = 0x424C4F47; // "BLOG"
-static const uint8_t STORE_VERSION = 1;
+static const uint8_t STORE_VERSION = 2;
+
+/// Version 1: 32 entries of 16 bytes, before the snapshot existed.
+///
+/// Kept so an upgrade does not throw away the history. The entries already on
+/// the device are the evidence someone deployed this to collect; discarding
+/// them because the struct grew would be the one moment the log fails at its
+/// job.
+constexpr uint8_t BOOT_LOG_MAX_V1 = 32;
+
+struct BootLogEntryV1 {
+  uint32_t seq;
+  uint32_t epoch;
+  uint32_t prevUptimeS;
+  uint8_t reason;
+  uint8_t _pad[3];
+};
+
+struct BootLogStoreV1 {
+  uint32_t magic;
+  uint8_t version;
+  uint8_t head;
+  uint8_t count;
+  uint8_t _pad;
+  BootLogEntryV1 entries[BOOT_LOG_MAX_V1];
+};
 
 /// Header and entries in one blob, so a boot is added with a single NVS write
 /// and can never be half-committed.
@@ -50,6 +75,10 @@ static const uint32_t RTC_MAGIC = 0x55505449; // "UPTI"
 
 static BOOTLOG_NOINIT uint32_t _rtcMagic;
 static BOOTLOG_NOINIT uint32_t _rtcUptimeS;
+
+// Same magic guards both: they are written together at the end of
+// bootLogBegin() and read together at the start of the next one.
+static BOOTLOG_NOINIT BootSnapshot _rtcSnap;
 
 // Anchor for the tick accumulator. Ordinary RAM: it means nothing after a
 // reset, and millis() restarts from zero anyway.
@@ -101,6 +130,48 @@ static void _resetStore() {
   _store.version = STORE_VERSION;
 }
 
+/// Append one entry to the ring, dropping the oldest when it is full.
+static void _push(const BootLogEntry &e) {
+  _store.entries[_store.head] = e;
+  _store.head = (uint8_t)((_store.head + 1) % BOOT_LOG_MAX);
+  if (_store.count < BOOT_LOG_MAX) {
+    _store.count++;
+  }
+}
+
+/// Carry a version 1 store forward. The ring shrank from 32 to 24, so the
+/// oldest entries are the ones that do not fit; the snapshot fields did not
+/// exist back then and stay zeroed, which reads as "not recorded".
+static bool _migrateV1(const void *blob, size_t len) {
+  if (len != sizeof(BootLogStoreV1)) return false;
+
+  BootLogStoreV1 old;
+  memcpy(&old, blob, sizeof(old));
+  if (old.magic != STORE_MAGIC || old.version != 1 ||
+      old.count > BOOT_LOG_MAX_V1 || old.head >= BOOT_LOG_MAX_V1) {
+    return false;
+  }
+
+  _resetStore();
+  for (uint8_t i = 0; i < old.count; i++) {
+    // Oldest first, so the ring keeps the newest BOOT_LOG_MAX of them.
+    const uint8_t idx =
+        (uint8_t)((old.head + BOOT_LOG_MAX_V1 - old.count + i) % BOOT_LOG_MAX_V1);
+    const BootLogEntryV1 &src = old.entries[idx];
+
+    BootLogEntry e{};
+    e.seq = src.seq;
+    e.epoch = src.epoch;
+    e.prevUptimeS = src.prevUptimeS;
+    e.reason = src.reason;
+    _push(e);
+  }
+
+  Serial.printf("[BootLog] Migrated %u entries from format v1.\n",
+                (unsigned)_store.count);
+  return true;
+}
+
 static void _load() {
   _resetStore();
 
@@ -110,21 +181,30 @@ static void _load() {
     return;
   }
 
-  BootLogStore disk;
-  const size_t read = prefs.getBytes(NVS_KEY, &disk, sizeof(disk));
+  // Raw bytes, sized for the largest format ever written, so the version is
+  // decided by what the blob says rather than by how long it is.
+  constexpr size_t BUF =
+      (sizeof(BootLogStore) > sizeof(BootLogStoreV1)) ? sizeof(BootLogStore)
+                                                      : sizeof(BootLogStoreV1);
+  uint8_t buf[BUF];
+  memset(buf, 0, sizeof(buf));
+  const size_t read = prefs.getBytes(NVS_KEY, buf, sizeof(buf));
   prefs.end();
 
-  // A short read is an absent key or a store written by an older, smaller
-  // format. Either way there is nothing safe to salvage, and the entries that
-  // matter are the ones from here on.
-  if (read != sizeof(disk) || disk.magic != STORE_MAGIC ||
-      disk.version != STORE_VERSION || disk.count > BOOT_LOG_MAX ||
-      disk.head >= BOOT_LOG_MAX) {
-    Serial.println("[BootLog] No usable saved log. Starting fresh.");
-    return;
+  if (read == sizeof(BootLogStore)) {
+    BootLogStore disk;
+    memcpy(&disk, buf, sizeof(disk));
+    if (disk.magic == STORE_MAGIC && disk.version == STORE_VERSION &&
+        disk.count <= BOOT_LOG_MAX && disk.head < BOOT_LOG_MAX) {
+      _store = disk;
+      return;
+    }
   }
 
-  _store = disk;
+  if (_migrateV1(buf, read)) return;
+
+  Serial.println("[BootLog] No usable saved log. Starting fresh.");
+  _resetStore();
 }
 
 /// Newest entry's index, valid only when count > 0.
@@ -169,23 +249,24 @@ void bootLogBegin(uint8_t resetReason) {
 
   const uint32_t seq = (_store.count > 0) ? _store.entries[_newestIndex()].seq + 1 : 1;
 
-  BootLogEntry &e = _store.entries[_store.head];
+  BootLogEntry e{};
   e.seq = seq;
   e.epoch = 0; // filled in by bootLogStampTime() once the clock is trustworthy
   e.prevUptimeS = prevUptime;
   e.reason = resetReason;
-  memset(e._pad, 0, sizeof(e._pad));
-
-  _store.head = (uint8_t)((_store.head + 1) % BOOT_LOG_MAX);
-  if (_store.count < BOOT_LOG_MAX) {
-    _store.count++;
+  // Same magic, same reasoning: without it the snapshot would be whatever
+  // happened to be in RTC memory, presented as fact about the run that died.
+  if (_rtcMagic == RTC_MAGIC) {
+    e.snap = _rtcSnap;
   }
+  _push(e);
 
   _persist();
 
-  // Start this run's counter only after the previous value has been consumed.
+  // Start this run's counters only after the previous values have been read.
   _rtcMagic = RTC_MAGIC;
   _rtcUptimeS = 0;
+  memset(&_rtcSnap, 0, sizeof(_rtcSnap));
   _tickAnchorMs = millis();
 
   _logNvsHeadroom();
@@ -210,6 +291,13 @@ void bootLogTick() {
   const uint32_t whole = elapsed / 1000;
   _rtcUptimeS += whole;
   _tickAnchorMs += whole * 1000;
+}
+
+void bootLogUpdateSnapshot(const BootSnapshot &snapshot) {
+  // Before bootLogBegin() the magic is still the previous run's, and writing
+  // here would overwrite the very state that boot is about to read out.
+  if (!_loaded) return;
+  _rtcSnap = snapshot;
 }
 
 void bootLogStampTime(uint32_t epoch) {
@@ -242,13 +330,14 @@ void bootLogMockReset() {
   _stamped = false;
   _rtcMagic = 0;
   _rtcUptimeS = 0;
+  memset(&_rtcSnap, 0, sizeof(_rtcSnap));
   _tickAnchorMs = 0;
 }
 #endif
 
 String bootLogGetJSON() {
   String json;
-  json.reserve(96 + (size_t)_store.count * 96);
+  json.reserve(96 + (size_t)_store.count * 224);
   json += "{\"count\":";
   json += String(_store.count);
   json += ",\"boots\":[";
@@ -272,7 +361,29 @@ String bootLogGetJSON() {
     // real number to anything consuming this. null says "not recorded".
     json += (e.prevUptimeS == BOOT_UPTIME_UNKNOWN) ? "null"
                                                    : String(e.prevUptimeS);
-    json += "}";
+
+    const BootSnapshot &s = e.snap;
+    json += ",\"snap\":{\"wifi\":";
+    json += String(s.wifiState);
+    // An RSSI of 0 dBm cannot happen, so it doubles as "no reading" — but only
+    // null keeps a consumer from plotting it as an extremely strong signal.
+    json += ",\"rssi\":";
+    json += (s.rssi == BOOT_RSSI_UNKNOWN) ? "null" : String((int)s.rssi);
+    json += ",\"retries\":";
+    json += String(s.wifiRetries);
+    json += ",\"reason\":";
+    json += String((int)s.wifiReason);
+    json += ",\"quietS\":";
+    json += String(s.wifiQuietS);
+    json += ",\"drops\":";
+    json += String(s.wifiDisconnects);
+    json += ",\"sse\":";
+    json += String(s.sseClients);
+    json += ",\"outputs\":";
+    json += String(s.outputsMask);
+    json += ",\"heapKb\":";
+    json += String(s.freeHeapKb);
+    json += "}}";
   }
 
   json += "]}";
