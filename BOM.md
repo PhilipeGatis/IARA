@@ -34,7 +34,7 @@ Lista completa de componentes do sistema IARA.
 | 10 | Módulo LM2596 | Step-down ajustável (→ 5.1V) | 1 |
 | 11 | Módulo MOSFET 8 canais | Entrada optoacoplada, **versão 3,3 V**, PWM em todos os canais, 12V. MOSFET não identificado — ver nota abaixo | 1 |
 | 12 | Capacitor eletrolítico 470µF | 16V, filtro entrada MOSFET | 1 |
-| 13 | Capacitor eletrolítico 1000µF | 10V, filtro saída 5V (ESP32) | 4 |
+| 13 | Capacitor eletrolítico 1000µF | 10V — 4 no barramento 5V, 1 direto nos pinos 3V3/GND da devkit (ver `HARDWARE.md`) | 5 |
 
 ---
 

@@ -50,6 +50,7 @@ Responsável por converter a potência para os níveis lógicos e manter a estab
 | **LM2596** | Step-down ajustado para 5.1V (alimentação ESP32) |
 | **1× 470µF 16V** | Em paralelo na entrada 12V do MOSFET (Evita queda de tensão quando as bombas ligam) |
 | **4× 1000µF 10V** | Em paralelo na saída 5V (Atua como "Nobreak" para o ESP32 aguentar flutuações e picos da rede) |
+| **1× 1000µF 10V** | Direto nos pinos 3V3 e GND da devkit. O banco de 5V **não** cobre esse ponto — ver aviso abaixo |
 
 ### Esquema de Ligação
 
@@ -66,6 +67,16 @@ Responsável por converter a potência para os níveis lógicos e manter a estab
 > O ESP32 mede cada entrada em relação ao pino GND *dele*. Um sensor referenciado ao borne da fonte entrega ao GPIO a diferença de potencial entre os dois pontos. Na partida das bombas essa diferença passa de **1 V negativo** — muito além do mínimo absoluto de −0,3 V do ESP32 — e o dano se acumula até o pino abrir.
 >
 > Foi exatamente assim que os GPIO5 e GPIO19 queimaram. Ver [`PROTECAO_ELETRICA.md`](PROTECAO_ELETRICA.md).
+
+
+> [!IMPORTANT]
+> **Desacoplamento do 3V3 — o banco de 5V não cobre este ponto.**
+>
+> Os 4× 1000 µF ficam **antes** do AMS1117 da devkit, que é um regulador série. Carga não atravessa esse regulador mais rápido do que a malha de controle dele permite, e nas dezenas de microssegundos que ele leva para responder a um degrau de corrente, a única fonte do 3V3 é o capacitor de saída da própria placa — 10 a 22 µF numa DevKit V1.
+>
+> O detector de brownout do ESP32 vigia o **VDD3P3**. Foi por isso que a placa reiniciava com `ESP_RST_BROWNOUT` em intervalos irregulares, com o aquário parado e nenhuma bomba ligada, enquanto todo o barramento de 5V seguia carregado e sem afundar. Rajada de transmissão do WiFi é a única carga que se move sem ninguém pedir.
+>
+> Um eletrolítico de **1000 µF 10 V** soldado direto entre os pinos **3V3 e GND da devkit** — pernas curtas, listra do negativo no GND — encerrou os reinícios. A regra que explica o caso: desacoplamento só ajuda o nó em que está ligado. É a mesma razão pela qual o ultrassônico pede o próprio par de capacitores no conector dele, e não na placa.
 
 ---
 
@@ -263,7 +274,7 @@ Boia horizontal que indica reservatório cheio. Fecha o solenoide no estado `FIL
 
 1. **Conexões AC** — Isole todas as soldas e conexões de 110V/220V com espaguete termo-retrátil para segurança máxima.
 
-2. **Polaridade dos Capacitores** — Verificar a listra negativa em todos os eletrolíticos (especialmente os de 1000µF 10V que estão operando em 5.1V).
+2. **Polaridade dos Capacitores** — Verificar a listra negativa em todos os eletrolíticos: os de 1000µF 10V do barramento de 5.1V e o de 1000µF dos pinos 3V3/GND da devkit.
 
 3. **Diodos Flyback** — Devem ser instalados obrigatoriamente na ponta do fio (junto ao motor) para evitar que o cabo de 1,2m irradie ruído como uma antena.
 

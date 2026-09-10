@@ -34,7 +34,7 @@ Complete component list for the IARA system.
 | 10 | LM2596 Module | Adjustable step-down (→ 5.1V) | 1 |
 | 11 | 8-Channel MOSFET Module | Optocoupled inputs, **3.3 V version**, PWM on every channel, 12V. MOSFET part not identified — see the note below | 1 |
 | 12 | 470µF Electrolytic Cap | 16V, MOSFET input filter | 1 |
-| 13 | 1000µF Electrolytic Cap | 10V, 5V output filter (ESP32) | 4 |
+| 13 | 1000µF Electrolytic Cap | 10V — 4 on the 5V bus, 1 straight across the devkit's 3V3/GND pins (see `HARDWARE.md`) | 5 |
 
 ---
 

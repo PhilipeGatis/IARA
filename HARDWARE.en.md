@@ -50,6 +50,7 @@ Responsible for converting power to logic levels and maintaining ESP32 stability
 | **LM2596** | Step-down adjusted to 5.1V (ESP32 power) |
 | **1× 470µF 16V** | In parallel at 12V MOSFET input (Prevents voltage dips on pump startup) |
 | **4× 1000µF 10V** | In parallel at 5V output (Acts as a "UPS" for ESP32 to withstand line fluctuations and spikes) |
+| **1× 1000µF 10V** | Directly across the devkit's 3V3 and GND pins. The 5V bank does **not** cover this node — see the warning below |
 
 ### Wiring Diagram
 
@@ -66,6 +67,16 @@ Responsible for converting power to logic levels and maintaining ESP32 stability
 > The ESP32 measures every input relative to *its own* GND pin. A sensor referenced to the PSU terminal hands the GPIO the potential difference between those two points. During pump startup that difference exceeds **1 V negative** — far beyond the ESP32's −0.3 V absolute minimum — and the damage accumulates until the pin fails open.
 >
 > This is exactly how GPIO5 and GPIO19 burned out. See [`PROTECAO_ELETRICA.md`](PROTECAO_ELETRICA.md) (Portuguese only).
+
+
+> [!IMPORTANT]
+> **3V3 decoupling — the 5V bank does not cover this node.**
+>
+> The 4× 1000 µF sit **upstream** of the devkit's AMS1117, which is a series regulator. Charge cannot cross it faster than its control loop allows, and for the tens of microseconds it takes to answer a current step, the only source for 3V3 is the board's own output capacitor — 10 to 22 µF on a DevKit V1.
+>
+> The ESP32's brownout detector watches **VDD3P3**. That is why the board kept resetting with `ESP_RST_BROWNOUT` at irregular intervals, with the tank idle and no pump running, while the entire 5V bus stayed charged and never dipped. A WiFi transmit burst is the only load here that moves without anyone asking.
+>
+> A **1000 µF 10 V** electrolytic soldered straight across the devkit's **3V3 and GND pins** — short leads, negative stripe to GND — ended the resets. The rule that explains it: decoupling only helps the node it is attached to. Same reason the ultrasonic sensor gets its own pair of capacitors at its connector rather than on the board.
 
 ---
 
@@ -263,7 +274,7 @@ Horizontal float switch that signals "reservoir full". It closes the solenoid du
 
 1. **AC Connections** — Insulate all 110V/220V solder joints and connections with heat-shrink tubing for maximum safety.
 
-2. **Capacitor Polarity** — Check the negative stripe on all electrolytics (especially the 1000µF 10V operating at 5.1V).
+2. **Capacitor Polarity** — Check the negative stripe on every electrolytic: the 1000µF 10V units on the 5.1V bus, and the 1000µF across the devkit's 3V3/GND pins.
 
 3. **Flyback Diodes** — Must be installed at the cable end (next to the motor) to prevent the 1.2m cable from radiating noise like an antenna.
 
