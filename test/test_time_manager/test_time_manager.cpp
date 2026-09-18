@@ -1,13 +1,23 @@
 // ============================================================================
 // TimeManager Unit Tests
-// Tests: DateTime validation, schedule matching logic, time formatting
-// NOTE: These tests validate the scheduling logic through DateTime directly,
-//       without linking TimeManager.cpp (which requires I2C/NTP stubs).
+// Tests: clock trust, DateTime validation, schedule matching, time formatting
+// NOTE: the schedule-matching tests below work through DateTime directly. The
+//       clock-trust tests drive the real TimeManager against the RTC and NTP
+//       mocks, which carry the controls those cases need.
 // ============================================================================
 
 #include "Arduino.h"
 #include "RTClib.h" // DateTime mock
+#include "TimeManager.h"
 #include <unity.h>
+
+/// What NTPClient hands back on a board where no packet ever arrived: the
+/// cached epoch is still zero, so the answer is the bare UTC offset, and -10800
+/// in 32-bit unsigned arithmetic is this. It reads as February 2106.
+static const uint32_t NTP_UNSYNCED_UNDERFLOW = 4294956496UL;
+
+/// A real reading: 2026-09-18 08:26:15 in the tank's own timezone.
+static const uint32_t REAL_LOCAL_EPOCH = 1789730775UL;
 
 void setUp() {
   mock_reset_pins();
@@ -138,12 +148,113 @@ void test_format_time_midnight() {
   TEST_ASSERT_EQUAL_STRING("2026/01/01 00:00:00", buf);
 }
 
+
+// ----------------------------------------------------------------------------
+// Clock trust
+//
+// A board whose DS3231 had dropped off the bus and whose NTP never landed a
+// packet reported timeValid=true for hours while now() read a frozen date, so
+// the 08:30 water change never matched its minute and nothing anywhere said
+// why. These pin down what may be treated as a real instant.
+// ----------------------------------------------------------------------------
+
+void test_epoch_window_rejects_every_clock_this_board_has_faked() {
+  TEST_ASSERT_TRUE(TimeManager::isEpochSane(REAL_LOCAL_EPOCH));
+
+  TEST_ASSERT_FALSE(TimeManager::isEpochSane(0));
+  // The NTP offset underflow, and what it wraps down to three hours into a run.
+  TEST_ASSERT_FALSE(TimeManager::isEpochSane(NTP_UNSYNCED_UNDERFLOW));
+  TEST_ASSERT_FALSE(TimeManager::isEpochSane(5294));
+  // A DS3231 with a flat backup battery.
+  TEST_ASSERT_FALSE(TimeManager::isEpochSane(DateTime(2000, 1, 1).unixtime()));
+  // TimeManager's own "no idea" sentinel must never pass for a time.
+  TEST_ASSERT_FALSE(TimeManager::isEpochSane(DateTime(2025, 1, 1).unixtime()));
+}
+
+void test_ntp_that_never_answered_is_not_a_valid_clock() {
+  TimeManager tm;
+  tm.mockRtc().mock_setPresent(false);
+  tm.mockNtp().mock_setUpdateOk(false);
+
+  tm.begin();
+
+  TEST_ASSERT_FALSE(tm.syncWithNTP());
+  TEST_ASSERT_FALSE(tm.isTimeValid());
+}
+
+void test_ntp_offset_underflow_is_not_a_valid_clock() {
+  TimeManager tm;
+  tm.mockRtc().mock_setPresent(false);
+  // The packet "arrives", but nothing was ever set: this is the exact state
+  // that was accepted as a sync and latched the clock as trustworthy.
+  tm.mockNtp().mock_setUpdateOk(true);
+  tm.mockNtp().mock_setEpoch(0);
+
+  tm.begin();
+
+  TEST_ASSERT_EQUAL_UINT32(NTP_UNSYNCED_UNDERFLOW,
+                           (uint32_t)tm.mockNtp().getEpochTime());
+  TEST_ASSERT_FALSE(tm.syncWithNTP());
+  TEST_ASSERT_FALSE(tm.isTimeValid());
+}
+
+void test_real_ntp_reading_is_accepted() {
+  TimeManager tm;
+  tm.mockRtc().mock_setPresent(false);
+  // The client applies the offset itself, so feed it UTC.
+  tm.mockNtp().mock_setEpoch(REAL_LOCAL_EPOCH + 10800UL);
+
+  tm.begin();
+
+  TEST_ASSERT_TRUE(tm.syncWithNTP());
+  TEST_ASSERT_TRUE(tm.isTimeValid());
+  TEST_ASSERT_EQUAL_UINT32(REAL_LOCAL_EPOCH, tm.now().unixtime());
+}
+
+void test_rtc_that_lost_power_is_not_a_valid_clock() {
+  TimeManager tm;
+  tm.mockRtc().mock_setPresent(true);
+  tm.mockRtc().mock_setLostPower(true);
+  tm.mockRtc().mock_setNow(DateTime(2000, 1, 1));
+  tm.mockNtp().mock_setUpdateOk(false);
+
+  tm.begin();
+
+  TEST_ASSERT_TRUE(tm.isRtcConnected());
+  TEST_ASSERT_FALSE(tm.isTimeValid());
+}
+
+void test_rtc_reading_outside_the_window_is_refused_even_when_it_claims_health() {
+  TimeManager tm;
+  tm.mockRtc().mock_setPresent(true);
+  // lostPower() says the module is fine; the reading says otherwise, which is
+  // what a half-seated module does — it answers, with zeros.
+  tm.mockRtc().mock_setLostPower(false);
+  tm.mockRtc().mock_setNow(DateTime(2000, 1, 1));
+  tm.mockNtp().mock_setUpdateOk(false);
+
+  tm.begin();
+
+  TEST_ASSERT_FALSE(tm.isTimeValid());
+  // Not the year-2000 reading: now() falls through to NTP, which has nothing
+  // either, so what comes back is the sentinel.
+  TEST_ASSERT_EQUAL_UINT32(DateTime(2025, 1, 1).unixtime(), tm.now().unixtime());
+}
+
 // ============================================================================
 // MAIN
 // ============================================================================
 
 int main(int argc, char **argv) {
   UNITY_BEGIN();
+
+  // Clock trust
+  RUN_TEST(test_epoch_window_rejects_every_clock_this_board_has_faked);
+  RUN_TEST(test_ntp_that_never_answered_is_not_a_valid_clock);
+  RUN_TEST(test_ntp_offset_underflow_is_not_a_valid_clock);
+  RUN_TEST(test_real_ntp_reading_is_accepted);
+  RUN_TEST(test_rtc_that_lost_power_is_not_a_valid_clock);
+  RUN_TEST(test_rtc_reading_outside_the_window_is_refused_even_when_it_claims_health);
 
   // DateTime mock validation
   RUN_TEST(test_datetime_components);

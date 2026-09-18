@@ -9,7 +9,7 @@
 /// DateTime: simplified version of Adafruit RTClib DateTime
 class DateTime {
 public:
-  DateTime(uint32_t epoch = 0) {
+  DateTime(uint32_t epoch = 0) : _epoch(epoch) {
     // Simplified epoch to date conversion (Unix timestamp)
     uint32_t t = epoch;
     _second = t % 60;
@@ -60,6 +60,9 @@ public:
     if (month < 3)
       y--;
     _dayOfWeek = (y + y / 4 - y / 100 + y / 400 + t_[month - 1] + day) % 7;
+
+    _epoch = (uint32_t)(_daysFromCivil(year, month, day) * 86400L +
+                        hour * 3600L + minute * 60L + second);
   }
 
   uint16_t year() const { return _year; }
@@ -70,9 +73,28 @@ public:
   uint8_t second() const { return _second; }
   uint8_t dayOfTheWeek() const { return _dayOfWeek; }
 
+  /// Seconds since 1970-01-01, the same value the real RTClib returns. The
+  /// clock-sanity checks in TimeManager are written against it, so the mock
+  /// has to carry it for both constructors rather than only for the one that
+  /// was handed an epoch to begin with.
+  uint32_t unixtime() const { return _epoch; }
+
 private:
+  /// Days from 1970-01-01 to the given civil date (Howard Hinnant's algorithm),
+  /// correct across century leap rules — unlike the year%4 shortcut above, which
+  /// only ever has to place a date inside the current decade.
+  static long _daysFromCivil(int y, unsigned m, unsigned d) {
+    y -= m <= 2;
+    const int era = (y >= 0 ? y : y - 399) / 400;
+    const unsigned yoe = (unsigned)(y - era * 400);
+    const unsigned doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+    const unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    return (long)era * 146097 + (long)doe - 719468;
+  }
+
   uint16_t _year;
   uint8_t _month, _day, _hour, _minute, _second, _dayOfWeek;
+  uint32_t _epoch = 0;
 };
 
 /// RTC_DS3231 mock

@@ -1,5 +1,9 @@
 #include "TimeManager.h"
 
+// Wire is used directly here to bring the bus up before the RTC is probed. On
+// the device RTClib drags it in anyway; the native build has no such luck.
+#include <Wire.h>
+
 TimeManager::TimeManager()
     : _timeClient(_ntpUDP, "pool.ntp.org", UTC_OFFSET_BRASILIA),
       _rtcConnected(false), _rtcLostPower(false), _ntpStarted(false), _lastNtpSync(0) {}
@@ -61,12 +65,27 @@ bool TimeManager::syncWithNTP() {
   }
 
   Serial.println("[Time] Syncing with NTP...");
-  _timeClient.update();
 
-  unsigned long epoch = _timeClient.getEpochTime();
-  if (epoch < 1000000) {
-    Serial.println("[Time] NTP returned invalid epoch. Will retry in 10s.");
+  // forceUpdate() rather than update(), and its return value rather than the
+  // epoch afterwards. update() answers false when it simply decided not to ask
+  // yet, and the epoch is not evidence of anything: with no packet ever
+  // received the client keeps _currentEpoc at zero and still hands back
+  // offset + uptime, which is what got accepted here as a valid time.
+  if (!_timeClient.forceUpdate()) {
+    Serial.println("[Time] NTP did not answer. Will retry in 10s.");
     // Prevent UDP spam: set last sync to trigger again in 10 seconds
+    _lastNtpSync = millis() - NTP_SYNC_INTERVAL_MS + 10000;
+    return false;
+  }
+
+  // Truncated to 32 bits on purpose: that is the width the client does its
+  // arithmetic in on the device, so an underflow has to be seen here the same
+  // way rather than sign-extended into something plausible on a 64-bit host.
+  const uint32_t epoch = (uint32_t)_timeClient.getEpochTime();
+  if (!isEpochSane(epoch)) {
+    Serial.printf("[Time] NTP answered with an impossible epoch (%lu) — "
+                  "ignoring it. Will retry in 10s.\n",
+                  (unsigned long)epoch);
     _lastNtpSync = millis() - NTP_SYNC_INTERVAL_MS + 10000;
     return false;
   }
@@ -87,12 +106,19 @@ bool TimeManager::syncWithNTP() {
 
 DateTime TimeManager::now() {
   if (_rtcConnected) {
-    return _rtc.now();
+    const DateTime fromRtc = _rtc.now();
+    if (isEpochSane(fromRtc.unixtime())) {
+      return fromRtc;
+    }
+    // Present on the bus but talking nonsense — a dead backup battery reads
+    // year 2000, and a module that half fell off reads back zeros. NTP is the
+    // better answer if it has one, so fall through rather than hand the
+    // scheduler a date from before the tank existed.
   }
 
   // Fallback: use cached NTP epoch (don't call update() here to avoid spam)
-  unsigned long epoch = _timeClient.getEpochTime();
-  if (epoch > 1000000) {
+  const uint32_t epoch = (uint32_t)_timeClient.getEpochTime();
+  if (isEpochSane(epoch)) {
     return DateTime(epoch);
   }
 
