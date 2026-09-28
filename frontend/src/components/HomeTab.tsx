@@ -259,7 +259,10 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                     };
 
                     const scheduled = fireAtOrAfter(dueDate); // when it should have run
-                    const missed = scheduled.getTime() < now.getTime();
+                    // tpaLastRun is stamped only when a cycle completes, so for
+                    // the whole run the scheduled minute is already behind us.
+                    // A cycle in progress is the scheduled run, not a missed one.
+                    const missed = !running && scheduled.getTime() < now.getTime();
                     const nextRunDate = missed ? fireAtOrAfter(now) : scheduled;
 
                     // Whole calendar days apart, not elapsed milliseconds: a run
