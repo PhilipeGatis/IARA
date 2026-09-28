@@ -45,7 +45,7 @@ void NotifyManager::begin() {
 // UPDATE (called from loop — checks daily report schedule)
 
 void NotifyManager::update(uint8_t currentHour, uint8_t currentMinute,
-                           float levelCm) {
+                           float belowFullCm, float liters) {
   // Re-arm at midnight. This must not be conditional on anything: gating it on
   // _dailyCount meant a quiet day left the flag stuck and the daily report was
   // never sent again.
@@ -62,11 +62,20 @@ void NotifyManager::update(uint8_t currentHour, uint8_t currentMinute,
   // ~20 Hz for the whole minute.
   if (!_dailyReportSent) {
     _dailyReportSent = true;
-    notifyDailyLevel(levelCm);
+    notifyDailyLevel(belowFullCm, liters);
   }
 }
 
 // TYPED NOTIFICATIONS
+
+void NotifyManager::notifyTPAStart(float liters, uint8_t percent) {
+  if (!_canSend(NOTIFY_TPA_START))
+    return;
+  const auto &s = NOTIFY_STRINGS[_lang];
+  char msg[192];
+  snprintf(msg, sizeof(msg), s.tpaStartFmt, liters, percent);
+  _send(NOTIFY_TPA_START, s.tpaStartTitle, msg, "default", "droplet,arrow_forward");
+}
 
 void NotifyManager::notifyTPAComplete() {
   if (!_canSend(NOTIFY_TPA_COMPLETE))
@@ -79,46 +88,59 @@ void NotifyManager::notifyTPAError(const char *reason) {
   if (!_canSend(NOTIFY_TPA_ERROR))
     return;
   const auto &s = NOTIFY_STRINGS[_lang];
-  char msg[128];
+  // The reason carries a " | Canister: ..." suffix, which overran 128 bytes.
+  char msg[192];
   snprintf(msg, sizeof(msg), s.tpaErrorFmt, reason);
   _send(NOTIFY_TPA_ERROR, s.tpaErrorTitle, msg, "high", "warning,droplet");
 }
 
-void NotifyManager::notifyFertLowStock(uint8_t channel, float remainingML,
-                                       float thresholdML) {
-  if (!_canSend(NOTIFY_FERT_LOW_STOCK))
+void NotifyManager::notifyTPASkipped(const char *reason) {
+  if (!_canSend(NOTIFY_TPA_ERROR))
     return;
   const auto &s = NOTIFY_STRINGS[_lang];
-  char msg[128];
-  snprintf(msg, sizeof(msg), s.fertLowStockFmt, channel + 1, remainingML,
-           thresholdML);
-  _send(NOTIFY_FERT_LOW_STOCK, s.fertLowStockTitle, msg, "default", "test_tube,warning");
+  char msg[192];
+  snprintf(msg, sizeof(msg), s.tpaSkippedFmt, reason);
+  _send(NOTIFY_TPA_ERROR, s.tpaSkippedTitle, msg, "high", "warning,droplet");
 }
 
-void NotifyManager::notifyEmergency(const char *reason) {
+bool NotifyManager::notifyFertLowStock(const char *name, float remainingML,
+                                       float thresholdML) {
+  if (!_canSend(NOTIFY_FERT_LOW_STOCK))
+    return false;
+  const auto &s = NOTIFY_STRINGS[_lang];
+  char msg[192];
+  snprintf(msg, sizeof(msg), s.fertLowStockFmt, name, remainingML,
+           thresholdML);
+  _send(NOTIFY_FERT_LOW_STOCK, s.fertLowStockTitle, msg, "default", "test_tube,warning");
+  return true;
+}
+
+void NotifyManager::notifyEmergency() {
   if (!_canSend(NOTIFY_EMERGENCY))
     return;
   const auto &s = NOTIFY_STRINGS[_lang];
-  char msg[128];
-  snprintf(msg, sizeof(msg), s.emergencyFmt, reason);
-  _send(NOTIFY_EMERGENCY, s.emergencyTitle, msg, "urgent", "rotating_light");
+  _send(NOTIFY_EMERGENCY, s.emergencyTitle, s.emergencyMsg, "urgent", "rotating_light");
 }
 
-void NotifyManager::notifyFertComplete(uint8_t channel, float doseML) {
+void NotifyManager::notifyFertComplete(const char *name, float doseML) {
   if (!_canSend(NOTIFY_FERT_COMPLETE))
     return;
   const auto &s = NOTIFY_STRINGS[_lang];
-  char msg[128];
-  snprintf(msg, sizeof(msg), s.fertCompleteFmt, channel + 1, doseML);
+  char msg[192];
+  snprintf(msg, sizeof(msg), s.fertCompleteFmt, name, doseML);
   _send(NOTIFY_FERT_COMPLETE, s.fertCompleteTitle, msg, "low", "test_tube,white_check_mark");
 }
 
-void NotifyManager::notifyDailyLevel(float levelCm) {
+void NotifyManager::notifyDailyLevel(float belowFullCm, float liters) {
   if (!_canSend(NOTIFY_DAILY_LEVEL))
     return;
   const auto &s = NOTIFY_STRINGS[_lang];
-  char msg[128];
-  snprintf(msg, sizeof(msg), s.dailyLevelFmt, levelCm);
+  if (belowFullCm < 0) {
+    _send(NOTIFY_DAILY_LEVEL, s.dailyLevelTitle, s.dailyLevelNoSensorMsg, "default", "bar_chart,warning");
+    return;
+  }
+  char msg[192];
+  snprintf(msg, sizeof(msg), s.dailyLevelFmt, belowFullCm, liters);
   _send(NOTIFY_DAILY_LEVEL, s.dailyLevelTitle, msg, "low", "bar_chart,ocean");
 }
 
@@ -298,8 +320,12 @@ void NotifyManager::_loadConfig() {
 
   // Load per-type toggles (stored as a bitmask in a single byte)
   uint8_t mask = _nPrefs.getUChar("mask", 0xFF); // all enabled by default
+  // How many types existed when the mask was saved. A mask written before a
+  // type was added has a 0 in that bit, which would read as "switched off" for
+  // a toggle nobody ever saw. Masks older than this key held 6 types.
+  uint8_t known = _nPrefs.getUChar("nTypes", 6);
   for (uint8_t i = 0; i < NOTIFY_TYPE_COUNT; i++) {
-    _typeEnabled[i] = (mask >> i) & 1;
+    _typeEnabled[i] = (i >= known) || ((mask >> i) & 1);
   }
 
   _dailyReportHour = _nPrefs.getUChar("repH", 8);
@@ -318,6 +344,7 @@ void NotifyManager::_saveConfig() {
       mask |= (1 << i);
   }
   _nPrefs.putUChar("mask", mask);
+  _nPrefs.putUChar("nTypes", NOTIFY_TYPE_COUNT);
 
   _nPrefs.putUChar("repH", _dailyReportHour);
   _nPrefs.putUChar("repM", _dailyReportMinute);

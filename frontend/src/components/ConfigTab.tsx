@@ -14,6 +14,8 @@ type NotifyStatus = {
     types: boolean[];
 };
 
+// Both lists are indexed by the firmware's NotifyType enum, so a new type is
+// appended to each, never inserted.
 const NOTIFY_TYPE_KEYS = [
     'notify.tpaComplete',
     'notify.tpaError',
@@ -21,6 +23,7 @@ const NOTIFY_TYPE_KEYS = [
     'notify.emergency',
     'notify.fertComplete',
     'notify.dailyLevel',
+    'notify.tpaStart',
 ] as const;
 
 const NOTIFY_TYPE_API_KEYS = [
@@ -30,6 +33,7 @@ const NOTIFY_TYPE_API_KEYS = [
     'emergency',
     'fertComplete',
     'dailyLevel',
+    'tpaStart',
 ];
 
 const LANGS: { code: Lang; flag: string; label: string }[] = [

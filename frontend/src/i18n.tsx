@@ -252,6 +252,7 @@ const translations = {
     'notify.disabled': { pt: 'Desativado', en: 'Disabled', ja: '無効' },
     'notify.reportTime': { pt: 'Relatório Diário', en: 'Daily Report', ja: '日次レポート' },
     'notify.saveConfig': { pt: 'Salvar Configuração', en: 'Save Config', ja: '設定保存' },
+    'notify.tpaStart': { pt: 'TPA Iniciada', en: 'TPA Started', ja: 'TPA開始' },
     'notify.tpaComplete': { pt: 'TPA Concluída', en: 'TPA Complete', ja: 'TPA完了' },
     'notify.tpaError': { pt: 'Erro na TPA', en: 'TPA Error', ja: 'TPAエラー' },
     'notify.fertLowStock': { pt: 'Estoque Baixo', en: 'Low Stock', ja: '在庫低下' },

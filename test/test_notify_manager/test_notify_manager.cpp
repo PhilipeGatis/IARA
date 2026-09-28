@@ -112,6 +112,33 @@ void test_key_cleared() {
   TEST_ASSERT_FALSE(nm.isEnabled());
 }
 
+// --- Toggle masks saved before a type existed ---
+
+void test_new_type_enabled_under_old_mask() {
+  // What a board flashed before NOTIFY_TPA_START wrote: six types, the
+  // low-stock toggle off, and no type count.
+  Preferences p;
+  p.begin("notify", false);
+  p.putUChar("mask", 0x3F & ~(1 << NOTIFY_FERT_LOW_STOCK));
+  p.end();
+
+  NotifyManager nm;
+  nm.begin();
+  TEST_ASSERT_TRUE(nm.isTypeEnabled(NOTIFY_TPA_START));
+  TEST_ASSERT_FALSE(nm.isTypeEnabled(NOTIFY_FERT_LOW_STOCK));
+  TEST_ASSERT_TRUE(nm.isTypeEnabled(NOTIFY_TPA_COMPLETE));
+}
+
+void test_new_type_toggle_persists() {
+  NotifyManager nm;
+  nm.begin();
+  nm.setTypeEnabled(NOTIFY_TPA_START, false);
+
+  NotifyManager reloaded;
+  reloaded.begin();
+  TEST_ASSERT_FALSE(reloaded.isTypeEnabled(NOTIFY_TPA_START));
+}
+
 int main(int argc, char **argv) {
   UNITY_BEGIN();
 
@@ -125,6 +152,8 @@ int main(int argc, char **argv) {
   RUN_TEST(test_all_types_enabled_by_default);
   RUN_TEST(test_invalid_type_returns_false);
   RUN_TEST(test_key_cleared);
+  RUN_TEST(test_new_type_enabled_under_old_mask);
+  RUN_TEST(test_new_type_toggle_persists);
 
   UNITY_END();
   return 0;

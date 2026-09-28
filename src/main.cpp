@@ -464,7 +464,7 @@ void loop() {
       // still believes a dose is in flight; tickDose() would then log it as
       // having completed normally. Tell it the dose was cut short.
       fertMgr.abortDose();
-      notifyMgr.notifyEmergency("Sistema em estado de emergência!");
+      notifyMgr.notifyEmergency();
       emergencyNotified = true;
     }
     webMgr.processSerialCommands();
@@ -589,15 +589,33 @@ void loop() {
     }
 
     // --- Check low stock after fertilization ---
+    // Once per channel per low spell. Without the latch a low channel fired
+    // every time the 5-minute cooldown expired, which spent the 20-a-day
+    // budget by mid-morning and silenced the TPA and emergency alerts with it.
+    static bool lowStockNotified[NUM_FERTS + 1] = {};
     for (uint8_t ch = 0; ch < NUM_FERTS + 1; ch++) {
-      if (fertMgr.isLowStock(ch)) {
-        notifyMgr.notifyFertLowStock(ch, fertMgr.getStockML(ch),
-                                     fertMgr.getLowStockThreshold(ch));
+      if (!fertMgr.isLowStock(ch)) {
+        lowStockNotified[ch] = false;
+      } else if (!lowStockNotified[ch]) {
+        lowStockNotified[ch] = notifyMgr.notifyFertLowStock(
+            fertMgr.getName(ch).c_str(), fertMgr.getStockML(ch),
+            fertMgr.getLowStockThreshold(ch));
       }
     }
 
     // --- Notifications: daily level report + midnight reset ---
-    notifyMgr.update(now.hour(), now.minute(), safety.getLastDistance());
+    // The sensor reports its distance to the water, not a level. Sent as is,
+    // "2.6 cm" read as a nearly empty tank when it meant one full to the mark.
+    {
+      const float dist = safety.getLastDistance();
+      const float fullCm = webMgr.getSensorFullDistanceMm() / 10.0f;
+      float belowFullCm = -1; // no valid reading
+      if (dist > 0 && fullCm > 0) {
+        belowFullCm = dist > fullCm ? dist - fullCm : 0;
+      }
+      notifyMgr.update(now.hour(), now.minute(), belowFullCm,
+                       belowFullCm * webMgr.getLitersPerCm());
+    }
 
     // --- TPA schedule ---
     if (currentMinute != lastTPAMinute) {
@@ -640,10 +658,24 @@ void loop() {
           } else if (!webMgr.isTpaConfigReady()) {
             Serial.println("[Main] TPA schedule triggered but config "
                            "incomplete - skipping.");
+            notifyMgr.notifyTPASkipped("config incomplete");
+          } else if (webMgr.triggerTPA(false)) { // Scheduled = not manual
+            tpaDoneThisMinute = true;
+            // Percent of what is actually being changed: the planner can cap
+            // the configured percent at the reservoir or the drain ceiling.
+            const float liters = webMgr.getTpaPlannedLiters();
+            const uint32_t vol = webMgr.getAquariumVolume();
+            notifyMgr.notifyTPAStart(
+                liters, vol > 0 ? (uint8_t)(liters * 100.0f / vol + 0.5f)
+                                : webMgr.getTpaPercent());
           } else {
-            if (webMgr.triggerTPA(false)) { // Scheduled = not manual
-              tpaDoneThisMinute = true;
-            }
+            // Refused by the planner (level, reservoir, sensor). Until now
+            // the only trace was the serial log, so a skipped change looked
+            // exactly like one that had simply not come due yet.
+            notifyMgr.notifyTPASkipped(
+                webMgr.getTpaBlockedReason().length() > 0
+                    ? webMgr.getTpaBlockedReason().c_str()
+                    : "refused");
           }
         }
       }

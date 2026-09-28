@@ -12,7 +12,10 @@ enum NotifyType : uint8_t {
   NOTIFY_EMERGENCY,
   NOTIFY_FERT_COMPLETE,
   NOTIFY_DAILY_LEVEL,
-  NOTIFY_TYPE_COUNT // = 6
+  // New types go at the end: the toggles are persisted as a bitmask indexed by
+  // this enum, so inserting one would shift every saved toggle after it.
+  NOTIFY_TPA_START,
+  NOTIFY_TYPE_COUNT // = 7
 };
 
 /// @brief ntfy.sh push notification manager with rate limiting and per-type
@@ -26,17 +29,28 @@ public:
 
   /// Call from loop — sends the daily level report when its time comes.
   /// Owns the whole decision so the caller cannot double-fire it.
-  void update(uint8_t currentHour, uint8_t currentMinute, float levelCm);
+  /// Levels as for notifyDailyLevel(); pass a negative belowFullCm when the
+  /// sensor has no valid reading.
+  void update(uint8_t currentHour, uint8_t currentMinute, float belowFullCm,
+              float liters);
 
   // ---- Typed notifications ----
 
+  void notifyTPAStart(float liters, uint8_t percent);
   void notifyTPAComplete();
   void notifyTPAError(const char *reason);
-  void notifyFertLowStock(uint8_t channel, float remainingML,
+  /// A scheduled cycle that never started. Shares the TPA-error toggle and
+  /// cooldown: to the user it is the same event, the water was not changed.
+  void notifyTPASkipped(const char *reason);
+  /// @return true once the notification was attempted, false when rate
+  /// limiting or a toggle held it back and the caller should try again later.
+  bool notifyFertLowStock(const char *name, float remainingML,
                           float thresholdML);
-  void notifyEmergency(const char *reason);
-  void notifyFertComplete(uint8_t channel, float doseML);
-  void notifyDailyLevel(float levelCm);
+  void notifyEmergency();
+  void notifyFertComplete(const char *name, float doseML);
+  /// @param belowFullCm how far the water sits below the full mark
+  /// @param liters      the water that distance represents
+  void notifyDailyLevel(float belowFullCm, float liters);
 
   // ---- Configuration (persisted in NVS namespace "notify") ----
 

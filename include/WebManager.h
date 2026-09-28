@@ -37,6 +37,10 @@ public:
   uint32_t getTpaLastRun() const { return _tpaLastRun; }
   void setTpaLastRun(uint32_t epoch);
   uint8_t getTpaPercent() const { return _tpaPercent; }
+  /// Litres the cycle triggerTPA() last accepted will put back.
+  float getTpaPlannedLiters() const { return _tpaPlannedLiters; }
+  /// Why the last triggerTPA() was refused; empty after an accepted one.
+  const String &getTpaBlockedReason() const { return _tpaBlockedReason; }
   uint8_t getCanisterSafePct() const { return _canisterSafePct; }
   uint16_t getFeedPauseMin() const { return _feedPauseMin; }
   uint8_t getLanguage() const { return _language; }

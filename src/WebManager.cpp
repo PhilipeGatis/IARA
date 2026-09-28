@@ -1346,8 +1346,15 @@ void WebManager::_setupRoutes() {
           return;
 
         // Per-type toggles
-        const char *typeKeys[] = {"tpaComplete", "tpaError",     "fertLowStock",
-                                  "emergency",   "fertComplete", "dailyLevel"};
+        // Indexed by NotifyType; the static_assert keeps a new type from
+        // reading past the end.
+        static const char *typeKeys[] = {"tpaComplete",  "tpaError",
+                                         "fertLowStock", "emergency",
+                                         "fertComplete", "dailyLevel",
+                                         "tpaStart"};
+        static_assert(sizeof(typeKeys) / sizeof(typeKeys[0]) ==
+                          NOTIFY_TYPE_COUNT,
+                      "one API key per notification type");
         for (uint8_t i = 0; i < NOTIFY_TYPE_COUNT; i++) {
           int val = _extractInt(body, typeKeys[i]);
           if (val == 0 || val == 1) {
@@ -1828,8 +1835,11 @@ void WebManager::processSerialCommands() {
                     _notify->getDailyReportHour(),
                     _notify->getDailyReportMinute());
       Serial.printf("  Today's count: %d/%d\n", _notify->getDailyCount(), 20);
-      const char *names[] = {"TPA OK",     "TPA Erro", "Estoque",
-                             "Emergência", "Fert OK",  "Nível Diário"};
+      static const char *names[] = {"TPA OK",     "TPA Erro", "Estoque",
+                                    "Emergência", "Fert OK",  "Nível Diário",
+                                    "TPA Início"};
+      static_assert(sizeof(names) / sizeof(names[0]) == NOTIFY_TYPE_COUNT,
+                    "one label per notification type");
       for (uint8_t i = 0; i < NOTIFY_TYPE_COUNT; i++) {
         Serial.printf("  [%c] %s\n",
                       _notify->isTypeEnabled((NotifyType)i) ? 'X' : ' ',
