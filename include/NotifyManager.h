@@ -47,7 +47,8 @@ public:
   bool notifyFertLowStock(const char *name, float remainingML,
                           float thresholdML);
   void notifyEmergency();
-  void notifyFertComplete(const char *name, float doseML);
+  /// @param summary the doses, e.g. "Potassio 1.1 mL, Fosforo 1.8 mL"
+  void notifyFertComplete(const char *summary);
   /// @param belowFullCm how far the water sits below the full mark
   /// @param liters      the water that distance represents
   void notifyDailyLevel(float belowFullCm, float liters);

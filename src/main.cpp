@@ -603,6 +603,26 @@ void loop() {
       }
     }
 
+    // --- Dosing summary ---
+    // One notification per round of doses rather than one per channel: three
+    // channels share 10:40, and the per-type cooldown would have let only the
+    // first through. The round is over once the pumps have been quiet for a
+    // while — the starts are staggered, so a gap of a moment is not the end.
+    if (fertMgr.hasFinishedDoses() && !fertMgr.isDosing() &&
+        millis() - fertMgr.lastDoseEndMs() >= 30000UL) {
+      float ml[NUM_FERTS + 1];
+      fertMgr.takeFinishedDoses(ml);
+      String summary;
+      for (uint8_t ch = 0; ch < NUM_FERTS + 1; ch++) {
+        if (ml[ch] <= 0)
+          continue;
+        if (summary.length() > 0)
+          summary += ", ";
+        summary += fertMgr.getName(ch) + " " + String(ml[ch], 1) + " mL";
+      }
+      notifyMgr.notifyFertComplete(summary.c_str());
+    }
+
     // --- Notifications: daily level report + midnight reset ---
     // The sensor reports its distance to the water, not a level. Sent as is,
     // "2.6 cm" read as a nearly empty tank when it meant one full to the mark.

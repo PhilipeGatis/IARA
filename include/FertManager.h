@@ -77,6 +77,15 @@ public:
   /// Stops an in-progress dose immediately, mid-volume.
   void abortDose();
 
+  /// Scheduled doses that ran to the end and have not been reported yet.
+  /// Prime dosed by the water change is not included: it is part of the TPA,
+  /// which reports itself.
+  bool hasFinishedDoses() const;
+  /// millis() when the last dose of any kind ended.
+  unsigned long lastDoseEndMs() const { return _lastDoseEndMs; }
+  /// Copies the unreported volumes per channel into @p ml and clears them.
+  void takeFinishedDoses(float ml[NUM_FERTS + 1]);
+
   /// Manually turn the pump ON or OFF for priming the line
   void manualPump(uint8_t ch, bool state);
 
@@ -227,6 +236,9 @@ private:
   bool _doseActive[NUM_FERTS + 1] = {};
   unsigned long _doseEndMs[NUM_FERTS + 1] = {};
   PumpReason _doseReason[NUM_FERTS + 1] = {}; ///< what to log on the OFF
+  float _doseVolML[NUM_FERTS + 1] = {};       ///< volume of the dose running
+  float _finishedML[NUM_FERTS + 1] = {};      ///< completed, not yet reported
+  unsigned long _lastDoseEndMs = 0;
 
   /// Get the GPIO pin for a channel (0-3 = fert, 4 = prime)
   uint8_t _pinForChannel(uint8_t ch) const;

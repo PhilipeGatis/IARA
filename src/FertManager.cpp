@@ -168,6 +168,7 @@ bool FertManager::startDose(uint8_t ch, float ml, PumpReason reason) {
 
   _doseActive[ch] = true;
   _doseReason[ch] = reason;
+  _doseVolML[ch] = ml;
   _doseEndMs[ch] = millis() + durationMs;
   _lastPumpStartMs = millis();
   _pumpStarted = true;
@@ -205,7 +206,26 @@ void FertManager::tickDose() {
     ledcWrite(ch, 0);
     pumpLogEvent(_pinForChannel(ch), false, _doseReason[ch]);
     _doseActive[ch] = false;
+    _lastDoseEndMs = millis();
+    if (_doseReason[ch] == PumpReason::FERT_SCHEDULED) {
+      _finishedML[ch] += _doseVolML[ch];
+    }
     Serial.printf("[Fert] CH%d dose finished\n", ch + 1);
+  }
+}
+
+bool FertManager::hasFinishedDoses() const {
+  for (uint8_t ch = 0; ch < NUM_FERTS + 1; ch++) {
+    if (_finishedML[ch] > 0)
+      return true;
+  }
+  return false;
+}
+
+void FertManager::takeFinishedDoses(float ml[NUM_FERTS + 1]) {
+  for (uint8_t ch = 0; ch < NUM_FERTS + 1; ch++) {
+    ml[ch] = _finishedML[ch];
+    _finishedML[ch] = 0;
   }
 }
 

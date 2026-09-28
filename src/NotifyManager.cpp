@@ -122,12 +122,12 @@ void NotifyManager::notifyEmergency() {
   _send(NOTIFY_EMERGENCY, s.emergencyTitle, s.emergencyMsg, "urgent", "rotating_light");
 }
 
-void NotifyManager::notifyFertComplete(const char *name, float doseML) {
+void NotifyManager::notifyFertComplete(const char *summary) {
   if (!_canSend(NOTIFY_FERT_COMPLETE))
     return;
   const auto &s = NOTIFY_STRINGS[_lang];
-  char msg[192];
-  snprintf(msg, sizeof(msg), s.fertCompleteFmt, name, doseML);
+  char msg[256];
+  snprintf(msg, sizeof(msg), s.fertCompleteFmt, summary);
   _send(NOTIFY_FERT_COMPLETE, s.fertCompleteTitle, msg, "low", "test_tube,white_check_mark");
 }
 

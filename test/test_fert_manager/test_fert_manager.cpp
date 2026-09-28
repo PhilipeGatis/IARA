@@ -614,6 +614,42 @@ void test_reset_channel_clears_dosed_today_stamp() {
 // MAIN
 // ============================================================================
 
+// --- Finished doses reported for the notification ---
+
+void test_finished_scheduled_doses_are_reported_once() {
+  FertManager fm = createFM();
+  Preferences::mock_clearAll();
+
+  fm.startDose(0, 1.1f, PumpReason::FERT_SCHEDULED);
+  fm.startDose(2, 1.5f, PumpReason::FERT_SCHEDULED);
+  // Prime dosed by the water change belongs to the TPA's own notification.
+  fm.startDose(NUM_FERTS, 5.0f, PumpReason::TPA_PRIME);
+  TEST_ASSERT_FALSE(fm.hasFinishedDoses()); // still running
+
+  mock_millis_value += 60UL * 1000;
+  fm.tickDose();
+  TEST_ASSERT_TRUE(fm.hasFinishedDoses());
+
+  float ml[NUM_FERTS + 1];
+  fm.takeFinishedDoses(ml);
+  TEST_ASSERT_EQUAL_FLOAT(1.1f, ml[0]);
+  TEST_ASSERT_EQUAL_FLOAT(0.0f, ml[1]);
+  TEST_ASSERT_EQUAL_FLOAT(1.5f, ml[2]);
+  TEST_ASSERT_EQUAL_FLOAT(0.0f, ml[NUM_FERTS]);
+  TEST_ASSERT_FALSE(fm.hasFinishedDoses());
+}
+
+void test_aborted_dose_is_not_reported() {
+  FertManager fm = createFM();
+  Preferences::mock_clearAll();
+
+  fm.startDose(0, 1.1f, PumpReason::FERT_SCHEDULED);
+  fm.abortDose();
+  mock_millis_value += 60UL * 1000;
+  fm.tickDose();
+  TEST_ASSERT_FALSE(fm.hasFinishedDoses());
+}
+
 int main(int argc, char **argv) {
   UNITY_BEGIN();
 
@@ -665,6 +701,8 @@ int main(int argc, char **argv) {
   RUN_TEST(test_reset_channel_stops_its_own_pump);
   RUN_TEST(test_reset_channel_does_not_stop_another_channels_dose);
   RUN_TEST(test_reset_channel_clears_dosed_today_stamp);
+  RUN_TEST(test_finished_scheduled_doses_are_reported_once);
+  RUN_TEST(test_aborted_dose_is_not_reported);
 
   UNITY_END();
   return 0;

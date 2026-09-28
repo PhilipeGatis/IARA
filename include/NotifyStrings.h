@@ -27,7 +27,7 @@ struct NotifyStrings {
   const char *tpaSkippedFmt;   // %s = reason
   const char *fertLowStockFmt; // %s = name, %.0f = remaining, %.0f = threshold
   const char *emergencyMsg;
-  const char *fertCompleteFmt; // %s = name, %.1f = dose
+  const char *fertCompleteFmt; // %s = list of doses
   const char *dailyLevelFmt;   // %.1f = cm below full, %.1f = liters
   const char *dailyLevelNoSensorMsg;
   const char *testMsg;
@@ -46,7 +46,7 @@ static const NotifyStrings NOTIFY_STRINGS[LANG_COUNT] = {
         "A TPA agendada não iniciou: %s",
         "%s: restam %.0f mL (alerta em %.0f mL). Reabasteça!",
         "O sistema entrou em modo de emergência. Verifique o aquário agora.",
-        "%s: %.1f mL dosados.",
+        "Dosagem concluída: %s.",
         "Água %.1f cm abaixo do nível cheio (~%.1f L para completar).",
         "O sensor de nível está sem leitura válida.",
         "Notificação de teste do sistema."
@@ -62,7 +62,7 @@ static const NotifyStrings NOTIFY_STRINGS[LANG_COUNT] = {
         "The scheduled water change did not start: %s",
         "%s: %.0f mL left (alert at %.0f mL). Refill!",
         "The system entered emergency mode. Check the aquarium now.",
-        "%s: %.1f mL dosed.",
+        "Dosing done: %s.",
         "Water is %.1f cm below the full mark (~%.1f L to top up).",
         "The level sensor has no valid reading.",
         "System test notification."
@@ -77,7 +77,7 @@ static const NotifyStrings NOTIFY_STRINGS[LANG_COUNT] = {
         "予定の換水が開始されませんでした: %s",
         "%s: 残り%.0f mL (警告 %.0f mL)。補充してください!",
         "緊急モードに入りました。すぐに水槽を確認してください。",
-        "%s: %.1f mL投与完了。",
+        "投与完了: %s。",
         "満水位より%.1f cm低いです (補充 約%.1f L)。",
         "水位センサーの読み取り値が無効です。",
         "システムテスト通知。"
