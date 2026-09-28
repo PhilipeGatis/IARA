@@ -433,6 +433,65 @@ void test_refill_errors_when_level_stops_moving() {
   TEST_ASSERT_EQUAL(TPAState::ERROR, wm.getState());
 }
 
+// A stall within REFILL_NEAR_TARGET_CM of the setpoint is a refill that has
+// done its job: the reservoir running low slows the pump right at the end. The
+// real tank tripped this 0.1 cm short of full and reported a failed change.
+void test_refill_stall_near_target_completes() {
+  WaterManager wm = makeWM(); // refill target 10.0 cm
+  wm.setLitersPerCm(2.0f);
+  wm.setRefillFlowLPM(5.0f);
+  wm.setTimeoutRefillMs(600000);
+
+  goToRefilling(wm);
+  setDistance(10.3f);
+  wm.update(); // pump on
+
+  mock_millis_value += 21000;
+  wm.update(); // opens the progress window
+
+  mock_millis_value += 40000; // past the 34 s window this rate needs
+  setDistance(10.2f); // barely moving, 0.2 cm short
+  wm.update();
+  TEST_ASSERT_EQUAL(TPAState::CANISTER_ON, wm.getState());
+  TEST_ASSERT_EQUAL(LOW, mock_pin_state[PIN_REFILL]);
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.2f, wm.getRefillShortfallCm());
+  TEST_ASSERT_TRUE(wm.wasFullCycle());
+}
+
+// A failed water change still has to report itself as one, or main.cpp never
+// spends the interval and the cycle repeats every morning.
+void test_error_keeps_full_cycle_flag() {
+  WaterManager wm = makeWM();
+  wm.setLitersPerCm(2.0f);
+  wm.setRefillFlowLPM(5.0f);
+  wm.setTimeoutRefillMs(600000);
+
+  goToRefilling(wm);
+  setDistance(24.0f);
+  wm.update();
+  mock_millis_value += 21000;
+  wm.update();
+  mock_millis_value += 31000;
+  wm.update(); // stalled far from the target
+
+  TEST_ASSERT_EQUAL(TPAState::ERROR, wm.getState());
+  TEST_ASSERT_TRUE(wm.wasFullCycle());
+  TEST_ASSERT_FALSE(wm.isManualTPA());
+}
+
+// A hand-run pump after a scheduled change must not inherit its "scheduled"
+// flag, or its COMPLETE sends "TPA complete".
+void test_manual_pump_is_manual_after_scheduled_tpa() {
+  WaterManager wm = makeWM();
+  wm.startTPA(false);
+  wm.abortTPA();
+  TEST_ASSERT_FALSE(wm.isManualTPA());
+
+  wm.startManualPump("refill", 0);
+  TEST_ASSERT_TRUE(wm.isManualTPA());
+  TEST_ASSERT_FALSE(wm.wasFullCycle());
+}
+
 // The mirror of the test above: a refill that is actually filling must survive
 // the same window. Guards against the check aborting legitimate water changes.
 void test_refill_survives_progress_check_while_filling() {
@@ -845,6 +904,9 @@ int main(int argc, char **argv) {
   RUN_TEST(test_refill_resumes_when_settled_reading_is_short);
   RUN_TEST(test_dynamic_timeout_drain);
   RUN_TEST(test_refill_errors_when_level_stops_moving);
+  RUN_TEST(test_refill_stall_near_target_completes);
+  RUN_TEST(test_error_keeps_full_cycle_flag);
+  RUN_TEST(test_manual_pump_is_manual_after_scheduled_tpa);
   RUN_TEST(test_refill_survives_progress_check_while_filling);
   RUN_TEST(test_refill_stall_check_uses_snapshot_not_live_rate);
   RUN_TEST(test_refill_survives_a_wildly_overstated_calibration);

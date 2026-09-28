@@ -23,6 +23,7 @@ struct NotifyStrings {
   // Message templates (use %s, %d, %.1f etc.)
   const char *tpaStartFmt;     // %.1f = liters, %d = percent
   const char *tpaCompleteMsg;
+  const char *tpaCompleteShortFmt; // %.1f = cm the refill stopped short
   const char *tpaErrorFmt;     // %s = reason
   const char *tpaSkippedFmt;   // %s = reason
   const char *fertLowStockFmt; // %s = name, %.0f = remaining, %.0f = threshold
@@ -42,6 +43,7 @@ static const NotifyStrings NOTIFY_STRINGS[LANG_COUNT] = {
         "Teste IARA",
         "Troca parcial de água começou: %.1f L (%d%% do aquário).",
         "Troca parcial de água concluída com sucesso.",
+        "Troca parcial de água concluída. O reabastecimento parou %.1f cm antes do nível cheio (reservatório provavelmente no fim).",
         "A TPA parou com erro: %s",
         "A TPA agendada não iniciou: %s",
         "%s: restam %.0f mL (alerta em %.0f mL). Reabasteça!",
@@ -58,6 +60,7 @@ static const NotifyStrings NOTIFY_STRINGS[LANG_COUNT] = {
         "Fertilization OK", "Daily level", "IARA test",
         "Partial water change started: %.1f L (%d%% of the tank).",
         "Partial water change completed successfully.",
+        "Partial water change complete. The refill stopped %.1f cm short of full (reservoir probably ran low).",
         "The water change stopped with an error: %s",
         "The scheduled water change did not start: %s",
         "%s: %.0f mL left (alert at %.0f mL). Refill!",
@@ -73,6 +76,7 @@ static const NotifyStrings NOTIFY_STRINGS[LANG_COUNT] = {
         "在庫低下", "緊急", "施肥完了", "日次水位", "IARAテスト",
         "換水を開始しました: %.1f L (水槽の%d%%)。",
         "換水が正常に完了しました。",
+        "換水が完了しました。補水は満水位の%.1f cm手前で停止しました (リザーバー残量不足の可能性)。",
         "換水がエラーで停止しました: %s",
         "予定の換水が開始されませんでした: %s",
         "%s: 残り%.0f mL (警告 %.0f mL)。補充してください!",

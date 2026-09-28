@@ -37,7 +37,8 @@ public:
   // ---- Typed notifications ----
 
   void notifyTPAStart(float liters, uint8_t percent);
-  void notifyTPAComplete();
+  /// @param shortfallCm how far short of full the refill stopped; 0 = reached
+  void notifyTPAComplete(float shortfallCm = 0);
   void notifyTPAError(const char *reason);
   /// A scheduled cycle that never started. Shares the TPA-error toggle and
   /// cooldown: to the user it is the same event, the water was not changed.

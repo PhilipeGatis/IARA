@@ -747,7 +747,7 @@ void loop() {
 
     if (!tpaCompleteNotified) {
       if (!waterMgr.isManualTPA()) {
-        notifyMgr.notifyTPAComplete();
+        notifyMgr.notifyTPAComplete(waterMgr.getRefillShortfallCm());
       }
       tpaCompleteNotified = true;
     }

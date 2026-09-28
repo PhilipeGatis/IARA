@@ -77,10 +77,16 @@ void NotifyManager::notifyTPAStart(float liters, uint8_t percent) {
   _send(NOTIFY_TPA_START, s.tpaStartTitle, msg, "default", "droplet,arrow_forward");
 }
 
-void NotifyManager::notifyTPAComplete() {
+void NotifyManager::notifyTPAComplete(float shortfallCm) {
   if (!_canSend(NOTIFY_TPA_COMPLETE))
     return;
   const auto &s = NOTIFY_STRINGS[_lang];
+  if (shortfallCm > 0) {
+    char msg[256];
+    snprintf(msg, sizeof(msg), s.tpaCompleteShortFmt, shortfallCm);
+    _send(NOTIFY_TPA_COMPLETE, s.tpaCompleteTitle, msg, "default", "droplet,white_check_mark");
+    return;
+  }
   _send(NOTIFY_TPA_COMPLETE, s.tpaCompleteTitle, s.tpaCompleteMsg, "default", "droplet,white_check_mark");
 }
 

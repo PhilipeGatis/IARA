@@ -335,6 +335,14 @@ constexpr float REFILL_PROGRESS_MIN_FRACTION = 0.35f;
 // against that, an honest refill looks stalled. The floor keeps the check
 // answering the question it is actually for: is the water moving at all.
 constexpr float REFILL_PROGRESS_MIN_CM = 0.5f;
+// A refill that stalls this close to its setpoint has done its job, and the
+// cycle ends as complete rather than as an error. The slowdown is expected
+// near the end: the refill draws the reservoir down to its safety margin and
+// the pump's output falls as the water above its intake runs out. On the real
+// tank that tripped the check 0.1 cm short of full, and the only effect of
+// the error was a false alarm and a schedule that repeated the next morning.
+// Half a centimetre is under a litre on a 60x30 tank.
+constexpr float REFILL_NEAR_TARGET_CM = 0.5f;
 
 // -- Nominal (datasheet) pump flow --
 //

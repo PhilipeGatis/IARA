@@ -79,6 +79,11 @@ public:
   /// first one should consume the schedule interval.
   bool wasFullCycle() const { return _wasFullCycle; }
 
+  /// How far short of its setpoint the last refill stopped, in cm. 0 when it
+  /// reached it; above 0 when it stalled within REFILL_NEAR_TARGET_CM and the
+  /// cycle was accepted anyway.
+  float getRefillShortfallCm() const { return _refillShortfallCm; }
+
   /// Is a TPA cycle currently running?
   bool isRunning() const {
     return _state != TPAState::IDLE && _state != TPAState::COMPLETE &&
@@ -208,6 +213,7 @@ private:
   FertManager *_fert;
   bool _isManualTPA;
   bool _wasFullCycle = false;
+  float _refillShortfallCm = 0;
   bool _primeDoseStarted = false;
   // Level the drain leg of a paired calibration started from; the refill leg
   // stops there so the pair is level-neutral by construction.

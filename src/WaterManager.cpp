@@ -73,6 +73,7 @@ void WaterManager::_resetCycleState() {
   _refillConfirming = false;
   _manualTargetLevelCm = -1;
   _wasFullCycle = false;
+  _refillShortfallCm = 0;
   _primeDoseStarted = false;
   _primeWaitStartedMs = 0;
   _pairedRefillTargetCm = -1;
@@ -125,6 +126,11 @@ void WaterManager::startManualReservoirFill() {
     return;
   }
   Serial.println("[TPA] ====== MANUAL RESERVOIR FILL STARTED ======");
+  _resetCycleState();
+  // Every manual entry point sets this, not only startTPA(). Left at whatever
+  // the last water change set, a hand-run pump that ended in COMPLETE sent
+  // "TPA complete" for a water change that never happened.
+  _isManualTPA = true;
   _enterState(TPAState::MANUAL_RESERVOIR_FILL);
 }
 
@@ -157,6 +163,7 @@ void WaterManager::startManualPump(const String &pump, float goalLiters) {
   // the next plain manual refill stopped on the previous run's setpoint, in
   // under a second, reporting its goal as reached.
   _resetCycleState();
+  _isManualTPA = true;
 
   _manualPumpTarget = pump;
   _manualPumpGoalLiters = goalLiters;
@@ -173,6 +180,7 @@ void WaterManager::startManualPump(const String &pump, float goalLiters) {
 }
 
 void WaterManager::_beginPumpCalibration(const String &pump) {
+  _isManualTPA = true;
   _manualPumpTarget = pump;
   _manualPumpGoalLiters = 0; // no goal: the level change ends this run
   _calibrationRunMs = PUMP_CALIBRATION_MAX_MS;
@@ -622,6 +630,18 @@ void WaterManager::_handleRefilling() {
         // The ultrasonic measures distance to the water, so filling makes the
         // reading shrink: progress is the drop, not the rise.
         const float actual = _refillProgressLevel - dist;
+
+        if (actual < threshold && dist - _refillTargetCm <= REFILL_NEAR_TARGET_CM) {
+          // Stalled, but as good as full. See REFILL_NEAR_TARGET_CM.
+          pumpOff(PIN_REFILL, PumpReason::TPA_TARGET_REACHED);
+          _refillShortfallCm = dist > _refillTargetCm ? dist - _refillTargetCm : 0;
+          Serial.printf("[TPA] Refill stalled %.1f cm short of %.1f cm — close "
+                        "enough, accepting.\n",
+                        _refillShortfallCm, _refillTargetCm);
+          // No calibration capture: a stalled run's rate is not the pump's.
+          _enterState(TPAState::CANISTER_ON);
+          return;
+        }
 
         if (actual < threshold) {
           pumpOff(PIN_REFILL, PumpReason::ERROR_STOP);
@@ -1140,7 +1160,13 @@ void WaterManager::_error(const char *msg) {
   } else {
     _lastErrorMsg += " | Canister: OFF (nivel baixo)";
   }
+  // Everything per-run is cleared except what main.cpp still has to read. It
+  // decides from wasFullCycle() whether the failed cycle spends the schedule
+  // interval, and it reads that after this returns: cleared here, a failed
+  // water change never stamped tpaLastRun and repeated every morning.
+  const bool fullCycle = _wasFullCycle;
   _resetCycleState();
+  _wasFullCycle = fullCycle;
 
   _state = TPAState::ERROR;
 }
