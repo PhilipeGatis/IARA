@@ -501,3 +501,5 @@ cd frontend && npm install && npm run build
 この変更以前に公開されたバージョンは、引き続き MIT ライセンスで利用できます。
 
 [`3d_models/`](3d_models/) の3Dモデルは [CC BY-NC-SA 4.0](3d_models/LICENSE) で提供しています。クレジット表記のうえ非商用で自由に印刷・改変でき、改変版も同じライセンスで公開する必要があります。
+
+ドキュメント（README、`HARDWARE`、`BOM`、`PROTECAO_ELETRICA`、図、スクリーンショット）も [CC BY-NC-SA 4.0](docs/LICENSE) で提供しています。ただし IARA の名称とロゴは対象外です。

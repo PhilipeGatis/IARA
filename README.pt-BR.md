@@ -494,3 +494,5 @@ Uso comercial, como vender aparelhos montados a partir deste projeto, embarcá-l
 Versões publicadas antes desta mudança continuam disponíveis sob a licença MIT.
 
 Os modelos 3D em [`3d_models/`](3d_models/) estão sob [CC BY-NC-SA 4.0](3d_models/LICENSE): livres para imprimir e remixar sem fins comerciais, dando crédito, e remixes devem manter a mesma licença.
+
+A documentação (READMEs, `HARDWARE`, `BOM`, `PROTECAO_ELETRICA`, diagramas e screenshots) também está sob [CC BY-NC-SA 4.0](docs/LICENSE). O nome e o logo IARA não.

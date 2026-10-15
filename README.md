@@ -503,3 +503,5 @@ Commercial use, such as selling devices built from this project, shipping it ins
 Versions published before this change remain available under the MIT license.
 
 The 3D models in [`3d_models/`](3d_models/) are licensed under [CC BY-NC-SA 4.0](3d_models/LICENSE): free to print and remix for noncommercial use, with attribution, and remixes must keep the same license.
+
+The documentation (READMEs, `HARDWARE`, `BOM`, `PROTECAO_ELETRICA`, diagrams and screenshots) is also under [CC BY-NC-SA 4.0](docs/LICENSE). The IARA name and logo are not.
