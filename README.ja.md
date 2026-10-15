@@ -494,4 +494,10 @@ cd frontend && npm install && npm run build
 
 ## 📜 ライセンス
 
-MIT
+[PolyForm Noncommercial 1.0.0](LICENSE)。個人・趣味・教育など非商用の利用は無料です。自由に作り、改造し、共有してください。
+
+このプロジェクトを元にした機器の販売、製品への組み込み、有料サービスでの利用など、商用利用には別途商用ライセンスが必要です。Issue を立てるか [@PhilipeGatis](https://github.com/PhilipeGatis) までご連絡ください。
+
+この変更以前に公開されたバージョンは、引き続き MIT ライセンスで利用できます。
+
+[`3d_models/`](3d_models/) の3Dモデルは [CC BY-NC-SA 4.0](3d_models/LICENSE) で提供しています。クレジット表記のうえ非商用で自由に印刷・改変でき、改変版も同じライセンスで公開する必要があります。

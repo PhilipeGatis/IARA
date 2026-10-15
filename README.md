@@ -496,4 +496,10 @@ If you find this project helpful, consider buying me a coffee!
 
 ## 📜 License
 
-MIT
+[PolyForm Noncommercial 1.0.0](LICENSE). Free for personal, hobby, educational and other noncommercial use: build it, modify it, share it.
+
+Commercial use, such as selling devices built from this project, shipping it inside a product, or running it as part of a paid service, needs a separate commercial license. Open an issue or contact [@PhilipeGatis](https://github.com/PhilipeGatis) to arrange one.
+
+Versions published before this change remain available under the MIT license.
+
+The 3D models in [`3d_models/`](3d_models/) are licensed under [CC BY-NC-SA 4.0](3d_models/LICENSE): free to print and remix for noncommercial use, with attribution, and remixes must keep the same license.
