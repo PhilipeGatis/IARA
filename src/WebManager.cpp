@@ -1954,15 +1954,19 @@ bool WebManager::triggerTPA(bool manual) {
   const float refillLiters = plan.refillLiters;
   _tpaPlannedLiters = refillLiters;
 
-  // Dose against the water actually being changed, not the reservoir's nominal
-  // capacity. At a 20% change only about 13 of 18 L are drawn, so the old basis
-  // over-dosed by the difference — and the residue carries its Prime into the
-  // next cycle, which then gets a full dose again on top.
-  if (_water && _primeRatio > 0 && refillLiters > 0) {
-    const float cycleML = refillLiters * _primeRatio;
+  // Prime goes into the reservoir once the float reports full, so dose for the
+  // whole reservoir every cycle, residue included. Dosing by this cycle's draw
+  // under-treated the fresh water whenever the previous cycle had drawn more
+  // than this one. This mirrors the usual guidance for dosing in the tank:
+  // treat the whole volume, not just what was added. Leftover Prime is spent
+  // by organics and oxidation between cycles, so the re-dose stacks far less
+  // than a pure mass balance would suggest.
+  if (_water && _primeRatio > 0 && _reservoirVolume > 0) {
+    const float cycleML = _reservoirVolume * _primeRatio;
     _water->setPrimeML(cycleML);
-    Serial.printf("[Web] Prime for this cycle: %.2f mL for %.1f L (%.4f mL/L)\n",
-                  cycleML, refillLiters, _primeRatio);
+    Serial.printf("[Web] Prime for this cycle: %.2f mL for the %u L reservoir "
+                  "(%.4f mL/L)\n",
+                  cycleML, _reservoirVolume, _primeRatio);
   }
 
   _water->setDrainTargetCm(plan.drainTargetCm);
