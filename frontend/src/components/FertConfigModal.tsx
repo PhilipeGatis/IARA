@@ -74,10 +74,7 @@ export default function FertConfigModal({ index, s, time, prime = false, onClose
     const handleSave = () => {
         api('POST', '/api/fert/schedule', {
             channel: index,
-            // The scheduler still walks this channel, so a schedule left over
-            // from its time as a fertiliser would pump Prime into a reservoir
-            // nobody is filling.
-            doses: prime ? Array(7).fill(0) : doses.map(Number),
+            doses: doses.map(Number),
             hours: hours.map(Number),
             minutes: mins.map(Number),
             // Zero is refused by the firmware, so an emptied box leaves the

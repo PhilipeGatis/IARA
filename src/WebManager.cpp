@@ -686,6 +686,15 @@ void WebManager::_setupRoutes() {
         }
         int pe = _extractInt(body, "primeEnabled");
         if (pe >= 0) {
+          // The scheduler still walks the Prime channel, so a weekly schedule
+          // left from its time as a fertiliser would pump Prime into the
+          // reservoir on its own. The dashboard warns before this erases it.
+          if (pe == 1 && !_primeEnabled && _fert) {
+            for (uint8_t d = 0; d < 7; d++)
+              _fert->setDoseML(NUM_FERTS, d, 0);
+            _fert->saveState();
+            Serial.println("[Web] Prime enabled: CH5 schedule cleared");
+          }
           _primeEnabled = (pe == 1);
           if (_water) _water->setPrimeEnabled(_primeEnabled);
           changed = true;
@@ -1042,8 +1051,10 @@ void WebManager::_setupRoutes() {
         int singleM = _extractInt(body, "minute");
 
         if (ch >= 0 && ch <= 4 && hasDoses && _fert) {
+          // While Prime is on, CH5 doses only through the TPA.
+          const bool primeChannel = (ch == NUM_FERTS && _primeEnabled);
           for (uint8_t d = 0; d < 7; d++) {
-            _fert->setDoseML(ch, d, doses[d]);
+            _fert->setDoseML(ch, d, primeChannel ? 0 : doses[d]);
           }
 
           if (hasHours && hasMinutes) {

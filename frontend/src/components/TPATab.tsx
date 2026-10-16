@@ -518,8 +518,12 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                 <div className="card-h">
                     <h2 className="card-t">{t('tpa.primeSection')}</h2>
                     <button
-                        onClick={() => {
+                        onClick={async () => {
                             const next = !primeEnabled;
+                            // Turning Prime on erases CH5's weekly schedule on
+                            // the controller; say so while it can still be kept.
+                            const scheduled = status?.stocks?.[4]?.doses?.some(d => Number(d) > 0);
+                            if (next && scheduled && !(await ask(t('confirm.primeClearSchedule')))) return;
                             setPrimeEnabled(next);
                             api('POST', '/api/config/aquarium', { primeEnabled: next ? 1 : 0 });
                         }}
