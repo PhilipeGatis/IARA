@@ -95,6 +95,8 @@ const translations = {
     'tpa.primeOnHint': { pt: 'Dosado no reservatório a cada TPA, quando a boia indica cheio.', en: 'Dosed into the reservoir on every TPA, once the float reports full.', ja: 'TPAごとに、フロートが満水を示した時点でリザーバーに投与します。' },
     'tpa.primeRatio': { pt: 'Proporção (mL por litro)', en: 'Ratio (mL per liter)', ja: '比率（mL/L）' },
     'tpa.primeRatioHint': { pt: 'Seachem Prime: 5 mL para 200 L = 0,025 mL/L. Máximo aceito: 0,15.', en: 'Seachem Prime: 5 mL per 200 L = 0.025 mL/L. Highest accepted: 0.15.', ja: 'Seachem Prime: 200 Lあたり5 mL = 0.025 mL/L。上限: 0.15。' },
+    'tpa.primeRatioSave': { pt: 'Salvar', en: 'Save', ja: '保存' },
+    'tpa.primeRatioSaved': { pt: '✓ Salvo no controlador', en: '✓ Saved on the controller', ja: '✓ コントローラーに保存しました' },
     'tpa.primeDoseUnset': { pt: 'Defina o volume do reservatório e a proporção', en: 'Set the reservoir volume and the ratio', ja: 'リザーバー容量と比率を設定' },
     'tpa.safetyMargin': { pt: 'Margem de Segurança (Bomba TPA)', en: 'Safety Margin (TPA Pump)', ja: '安全マージン（TPAポンプ）' },
     'tpa.safetyHint': { pt: 'Deixe sempre X ml de água no fundo do reservatório', en: 'Always leave X ml of water in the reservoir', ja: 'リザーバーの底に常にX mlの水を残す' },

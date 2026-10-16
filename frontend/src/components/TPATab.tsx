@@ -90,6 +90,7 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
     const [safetyML, setSafetyML] = useState('');
     const [primeEnabled, setPrimeEnabled] = useState(true);
     const [primeRatio, setPrimeRatio] = useState('');
+    const [primeSaved, setPrimeSaved] = useState(false);
     const [mechFloat, setMechFloat] = useState(false);
     const [fillTimeout, setFillTimeout] = useState('40');
     // Datasheet ratings, in L/h — the unit printed on the pump. Empty means
@@ -149,6 +150,21 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
             if (status.refillNominalLPH) setRefillNominal(String(status.refillNominalLPH));
         }
     }, [status]);
+
+    const handleSavePrimeRatio = async () => {
+        // The firmware ignores zero, so the button stays off for an empty box.
+        const r = parseFloat(primeRatio);
+        if (!(r > 0)) return;
+        const res = await api('POST', '/api/config/aquarium', { primeRatio: r });
+        if (!res?.ok) return;
+        // Show what was stored, not what was typed: anything above the ceiling
+        // is capped by the firmware without an error.
+        try {
+            const st = await (await fetch('/api/status')).json();
+            if (st.primeRatio) setPrimeRatio(String(st.primeRatio));
+        } catch { /* the typed value stays; the next status refresh corrects it */ }
+        setPrimeSaved(true);
+    };
 
     const handleSaveSchedule = () => {
         api('POST', '/api/schedule', {
@@ -540,26 +556,34 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                     <div className="flex flex-col gap-4">
                         <div className="field">
                             <label className="lbl">{t('tpa.primeRatio')}</label>
-                            <input
-                                type="number" inputMode="decimal" min="0.001" max="0.15" step="0.005" placeholder="0.025"
-                                className="inp remove-arrow"
-                                value={primeRatio}
-                                onChange={(e) => setPrimeRatio(e.target.value)}
-                                onBlur={() => {
-                                    // The firmware ignores zero, so an emptied box
-                                    // leaves the stored ratio alone.
-                                    const r = parseFloat(primeRatio);
-                                    if (r > 0) api('POST', '/api/config/aquarium', { primeRatio: r });
-                                }}
-                            />
+                            <div className="flex gap-2">
+                                <input
+                                    type="number" inputMode="decimal" min="0.001" max="0.15" step="0.005" placeholder="0.025"
+                                    className="inp remove-arrow min-w-0 flex-1"
+                                    value={primeRatio}
+                                    onChange={(e) => { setPrimeRatio(e.target.value); setPrimeSaved(false); }}
+                                />
+                                <button
+                                    onClick={handleSavePrimeRatio}
+                                    disabled={!(parseFloat(primeRatio) > 0)}
+                                    className="btn btn-p2 flex-none"
+                                >
+                                    {t('tpa.primeRatioSave')}
+                                </button>
+                            </div>
+                            {primeSaved && (
+                                <span className="text-[11px] font-bold text-accent">{t('tpa.primeRatioSaved')}</span>
+                            )}
                             <span className="hint">{t('tpa.primeRatioHint')}</span>
                         </div>
 
                         <div className="flex min-h-[44px] flex-wrap items-center justify-between gap-2 rounded-lg bg-accent/10 px-3 py-2">
                             <span className="text-[11px] text-muted">{t('tpa.primeDose')}</span>
                             <strong className="font-mono text-sm text-accent">
-                                {resVolume > 0 && parseFloat(primeRatio) > 0
-                                    ? `${(resVolume * parseFloat(primeRatio)).toFixed(2)} mL`
+                                {/* From the stored ratio, so a value typed but not saved
+                                    does not look like it is already in force. */}
+                                {resVolume > 0 && (status?.primeRatio ?? 0) > 0
+                                    ? `${(resVolume * (status?.primeRatio ?? 0)).toFixed(2)} mL`
                                     : t('tpa.primeDoseUnset')}
                             </strong>
                         </div>
