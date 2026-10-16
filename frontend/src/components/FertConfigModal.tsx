@@ -11,6 +11,10 @@ type Props = {
      *  the row, not the phone's: the two can disagree, and the row that matters
      *  is the one the controller will read. */
     time?: string;
+    /** The Prime channel, while it belongs to the TPA. Its dose is set by the
+     *  reservoir and the ratio, not a weekly schedule, and whether it runs is
+     *  primeEnabled — so the schedule and the channel switch are left out. */
+    prime?: boolean;
     onClose: () => void;
 };
 
@@ -23,7 +27,7 @@ const dowOf = (time?: string): number => {
     return isNaN(d.getTime()) ? -1 : d.getDay();
 };
 
-export default function FertConfigModal({ index, s, time, onClose }: Props) {
+export default function FertConfigModal({ index, s, time, prime = false, onClose }: Props) {
     const today = dowOf(time);
     const { t } = useT();
     const { ask, dialog } = useConfirm();
@@ -70,7 +74,10 @@ export default function FertConfigModal({ index, s, time, onClose }: Props) {
     const handleSave = () => {
         api('POST', '/api/fert/schedule', {
             channel: index,
-            doses: doses.map(Number),
+            // The scheduler still walks this channel, so a schedule left over
+            // from its time as a fertiliser would pump Prime into a reservoir
+            // nobody is filling.
+            doses: prime ? Array(7).fill(0) : doses.map(Number),
             hours: hours.map(Number),
             minutes: mins.map(Number),
             // Zero is refused by the firmware, so an emptied box leaves the
@@ -139,14 +146,14 @@ export default function FertConfigModal({ index, s, time, onClose }: Props) {
                         <div className="mt-0.5 flex items-center gap-3">
                             <span className="truncate text-base font-bold text-text">{s.name || `${t('fert.channel')} ${index + 1}`}</span>
                             {/* Enable Toggle Switch */}
-                            <button
+                            {!prime && <button
                                 onClick={handleToggleEnabled}
                                 aria-pressed={enabled}
                                 className={`inline-flex h-6 w-11 flex-none items-center rounded-full p-0.5 transition-colors ${enabled ? 'bg-accent' : 'bg-white/20'}`}
                                 title={enabled ? t('notify.enabled') : t('notify.disabled')}
                             >
                                 <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-md transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0'}`} />
-                            </button>
+                            </button>}
                         </div>
                     </div>
                     <button
@@ -161,6 +168,7 @@ export default function FertConfigModal({ index, s, time, onClose }: Props) {
                 <div className="safe-b flex flex-col gap-6 p-4">
                     {/* SCHEDULE — one row per day, thumb sized */}
                     <section>
+                        {!prime && <>
                         <div className="card-h">
                             <h3 className="card-t">{t('fert.schedule')}</h3>
                             <span className="pill bg-white/5 text-muted">
@@ -239,8 +247,9 @@ export default function FertConfigModal({ index, s, time, onClose }: Props) {
                                 );
                             })}
                         </div>
+                        </>}
 
-                        <div className="field mt-3">
+                        <div className={`field ${prime ? '' : 'mt-3'}`}>
                             <label className="lbl">{t('fert.bottleSize')}</label>
                             <input
                                 type="number" min="1" max="5000" step="10" placeholder="450"

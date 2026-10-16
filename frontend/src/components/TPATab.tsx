@@ -89,6 +89,7 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
     // Reservoir Safety
     const [safetyML, setSafetyML] = useState('');
     const [primeEnabled, setPrimeEnabled] = useState(true);
+    const [primeRatio, setPrimeRatio] = useState('');
     const [mechFloat, setMechFloat] = useState(false);
     const [fillTimeout, setFillTimeout] = useState('40');
     // Datasheet ratings, in L/h — the unit printed on the pump. Empty means
@@ -141,6 +142,7 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
             if (status.tpaPercent) setPct(status.tpaPercent.toString());
             if (status.reservoirSafetyML !== undefined) setSafetyML(status.reservoirSafetyML.toString());
             if (status.primeEnabled !== undefined) setPrimeEnabled(status.primeEnabled);
+            if (status.primeRatio) setPrimeRatio(String(status.primeRatio));
             if (status.reservoirMechFloat !== undefined) setMechFloat(status.reservoirMechFloat);
             if (status.reservoirFillTimeoutMin !== undefined) setFillTimeout(String(status.reservoirFillTimeoutMin));
             if (status.drainNominalLPH) setDrainNominal(String(status.drainNominalLPH));
@@ -423,32 +425,6 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                         <span className="hint">{t('tpa.safetyHint')}</span>
                     </div>
 
-                    <div className="field">
-                        <label className="lbl">{t('tpa.primeDose')}</label>
-                        <div className="flex min-h-[44px] flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-white/5 px-3 py-2">
-                            <span className="text-sm font-bold text-text">
-                                {status?.primeML ? `${status.primeML.toFixed(1)} mL` : t('tpa.configInConfigTab')}
-                            </span>
-                            <span className="hint">{t('tpa.autoCalc')}</span>
-                        </div>
-                    </div>
-
-                    <label className="flex min-h-[56px] cursor-pointer items-center gap-3 rounded-xl border border-border bg-white/5 px-3 py-2">
-                        <input
-                            type="checkbox"
-                            checked={primeEnabled}
-                            onChange={(e) => {
-                                setPrimeEnabled(e.target.checked);
-                                api('POST', '/api/config/aquarium', { primeEnabled: e.target.checked ? 1 : 0 });
-                            }}
-                            className="h-5 w-5 flex-none accent-accent2"
-                        />
-                        <span className="min-w-0">
-                            <span className="block text-sm font-bold text-text">{t('tpa.primeEnabled')}</span>
-                            <span className="hint block">{t('tpa.primeEnabledHint')}</span>
-                        </span>
-                    </label>
-
                     <div>
                         <label className="lbl">{t('tpa.fillTimeout')}</label>
                         <input
@@ -537,17 +513,68 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                 <p className="hint mt-2">{t('tpa.autoCalibrated')}</p>
             </section>
 
-            {/* PRIME (CH5) CONFIGURATION */}
-            {primeEnabled && status?.stocks && status.stocks.length >= 5 && (
-                <FertCard index={4} s={status.stocks[4]} onConfig={() => setShowPrimeConfig(true)} />
-            )}
+            {/* PRIME (CH5) — dosed into the reservoir by the TPA, never by a schedule */}
+            <section className="card">
+                <div className="card-h">
+                    <h2 className="card-t">{t('tpa.primeSection')}</h2>
+                    <button
+                        onClick={() => {
+                            const next = !primeEnabled;
+                            setPrimeEnabled(next);
+                            api('POST', '/api/config/aquarium', { primeEnabled: next ? 1 : 0 });
+                        }}
+                        aria-pressed={primeEnabled}
+                        aria-label={t('tpa.primeEnabled')}
+                        className={`inline-flex h-6 w-11 flex-none items-center rounded-full p-0.5 transition-colors ${primeEnabled ? 'bg-accent' : 'bg-white/20'}`}
+                    >
+                        <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-md transition-transform ${primeEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                </div>
+                <p className="hint mb-3">{primeEnabled ? t('tpa.primeOnHint') : t('tpa.primeEnabledHint')}</p>
 
-            {/* Prime Config Modal */}
+                {primeEnabled && (
+                    <div className="flex flex-col gap-4">
+                        <div className="field">
+                            <label className="lbl">{t('tpa.primeRatio')}</label>
+                            <input
+                                type="number" inputMode="decimal" min="0.001" max="0.15" step="0.005" placeholder="0.025"
+                                className="inp remove-arrow"
+                                value={primeRatio}
+                                onChange={(e) => setPrimeRatio(e.target.value)}
+                                onBlur={() => {
+                                    // The firmware ignores zero, so an emptied box
+                                    // leaves the stored ratio alone.
+                                    const r = parseFloat(primeRatio);
+                                    if (r > 0) api('POST', '/api/config/aquarium', { primeRatio: r });
+                                }}
+                            />
+                            <span className="hint">{t('tpa.primeRatioHint')}</span>
+                        </div>
+
+                        <div className="flex min-h-[44px] flex-wrap items-center justify-between gap-2 rounded-lg bg-accent/10 px-3 py-2">
+                            <span className="text-[11px] text-muted">{t('tpa.primeDose')}</span>
+                            <strong className="font-mono text-sm text-accent">
+                                {resVolume > 0 && parseFloat(primeRatio) > 0
+                                    ? `${(resVolume * parseFloat(primeRatio)).toFixed(2)} mL`
+                                    : t('tpa.primeDoseUnset')}
+                            </strong>
+                        </div>
+                        <span className="hint -mt-2">{t('tpa.autoCalc')}</span>
+
+                        {status?.stocks && status.stocks.length >= 5 && (
+                            <FertCard index={4} s={status.stocks[4]} onConfig={() => setShowPrimeConfig(true)} />
+                        )}
+                    </div>
+                )}
+            </section>
+
+            {/* Prime Config Modal: bottle, flow calibration, reset */}
             {showPrimeConfig && status?.stocks && status.stocks.length >= 5 && (
                 <FertConfigModal
                     index={4}
                     s={status.stocks[4]}
                     time={status.time}
+                    prime
                     onClose={() => setShowPrimeConfig(false)}
                 />
             )}

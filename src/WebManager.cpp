@@ -673,7 +673,7 @@ void WebManager::_setupRoutes() {
           changed = true;
         }
         float ratio = _extractFloat(body, "primeRatio");
-        if (ratio >= 0) {
+        if (ratio > 0) {
           if (ratio > PRIME_MAX_ML_PER_L) {
             Serial.printf("[Web] primeRatio %.4f mL/L capped to %.4f (%.0fx the "
                           "label rate)\n",
@@ -1653,6 +1653,12 @@ void WebManager::_loadParams() {
   _drainNominalLPH = _prefs.getFloat("drNom", 0);
   _refillNominalLPH = _prefs.getFloat("rfNom", 0);
   _primeRatio = _prefs.getFloat("pRat", PRIME_LABEL_ML_PER_L);
+  // The dashboard used to post 0 whenever its ratio box was empty, and a zero
+  // ratio leaves _primeML at whatever was stored before — on this unit the old
+  // 10 mL default, 22x the label for an 18 L reservoir. Zero is not a dose;
+  // switching Prime off is what primeEnabled is for.
+  if (_primeRatio <= 0)
+    _primeRatio = PRIME_LABEL_ML_PER_L;
   _primeEnabled = _prefs.getBool("pEn", true);
   _reservoirMechFloat = _prefs.getBool("resMF", false);
   _resFillTimeoutMin = _prefs.getUShort("resFT", 40);

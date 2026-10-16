@@ -51,7 +51,6 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
     const [width, setWidth] = useState('');
     const [sensorFull, setSensorFull] = useState('');
     const [blindZone, setBlindZone] = useState('');
-    const [primeRatio, setPrimeRatio] = useState('');
     const [reservoirVol, setReservoirVol] = useState('');
     const [canisterSafePct, setCanisterSafePct] = useState('');
     const [sheet, setSheet] = useState<null | 'aquarium' | 'notify'>(null);
@@ -84,7 +83,6 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
             if (status.aqWidth) setWidth(status.aqWidth.toString());
             if (status.sensorFullDistanceMm !== undefined) setSensorFull(status.sensorFullDistanceMm.toString());
             if (status.ultrasonicMinMm !== undefined) setBlindZone(status.ultrasonicMinMm.toString());
-            if (status.primeRatio) setPrimeRatio(status.primeRatio.toString());
             if (status.reservoirVolume) setReservoirVol(status.reservoirVolume.toString());
             if (status.canisterSafePct) setCanisterSafePct(status.canisterSafePct.toString());
             if (status.feedPauseMin) setFeedPauseMin(status.feedPauseMin.toString());
@@ -112,7 +110,6 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
             aqWidth: parseInt(width) || 0,
             sensorFullDistanceMm: parseInt(sensorFull) || 0,
             ultrasonicMinMm: parseInt(blindZone) || 0,
-            primeRatio: parseFloat(primeRatio) || 0,
             reservoirVolume: parseInt(reservoirVol) || 0,
             canisterSafePct: parseInt(canisterSafePct) || 0,
             feedPauseMin: parseInt(feedPauseMin) || 0,
@@ -167,12 +164,6 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
         const l = parseInt(length) || 0;
         const w = parseInt(width) || 0;
         return (l * w) / 1000;
-    };
-
-    const calcPrimeDose = () => {
-        const rv = parseInt(reservoirVol) || 0;
-        const pr = parseFloat(primeRatio) || 0;
-        return rv * pr;
     };
 
     const handleCalibrateSensor = async () => {
@@ -536,7 +527,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                             </button>
                         </div>
 
-                        {/* Reservoir & Prime */}
+                        {/* Reservoir */}
                         <div className="sub flex flex-col gap-4">
                             <h3 className="sub-t">{t('config.reservoirSection')}</h3>
                             <div className="field">
@@ -567,23 +558,6 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                                     value={feedPauseMin} onChange={(e) => setFeedPauseMin(e.target.value)}
                                 />
                                 <span className="hint">{t('config.feedPauseHint')}</span>
-                            </div>
-
-                            <div className="field">
-                                <label className="lbl">{t('config.primeRatio')}</label>
-                                <input
-                                    type="number" step="0.01" min="0" placeholder="0.05"
-                                    className="inp remove-arrow"
-                                    value={primeRatio} onChange={(e) => setPrimeRatio(e.target.value)}
-                                />
-                                <span className="hint">{t('config.primeHint')}</span>
-                            </div>
-
-                            <div className="rounded-lg bg-accent/10 px-3 py-2">
-                                <span className="block text-[10px] text-muted">{t('config.calcPrime')}</span>
-                                <strong className="font-mono text-sm text-accent">
-                                    {calcPrimeDose() > 0 ? `${calcPrimeDose().toFixed(2)} mL` : t('config.calcPrimeHint')}
-                                </strong>
                             </div>
                         </div>
 
