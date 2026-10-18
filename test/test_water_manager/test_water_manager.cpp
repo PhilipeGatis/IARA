@@ -458,6 +458,35 @@ void test_refill_stall_near_target_completes() {
   TEST_ASSERT_TRUE(wm.wasFullCycle());
 }
 
+// The error has to say which step stopped and how much water the tank was left
+// without; "Refill not progressing" alone answered neither.
+void test_error_reports_stage_and_level() {
+  WaterManager wm = makeWM();
+  wm.setLitersPerCm(2.0f);
+  wm.setRefillFlowLPM(5.0f);
+  wm.setTimeoutRefillMs(600000);
+  wm.setSensorFullCm(10.0f);
+  wm.setAqEffectiveHeightCm(30.0f);
+
+  goToRefilling(wm);
+  setDistance(24.0f);
+  wm.update();
+  mock_millis_value += 21000;
+  wm.update();
+  mock_millis_value += 40000; // past the 34 s window this rate needs
+  setDistance(24.0f); // the sensor keeps answering, the level just never moves
+  wm.update();        // stalled 14 cm below full
+
+  TEST_ASSERT_EQUAL(TPAState::ERROR, wm.getState());
+  TEST_ASSERT_EQUAL(TPAState::REFILLING, wm.getErrorStage());
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, 24.0f, wm.getErrorLevelCm());
+  TEST_ASSERT_FLOAT_WITHIN(0.5f, 53.3f, wm.getErrorLevelPct());
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, 28.0f, wm.getErrorShortLiters());
+  const String msg = wm.getLastErrorMsg();
+  TEST_ASSERT_TRUE(msg.startsWith("[REFILLING] "));
+  TEST_ASSERT_TRUE(msg.indexOf("24.0 cm (53%), 28.0 L below full") >= 0);
+}
+
 // A failed water change still has to report itself as one, or main.cpp never
 // spends the interval and the cycle repeats every morning.
 void test_error_keeps_full_cycle_flag() {
@@ -906,6 +935,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_refill_errors_when_level_stops_moving);
   RUN_TEST(test_refill_stall_near_target_completes);
   RUN_TEST(test_error_keeps_full_cycle_flag);
+  RUN_TEST(test_error_reports_stage_and_level);
   RUN_TEST(test_manual_pump_is_manual_after_scheduled_tpa);
   RUN_TEST(test_refill_survives_progress_check_while_filling);
   RUN_TEST(test_refill_stall_check_uses_snapshot_not_live_rate);

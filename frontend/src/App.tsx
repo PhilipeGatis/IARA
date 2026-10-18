@@ -31,6 +31,10 @@ export type AQStatus = {
   tpaPlannedLiters?: number;
   tpaBlockedReason?: string;
   lastError?: string;
+  tpaErrorStage?: string;
+  tpaErrorLevelCm?: number;
+  tpaErrorLevelPct?: number;
+  tpaErrorShortL?: number;
   sensorsOk?: boolean;
   ultrasonicMinMm?: number;
   primeML: number;

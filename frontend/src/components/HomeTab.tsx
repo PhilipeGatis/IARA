@@ -324,6 +324,27 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                 {status?.tpaState === 'ERROR' && status?.lastError ? (
                     <p className="mt-2 rounded-lg bg-danger/15 px-3 py-2 text-xs text-danger">
                         {t('home.tpaError', { e: status.lastError })}
+                        {status.tpaErrorStage ? (
+                            <>
+                                <br />
+                                {t('home.tpaErrorStage', {
+                                    s: (() => {
+                                        const k = tpaStateKey(status.tpaErrorStage);
+                                        return k ? t(k) : status.tpaErrorStage;
+                                    })(),
+                                })}
+                                <br />
+                                {status.tpaErrorLevelCm == null || status.tpaErrorLevelCm < 0
+                                    ? t('home.tpaErrorLevelUnknown')
+                                    : status.tpaErrorShortL == null || status.tpaErrorShortL < 0
+                                      ? t('home.tpaErrorLevelCm', { cm: status.tpaErrorLevelCm.toFixed(1) })
+                                      : t('home.tpaErrorLevel', {
+                                            cm: status.tpaErrorLevelCm.toFixed(1),
+                                            pct: (status.tpaErrorLevelPct ?? 0).toFixed(0),
+                                            l: status.tpaErrorShortL.toFixed(1),
+                                        })}
+                            </>
+                        ) : null}
                     </p>
                 ) : null}
 

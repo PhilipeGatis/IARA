@@ -207,6 +207,17 @@ public:
   /// Get last TPA error message (for notifications)
   String getLastErrorMsg() const { return _lastErrorMsg; }
 
+  /// Where the last error stopped the cycle, captured before the state is
+  /// overwritten with ERROR. The message alone used to say what went wrong but
+  /// not at which step, nor how much water the tank was left without.
+  TPAState getErrorStage() const { return _errorStage; }
+  /// Sensor distance when the error fired, -1 when there was no usable reading.
+  float getErrorLevelCm() const { return _errorLevelCm; }
+  /// The same level as a percentage of the tank, -1 when it cannot be known.
+  float getErrorLevelPct() const { return _errorLevelPct; }
+  /// Litres the tank was short of its full mark, -1 when it cannot be known.
+  float getErrorShortLiters() const { return _errorShortLiters; }
+
 private:
   TPAState _state;
   SafetyWatchdog *_safety;
@@ -266,6 +277,10 @@ private:
   // Telemetry
   String _lastTPATime;
   String _lastErrorMsg;
+  TPAState _errorStage = TPAState::IDLE;
+  float _errorLevelCm = -1;
+  float _errorLevelPct = -1;
+  float _errorShortLiters = -1;
 
   // ---- State handlers ----
   void _enterState(TPAState newState);
@@ -324,6 +339,7 @@ private:
 
   /// Abort with error message
   void _error(const char *msg);
+  void _captureErrorContext();
 
   // Manual pump state
   String _manualPumpTarget;

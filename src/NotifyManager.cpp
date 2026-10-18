@@ -94,8 +94,9 @@ void NotifyManager::notifyTPAError(const char *reason) {
   if (!_canSend(NOTIFY_TPA_ERROR))
     return;
   const auto &s = NOTIFY_STRINGS[_lang];
-  // The reason carries a " | Canister: ..." suffix, which overran 128 bytes.
-  char msg[192];
+  // The reason carries a "[STAGE]" prefix and " | Level: ... | Canister: ..."
+  // suffixes, which overran 128 bytes and then 192.
+  char msg[320];
   snprintf(msg, sizeof(msg), s.tpaErrorFmt, reason);
   _send(NOTIFY_TPA_ERROR, s.tpaErrorTitle, msg, "high", "warning,droplet");
 }

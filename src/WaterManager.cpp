@@ -1151,8 +1151,21 @@ void WaterManager::_error(const char *msg) {
   // Safety: turn off all TPA actuators
   _stopAllTpaActuators(PumpReason::ERROR_STOP);
 
-  // Build detailed error message for notifications
-  _lastErrorMsg = String(msg);
+  // Build detailed error message for notifications. The stage and the level go
+  // in with it: "Refill not progressing" alone left no way to tell, from the
+  // notification, which step stopped and how much water the tank was missing.
+  _captureErrorContext();
+  _lastErrorMsg = "[" + String(tpaStateName(_errorStage)) + "] " + String(msg);
+  char level[64];
+  if (_errorLevelCm < 0) {
+    snprintf(level, sizeof(level), " | Level: unknown");
+  } else if (_errorShortLiters < 0) {
+    snprintf(level, sizeof(level), " | Level: %.1f cm", _errorLevelCm);
+  } else {
+    snprintf(level, sizeof(level), " | Level: %.1f cm (%.0f%%), %.1f L below full",
+             _errorLevelCm, _errorLevelPct, _errorShortLiters);
+  }
+  _lastErrorMsg += level;
 
   // The canister only comes back if the level allows it.
   if (restoreCanisterIfSafe(PumpReason::ERROR_STOP)) {
@@ -1169,6 +1182,24 @@ void WaterManager::_error(const char *msg) {
   _wasFullCycle = fullCycle;
 
   _state = TPAState::ERROR;
+}
+
+void WaterManager::_captureErrorContext() {
+  _errorStage = _state;
+  _errorLevelCm = -1;
+  _errorLevelPct = -1;
+  _errorShortLiters = -1;
+  if (!_safety || !_safety->areSensorsConnected())
+    return;
+  const float dist = _safety->getLastDistance();
+  if (dist <= 0)
+    return;
+  _errorLevelCm = dist;
+  if (_sensorFullCm <= 0 || _aqEffectiveHeightCm <= 0 || _litersPerCm <= 0)
+    return;
+  _errorLevelPct = levelPercentFromDistance(dist, _sensorFullCm, _aqEffectiveHeightCm);
+  const float shortCm = dist - _sensorFullCm;
+  _errorShortLiters = shortCm > 0 ? shortCm * _litersPerCm : 0;
 }
 
 // DRY #2: Stop all TPA-related actuators

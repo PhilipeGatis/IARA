@@ -368,6 +368,13 @@ String WebManager::_buildStatusJSON() {
     err.replace("\\", "\\\\");
     err.replace("\"", "\\\"");
     json += "\"lastError\":\"" + err + "\",";
+    // The same context as structured fields, so the dashboard can show the
+    // stage and the level without parsing the message.
+    json += "\"tpaErrorStage\":\"" +
+            String(tpaStateName(_water->getErrorStage())) + "\",";
+    json += "\"tpaErrorLevelCm\":" + String(_water->getErrorLevelCm(), 1) + ",";
+    json += "\"tpaErrorLevelPct\":" + String(_water->getErrorLevelPct(), 0) + ",";
+    json += "\"tpaErrorShortL\":" + String(_water->getErrorShortLiters(), 1) + ",";
   }
   json += "\"tpaBlockedReason\":\"" + _tpaBlockedReason + "\",";
   // Without this the UI cannot tell a dead sensor from a live one: a stale
