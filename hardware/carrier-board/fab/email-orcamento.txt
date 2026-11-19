@@ -1,0 +1,32 @@
+Assunto: Orçamento de fabricação + montagem (PCBA) – 2 a 5 placas, protótipo
+
+Olá, tudo bem?
+
+Gostaria de um orçamento de fabricação e montagem completa (turnkey) de uma placa de controle para um projeto pessoal de automação de aquário. Sou pessoa física (CPF). Se vocês atendem pessoa física, por favor me informem as condições.
+
+Dados da placa
+- Quantidade: 2 a 5 unidades (gostaria do preço para 2 e para 5)
+- Dimensões: 100 x 100 mm, 2 camadas, FR-4 1,6 mm, cobre 1 oz, máscara verde, silkscreen branco, acabamento HASL sem chumbo (ou o padrão de vocês)
+- Montagem: face superior apenas
+  - SMD: 127 peças (0603, 0805, 1206, 2512, SOT-23, TSOT-23-6, SOIC-8, HSOP-8 com pad térmico, SOIC-16W, SMA, SMB, capacitores eletrolíticos SMD)
+  - PTH: 21 peças (bornes de parafuso 3,5 e 5,08 mm, barras de pinos 2,54 mm, 2 soquetes fêmea 1x22 2,54 mm, suporte de bateria CR2032)
+- Total: 148 componentes, 43 itens diferentes na lista de materiais
+- Componentes: preferência para vocês comprarem todos (turnkey). A lista traz o código LCSC de cada item como referência; equivalentes são aceitos se tiverem as mesmas especificações.
+
+Arquivos em anexo
+- carrier-gerbers.zip – Gerbers e furação (gerados no KiCad 10)
+- carrier-bom.csv – lista de materiais (comentário, referência, footprint, código LCSC)
+- carrier-cpl.csv – posições de montagem (pick-and-place), em mm, face superior
+
+Gostaria de saber
+1. Preço total para 2 e para 5 placas, separando placa, componentes e montagem, se possível
+2. Prazo de produção e de entrega
+3. Quantidade mínima de pedido
+4. Se fazem teste/inspeção (AOI ou visual) e como tratam peças sem estoque
+5. Forma de pagamento e envio
+
+Obrigado desde já.
+
+[Seu nome]
+[Telefone / WhatsApp]
+[Cidade/UF – para cálculo do frete]
