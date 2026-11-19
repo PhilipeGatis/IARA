@@ -11,7 +11,12 @@ def get_git_revision_hash() -> str:
 
 def is_dirty() -> bool:
     try:
-        status = subprocess.check_output(['git', 'status', '--porcelain']).decode('ascii').strip()
+        # Only what goes into the image counts: an untracked folder of PCB
+        # files elsewhere in the repo does not make the firmware dirty.
+        status = subprocess.check_output(
+            ['git', 'status', '--porcelain', '--', 'src', 'include', 'lib',
+             'data', 'frontend', 'platformio.ini', 'partitions.csv']
+        ).decode('ascii').strip()
         return len(status) > 0
     except Exception:
         return False
