@@ -38,6 +38,13 @@ push() { # $1 = file, $2 = filename the device sees
 curl -s -m 5 "http://$HOST/api/status" >/dev/null \
   || { echo "Board not reachable at $HOST. Join the AP network first."; exit 1; }
 
+# Firmware first: the frontend build rewrites data/assets (gzip is not
+# byte-for-byte reproducible), which would stamp the firmware "-dirty".
+if [[ "$WHAT" == all || "$WHAT" == fw ]]; then
+  echo "==> Building firmware"
+  pio run -e esp32dev
+fi
+
 if [[ "$WHAT" == all || "$WHAT" == fs ]]; then
   echo "==> Building frontend"
   (cd frontend && npm run build)
@@ -47,11 +54,6 @@ if [[ "$WHAT" == all || "$WHAT" == fs ]]; then
     arch -x86_64 ~/.platformio/packages/tool-mklittlefs/mklittlefs \
       -c data -p 256 -b 4096 -s 983040 "$BUILD/littlefs.bin"
   fi
-fi
-
-if [[ "$WHAT" == all || "$WHAT" == fw ]]; then
-  echo "==> Building firmware"
-  pio run -e esp32dev
 fi
 
 if [[ "$WHAT" == all || "$WHAT" == fs ]]; then

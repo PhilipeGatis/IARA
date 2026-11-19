@@ -158,6 +158,10 @@ static volatile WifiTestState wtState = WifiTestState::IDLE;
 static String wtSsid, wtPass, wtIp;
 static int wtReason = -1;
 static unsigned long wtStartMs = 0, wtPhaseMs = 0, wtEndMs = 0;
+static volatile unsigned long wtRequestMs = 0;
+// Dropping the station at once would cut off the 202 the dashboard is still
+// waiting for, and it would report a communication error for a test that ran.
+const unsigned long WIFI_TEST_START_DELAY_MS = 1000UL;
 
 bool wifiTestBusy() {
   return wtPending || wtState == WifiTestState::SCANNING ||
@@ -169,6 +173,7 @@ bool wifiTestRequest(const String &ssid, const String &pass) {
     return false;
   wtSsid = ssid;
   wtPass = pass;
+  wtRequestMs = millis();
   wtPending = true; // set last: loop() reads the strings once it sees this
   return true;
 }
@@ -177,6 +182,8 @@ void wifiTestTick() {
   const unsigned long now = millis();
 
   if (wtPending) {
+    if (now - wtRequestMs < WIFI_TEST_START_DELAY_MS)
+      return;
     wtPending = false;
     wtState = WifiTestState::SCANNING;
     wtStartMs = wtPhaseMs = now;
