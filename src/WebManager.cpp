@@ -1,5 +1,6 @@
 #include "nvs_flash.h"
 #include "WebManager.h"
+#include "WifiStation.h"
 #include "TpaPlan.h"
 #include "BootLog.h"
 #include "PumpLog.h"
@@ -951,28 +952,28 @@ void WebManager::_setupRoutes() {
   });
 
   // ---- POST /api/wifi (Form Data: ssid, pass) ----
+  // Queues a try of the credentials; they are saved only if the station gets
+  // an IP. Progress is on GET /api/wifi/test.
   _server.on("/api/wifi", HTTP_POST, [this](AsyncWebServerRequest *request) {
     if (_rejectForgedRequest(request)) return;
     if (request->hasParam("ssid", true) && request->hasParam("pass", true)) {
       String ssid = request->getParam("ssid", true)->value();
       String pass = request->getParam("pass", true)->value();
-
-      Preferences pref;
-      pref.begin("wifi", false);
-      pref.putString("ssid", ssid);
-      pref.putString("pass", pass);
-      pref.end();
-
-      Serial.println(
-          "[Web] WiFi credentials updated via dashboard. Restarting...");
-      request->send(200, "application/json", "{\"ok\":true}");
-
-      // Give the server time to send the response before rebooting
-      _rebootPending = true;
-      _rebootMs = millis();
+      if (wifiTestRequest(ssid, pass)) {
+        Serial.println("[Web] WiFi credentials received — testing before saving.");
+        request->send(202, "application/json", "{\"ok\":true,\"testing\":true}");
+      } else {
+        request->send(409, "application/json",
+                      "{\"error\":\"A WiFi test is already running\"}");
+      }
     } else {
       request->send(400, "application/json", "{\"error\":\"Missing params\"}");
     }
+  });
+
+  // ---- GET /api/wifi/test ----
+  _server.on("/api/wifi/test", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(200, "application/json", wifiTestJson());
   });
 
   // ---- POST /api/schedule (JSON body - only TPA now) ----
@@ -1865,19 +1866,17 @@ void WebManager::processSerialCommands() {
     int bar = arg.indexOf('|');
     if (bar <= 0) {
       Serial.println("[CMD] Usage: wifi SSID|PASSWORD");
+    } else if (!wifiTestRequest(arg.substring(0, bar), arg.substring(bar + 1))) {
+      Serial.println("[CMD] A WiFi test is already running.");
     } else {
-      Preferences pref;
-      pref.begin("wifi", false);
-      pref.putString("ssid", arg.substring(0, bar));
-      pref.putString("pass", arg.substring(bar + 1));
-      pref.end();
-      Serial.printf("[CMD] WiFi set to '%s' (pass len=%d). Restarting...\n",
-                    arg.substring(0, bar).c_str(), arg.length() - bar - 1);
-      _rebootPending = true;
-      _rebootMs = millis();
+      Serial.println("[CMD] Testing; saved only if it connects.");
     }
   } else if (cmd == "wifi_scan") {
     // Blocking scan, for telling a dead radio from a router out of range.
+    if (wifiTestBusy()) {
+      Serial.println("[CMD] A WiFi test is running; scan later.");
+      return;
+    }
     int n = WiFi.scanNetworks();
     Serial.printf("[CMD] %d network(s) found:\n", n);
     for (int i = 0; i < n; i++)
@@ -1939,7 +1938,7 @@ void WebManager::_printHelp() {
   Serial.println("  notify_topic TOPIC — Set ntfy.sh topic");
   Serial.println("  test_notify   — Send test notification");
   Serial.println("  notify_config — Show notification config");
-  Serial.println("  wifi SSID|PASS — Save WiFi credentials and restart");
+  Serial.println("  wifi SSID|PASS — Try WiFi credentials, save if they connect");
   Serial.println("  wifi_scan     — List visible networks");
   Serial.println("========================\n");
 }

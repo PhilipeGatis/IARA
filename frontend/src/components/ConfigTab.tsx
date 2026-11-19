@@ -59,13 +59,14 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
     const [pass, setPass] = useState('');
     const [networks, setNetworks] = useState<string[]>([]);
     const [scanning, setScanning] = useState(false);
-    // Save & Restart progress: the board reboots and either joins `target`
-    // or falls back to its AP about 30 s later, so we poll to tell them apart.
+    // Test-then-save progress: the board tries the new network from its own
+    // loop and saves it only once it has an IP, else it goes back to the old one.
     const [wifiJob, setWifiJob] = useState<null | {
         phase: 'saving' | 'waiting' | 'ok' | 'failed' | 'lost';
         target: string;
         startedAt: number;
         ip?: string;
+        reason?: number;
     }>(null);
     const [now, setNow] = useState(0);
 
@@ -156,44 +157,39 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
             });
             const data = await res.json();
             if (data.ok) { const at = Date.now(); setNow(at); setWifiJob({ phase: 'waiting', target, startedAt: at }); }
-            else { setWifiJob(null); alert(t('config.wifiError')); }
+            else { setWifiJob(null); alert(data.error || t('config.wifiError')); }
         } catch {
             setWifiJob(null);
             alert(t('config.commError'));
         }
     };
 
-    // Poll while the board reboots. A reply after the reboot tells us whether
-    // the station joined; no reply for long means this browser was on the AP
-    // the board just left, which is the success case seen from here.
+    // Follow the test. Losing the board for a while is expected when this
+    // browser sits on the network or AP channel the board just left.
     useEffect(() => {
         if (wifiJob?.phase !== 'waiting') return;
         let stop = false;
         const tick = setInterval(() => setNow(Date.now()), 1000);
         const poll = async () => {
             while (!stop) {
-                await new Promise((r) => setTimeout(r, 3000));
+                await new Promise((r) => setTimeout(r, 1500));
                 if (stop) return;
-                const elapsed = Date.now() - wifiJob.startedAt;
                 try {
                     const ctl = new AbortController();
                     const to = setTimeout(() => ctl.abort(), 2500);
-                    const r = await fetch('/api/status', { signal: ctl.signal, cache: 'no-store' });
+                    const r = await fetch('/api/wifi/test', { signal: ctl.signal, cache: 'no-store' });
                     clearTimeout(to);
-                    const d: AQStatus & { uptimeMs?: number } = await r.json();
-                    // Still the old boot answering before the restart: ignore.
-                    if (d.uptimeMs !== undefined && d.uptimeMs > elapsed + 2000) continue;
-                    if (d.wifiConnected && d.wifiSsid === wifiJob.target) {
-                        setWifiJob({ ...wifiJob, phase: 'ok', ip: d.wifiIp });
+                    const d: { state: string; ssid: string; ip: string; reason: number } = await r.json();
+                    if (d.state === 'ok' && d.ssid === wifiJob.target) {
+                        setWifiJob({ ...wifiJob, phase: 'ok', ip: d.ip });
                         return;
                     }
-                    // Back up on its AP without the station: the join failed.
-                    if (!d.wifiConnected && elapsed > 20000) {
-                        setWifiJob({ ...wifiJob, phase: 'failed' });
+                    if (d.state === 'failed' && d.ssid === wifiJob.target) {
+                        setWifiJob({ ...wifiJob, phase: 'failed', reason: d.reason });
                         return;
                     }
-                } catch { /* rebooting or out of reach */ }
-                if (elapsed > 120000) {
+                } catch { /* out of reach while the radio switches */ }
+                if (Date.now() - wifiJob.startedAt > 60000) {
                     setWifiJob({ ...wifiJob, phase: 'lost' });
                     return;
                 }
@@ -202,6 +198,13 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
         poll();
         return () => { stop = true; clearInterval(tick); };
     }, [wifiJob]);
+
+    // Disconnect reason codes worth naming; the rest show as a number.
+    const wifiReasonText = (r?: number) =>
+        r === 15 || r === 202 || r === 204 ? t('config.wifiReasonPass')
+            : r === 201 ? t('config.wifiReasonNotFound')
+                : r !== undefined && r >= 0 ? t('config.wifiReasonCode', { n: r })
+                    : t('config.wifiReasonTimeout');
 
     const calcVolume = () => {
         const h = parseInt(height) || 0;
@@ -418,7 +421,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                             <div className="mt-2 text-xs text-muted">{t('config.wifiApHint', { ssid: wifiJob.target })}</div>
                         )}
                         {wifiJob.phase === 'ok' && t('config.wifiDone', { ssid: wifiJob.target, ip: wifiJob.ip || 'iara.local' })}
-                        {wifiJob.phase === 'failed' && t('config.wifiFailed', { ssid: wifiJob.target })}
+                        {wifiJob.phase === 'failed' && t('config.wifiFailed', { ssid: wifiJob.target, why: wifiReasonText(wifiJob.reason) })}
                         {wifiJob.phase === 'lost' && t('config.wifiLost', { ssid: wifiJob.target })}
                         {(wifiJob.phase === 'ok' || wifiJob.phase === 'failed' || wifiJob.phase === 'lost') && (
                             <button onClick={() => setWifiJob(null)} className="mt-2 block text-xs underline">OK</button>
@@ -459,7 +462,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                         disabled={!ssid || wifiJob?.phase === 'saving' || wifiJob?.phase === 'waiting'}
                         className="btn btn-p w-full disabled:opacity-50"
                     >
-                        {wifiJob?.phase === 'saving' || wifiJob?.phase === 'waiting' ? t('config.wifiConnectingShort') : t('config.saveRestart')}
+                        {wifiJob?.phase === 'saving' || wifiJob?.phase === 'waiting' ? t('config.wifiConnectingShort') : t('config.wifiTestSave')}
                     </button>
                 </div>
             </section>

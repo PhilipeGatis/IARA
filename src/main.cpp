@@ -26,6 +26,7 @@
 #include <LittleFS.h>
 #include <esp_task_wdt.h>
 #include <esp_wifi.h>
+#include "WifiStation.h"
 #include <ESPmDNS.h>
 #include <driver/gpio.h>
 
@@ -107,6 +108,153 @@ const unsigned long WIFI_REBOOT_MS = 900000UL; // 15 minutes
 // ---- Boot diagnostics (exposed via /api/status) ----
 const char *bootResetReason = "UNKNOWN";
 unsigned long bootTimeMs = 0; // millis() at end of setup
+
+// =============================================================================
+// STATION START + CREDENTIAL TEST
+// =============================================================================
+
+// Joins `ssid` using the results of a finished scan (`n` entries): locks to
+// the BSSID and channel when the scan saw it, which avoids Reason 201 on
+// band-steering routers, and turns PMF off, which avoids Reason 15 (4-way
+// handshake timeout) on TIM routers whose WPA3 mixed mode the ESP32 fails to
+// negotiate.
+static void wifiBeginFromScan(const String &ssid, const String &pass, int n) {
+  uint8_t bssid[6] = {0};
+  int32_t channel = 0;
+  bool found = false;
+  for (int i = 0; i < n; ++i) {
+    if (WiFi.SSID(i) == ssid) {
+      memcpy(bssid, WiFi.BSSID(i), 6);
+      channel = WiFi.channel(i);
+      found = true;
+      Serial.printf("\n[WiFi] Found Target BSSID: "
+                    "%02X:%02X:%02X:%02X:%02X:%02X on Channel: %d\n",
+                    bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5],
+                    channel);
+      break;
+    }
+  }
+
+  wifi_config_t cfg = {};
+  strlcpy((char *)cfg.sta.ssid, ssid.c_str(), sizeof(cfg.sta.ssid));
+  strlcpy((char *)cfg.sta.password, pass.c_str(), sizeof(cfg.sta.password));
+  cfg.sta.pmf_cfg.capable = false;
+  cfg.sta.pmf_cfg.required = false;
+  esp_wifi_set_config(WIFI_IF_STA, &cfg);
+
+  if (found) {
+    WiFi.begin(ssid.c_str(), pass.c_str(), channel, bssid, true);
+  } else {
+    WiFi.begin(ssid.c_str(), pass.c_str());
+  }
+}
+
+// Long enough for DHCP on a slow router; a wrong password fails well inside it.
+const unsigned long WIFI_TEST_SCAN_MS = 8000UL;
+const unsigned long WIFI_TEST_CONNECT_MS = 20000UL;
+
+static volatile bool wtPending = false;
+static volatile WifiTestState wtState = WifiTestState::IDLE;
+static String wtSsid, wtPass, wtIp;
+static int wtReason = -1;
+static unsigned long wtStartMs = 0, wtPhaseMs = 0, wtEndMs = 0;
+
+bool wifiTestBusy() {
+  return wtPending || wtState == WifiTestState::SCANNING ||
+         wtState == WifiTestState::CONNECTING;
+}
+
+bool wifiTestRequest(const String &ssid, const String &pass) {
+  if (wifiTestBusy() || ssid.length() == 0)
+    return false;
+  wtSsid = ssid;
+  wtPass = pass;
+  wtPending = true; // set last: loop() reads the strings once it sees this
+  return true;
+}
+
+void wifiTestTick() {
+  const unsigned long now = millis();
+
+  if (wtPending) {
+    wtPending = false;
+    wtState = WifiTestState::SCANNING;
+    wtStartMs = wtPhaseMs = now;
+    wtIp = "";
+    wtReason = -1;
+    lastWifiDisconnectReason = -1;
+    Serial.printf("[WiFi] Testing new network '%s'...\n", wtSsid.c_str());
+    WiFi.disconnect(false, false); // leave the old network, keep the AP
+    WiFi.mode(apFallbackActive ? WIFI_AP_STA : WIFI_STA);
+    WiFi.scanNetworks(true);       // async: loop() keeps running the pumps
+    return;
+  }
+
+  if (wtState == WifiTestState::SCANNING) {
+    int n = WiFi.scanComplete();
+    if (n == WIFI_SCAN_RUNNING && now - wtPhaseMs < WIFI_TEST_SCAN_MS)
+      return;
+    wifiBeginFromScan(wtSsid, wtPass, n > 0 ? n : 0);
+    WiFi.scanDelete();
+    wtState = WifiTestState::CONNECTING;
+    wtPhaseMs = now;
+    return;
+  }
+
+  if (wtState != WifiTestState::CONNECTING)
+    return;
+
+  if (WiFi.status() == WL_CONNECTED && WiFi.SSID() == wtSsid) {
+    Preferences pref;
+    pref.begin("wifi", false);
+    pref.putString("ssid", wtSsid);
+    pref.putString("pass", wtPass);
+    pref.end();
+    wifiSSID = wtSsid;
+    wifiPass = wtPass;
+    wtPass = "";
+    wtIp = WiFi.localIP().toString();
+    wtState = WifiTestState::OK;
+    wtEndMs = now;
+    // Let the recovery ladder's "just reconnected" branch restart mDNS.
+    wifiWasConnected = false;
+    Serial.printf("[WiFi] New network OK, saved: '%s' IP %s\n",
+                  wifiSSID.c_str(), wtIp.c_str());
+    return;
+  }
+
+  if (now - wtPhaseMs < WIFI_TEST_CONNECT_MS)
+    return;
+
+  // Nothing saved; go back to the network that worked.
+  wtReason = lastWifiDisconnectReason;
+  wtPass = "";
+  wtState = WifiTestState::FAILED;
+  wtEndMs = now;
+  Serial.printf("[WiFi] New network '%s' failed (reason %d) — back to '%s'.\n",
+                wtSsid.c_str(), wtReason, wifiSSID.c_str());
+  WiFi.disconnect(false, false);
+  WiFi.begin(wifiSSID.c_str(), wifiPass.c_str());
+  wifiWasConnected = false;
+  lastWiFiRetryTime = now; // give the old network a full interval to return
+}
+
+String wifiTestJson() {
+  static const char *names[] = {"idle", "scanning", "connecting", "ok",
+                                "failed"};
+  String ssid = wtSsid;
+  ssid.replace("\\", "\\\\");
+  ssid.replace("\"", "\\\"");
+  unsigned long end = wifiTestBusy() ? millis() : wtEndMs;
+  String json = "{\"state\":\"";
+  json += names[(uint8_t)wtState];
+  json += "\",\"ssid\":\"" + ssid + "\",\"ip\":\"" + wtIp + "\",\"reason\":";
+  json += String(wtReason);
+  json += ",\"elapsedMs\":";
+  json += String(wtStartMs ? end - wtStartMs : 0);
+  json += "}";
+  return json;
+}
 
 // =============================================================================
 // SETUP
@@ -238,48 +386,8 @@ void setup() {
   int n = WiFi.scanNetworks();
   delay(100);
 
-  uint8_t targetBSSID[6] = {0};
-  int32_t targetChannel = 0;
-  bool bssidFound = false;
-
-  for (int i = 0; i < n; ++i) {
-    if (WiFi.SSID(i) == savedSSID) {
-      memcpy(targetBSSID, WiFi.BSSID(i), 6);
-      targetChannel = WiFi.channel(i);
-      bssidFound = true;
-      Serial.printf("\n[WiFi] Found Target BSSID: "
-                    "%02X:%02X:%02X:%02X:%02X:%02X on Channel: %d\n",
-                    targetBSSID[0], targetBSSID[1], targetBSSID[2],
-                    targetBSSID[3], targetBSSID[4], targetBSSID[5],
-                    targetChannel);
-      break;
-    }
-  }
-
-  // CRITICAL FIX: To prevent Reason 15 (4-way handshake timeout) on
-  // TIM routers we need to set the WiFi config explicitly to disable Protected
-  // Management Frames (PMF) because the ESP32 WPA3 implementation sometimes
-  // fails to negotiate with modern mixed-mode routers.
-
-  wifi_config_t wifi_config = {};
-  strlcpy((char *)wifi_config.sta.ssid, savedSSID.c_str(),
-          sizeof(wifi_config.sta.ssid));
-  strlcpy((char *)wifi_config.sta.password, savedPass.c_str(),
-          sizeof(wifi_config.sta.password));
-
-  // Force WPA2 and Disable PMF completely to bypass the handshake hang
-  wifi_config.sta.pmf_cfg.capable = false;
-  wifi_config.sta.pmf_cfg.required = false;
-
-  esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
-
-  // Re-attempt standard connection, locking to BSSID and Channel if found
-  if (bssidFound) {
-    WiFi.begin(savedSSID.c_str(), savedPass.c_str(), targetChannel, targetBSSID,
-               true);
-  } else {
-    WiFi.begin(savedSSID.c_str(), savedPass.c_str());
-  }
+  wifiBeginFromScan(savedSSID, savedPass, n);
+  WiFi.scanDelete();
 
   {
     int attempts = 0;
@@ -497,7 +605,10 @@ void loop() {
   // escalates, and the board reboots rather than staying invisible.
   bool wifiConnected = (WiFi.status() == WL_CONNECTED);
 
-  if (!wifiConnected) {
+  wifiTestTick();
+  if (wifiTestBusy()) {
+    // A credential test owns the radio until it succeeds or rolls back.
+  } else if (!wifiConnected) {
     wifiWasConnected = false;
     if (wifiDownSinceMs == 0) {
       wifiDownSinceMs = millis();
