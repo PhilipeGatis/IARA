@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useT } from '../i18n';
 import { useConfirm } from '../Confirm';
 import FertConfigModal from './FertConfigModal';
+import { doseGroups, daysLabel, hhmm } from '../schedule';
 
 /**
  * The day the bottle cannot cover its next dose.
@@ -120,24 +121,22 @@ function FertCardCompact({
                 )}
             </div>
 
-            {/* Schedule mini-table */}
+            {/* Schedule: one row per distinct dose, not one per weekday */}
             {activeDays.length > 0 && (
                 <div className="px-4 pb-2">
                     <table className="w-full text-xs">
                         <tbody>
-                            {activeDays.map(({ dose, i }) => {
-                                const h = Array.isArray(s.sH) ? String(s.sH[i] ?? 0).padStart(2, '0') : '00';
-                                const m = Array.isArray(s.sM) ? String(s.sM[i] ?? 0).padStart(2, '0') : '00';
-                                return (
-                                    <tr key={i} className="border-b border-border/40 last:border-0">
-                                        <td className="w-10 py-1.5 pr-2 font-bold text-accent">{shortDays[i]}</td>
-                                        <td className="py-1.5 font-mono tabular-nums text-muted">{h}:{m}</td>
-                                        <td className="py-1.5 text-right font-bold tabular-nums text-accent2">
-                                            {dose}<span className="font-normal text-muted">mL</span>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
+                            {doseGroups(s).map((g, gi) => (
+                                <tr key={gi} className="border-b border-border/40 last:border-0">
+                                    <td className="py-1.5 pr-2 font-bold text-accent">
+                                        {daysLabel(g.days, shortDays, t('sched.everyDay'))}
+                                    </td>
+                                    <td className="w-14 py-1.5 font-mono tabular-nums text-muted">{hhmm(g.h, g.m)}</td>
+                                    <td className="w-16 py-1.5 text-right font-bold tabular-nums text-accent2">
+                                        {g.dose}<span className="font-normal text-muted">mL</span>
+                                    </td>
+                                </tr>
+                            ))}
                         </tbody>
                         <tfoot>
                             <tr className="border-t border-border/60">
@@ -240,7 +239,7 @@ export default function FertsTab({ status }: { status: AQStatus | null }) {
     return (
         <>
             {dialog}
-            <div className="flex flex-col gap-3">
+            <div className="tab-grid">
                 <section className="card">
                     <button onClick={doseNow} className="btn btn-p w-full">
                         {t('fert.doseNow')}

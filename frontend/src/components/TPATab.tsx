@@ -4,6 +4,7 @@ import { api, deviceEpochNow, dateFromDeviceEpoch } from '../api';
 import { FertCard } from './FertsTab';
 import { ConfigChecklist } from './HomeTab';
 import FertConfigModal from './FertConfigModal';
+import Sheet from './Sheet';
 import { useT, tpaStateKey } from '../i18n';
 import { useConfirm } from '../Confirm';
 
@@ -45,7 +46,7 @@ function PumpTest({
                 <div className="relative w-20 flex-none">
                     <input
                         type="number" min="0" max={maxPct > 0 ? maxPct : undefined} step="1"
-                        placeholder="%"
+                        placeholder="—"
                         className={`inp remove-arrow w-full pr-5 text-center ${over ? 'border-danger text-danger' : ''}`}
                         value={pct} onChange={e => onPct(e.target.value)}
                     />
@@ -130,6 +131,9 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
 
     // Prime config modal
     const [showPrimeConfig, setShowPrimeConfig] = useState(false);
+    // Settings touched once in a while live in sheets, so the tab opens on
+    // what is used at the tank: manual controls and the schedule summary.
+    const [sheet, setSheet] = useState<null | 'schedule' | 'reservoir' | 'flow' | 'prime'>(null);
 
     const initialized = useRef(false);
 
@@ -215,7 +219,7 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
     const busy = !!status && !['IDLE', 'COMPLETE', 'ERROR'].includes(status.tpaState);
 
     return (
-        <div className="flex flex-col gap-3">
+        <div className="tab-grid">
             {dialog}
             {/* LIVE PUMP PROGRESS */}
             {status && status.pumpGoalLiters !== undefined && status.pumpGoalLiters > 0 && (
@@ -313,16 +317,166 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                 </div>
             </section>
 
-            {/* AUTOMATIC SCHEDULE */}
+            {/* AUTOMATIC SCHEDULE — summary; the fields live in a sheet */}
             <section className="card">
                 <div className="card-h">
                     <h2 className="card-t">{t('tpa.auto')}</h2>
-                    <span className={`pill ${autoEnabled ? 'bg-accent2/20 text-accent2' : 'bg-white/5 text-muted'}`}>
-                        {autoEnabled ? t('notify.enabled') : t('notify.disabled')}
+                    <span className={`pill ${status?.tpaAutoEnabled ? 'bg-accent2/20 text-accent2' : 'bg-white/5 text-muted'}`}>
+                        {status?.tpaAutoEnabled ? t('notify.enabled') : t('notify.disabled')}
                     </span>
                 </div>
 
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-3">
+                    <div className="rounded-xl bg-white/5 px-4 py-3">
+                        <span className="lbl">{t('tpa.scheduled')}</span>
+                        <p className="mt-0.5 text-sm font-bold text-accent">
+                            {status?.tpaAutoEnabled
+                                ? t('tpa.summary', {
+                                    p: String(status.tpaPercent ?? 0),
+                                    n: String(status.tpaInterval ?? 0),
+                                    t: `${String(status.tpaHour ?? 0).padStart(2, '0')}:${String(status.tpaMinute ?? 0).padStart(2, '0')}`,
+                                })
+                                : t('tpa.disabledLabel')}
+                        </p>
+                    </div>
+
+                    <button onClick={() => setSheet('schedule')} className="btn btn-n w-full">
+                        {t('tpa.editSchedule')}
+                    </button>
+
+                    <div className="rounded-xl bg-white/5 px-4 py-3">
+                        <span className="lbl">{t('tpa.lastRun')}</span>
+                        <p className="mt-0.5 text-sm font-bold text-accent">
+                            {status?.tpaLastRun
+                                ? dateFromDeviceEpoch(status.tpaLastRun).toLocaleString(dateLocale, {
+                                    day: '2-digit', month: '2-digit', year: 'numeric',
+                                    hour: '2-digit', minute: '2-digit',
+                                })
+                                : t('tpa.lastRunNever')}
+                        </p>
+                        <div className="mt-3 grid grid-cols-2 gap-3">
+                            <button
+                                className="btn btn-s"
+                                disabled={!status?.tpaLastRun}
+                                onClick={() => setLastRun(0, 'confirm.tpaResetLastRun')}
+                            >
+                                {t('tpa.resetLastRun')}
+                            </button>
+                            <button
+                                className="btn btn-s"
+                                onClick={() => setLastRun(deviceEpochNow(), 'confirm.tpaMarkLastRun')}
+                            >
+                                {t('tpa.markLastRun')}
+                            </button>
+                        </div>
+                        <span className="hint mt-2 block">{t('tpa.lastRunHint')}</span>
+                    </div>
+                </div>
+            </section>
+
+            {/* RESERVOIR — summary; the fields live in a sheet */}
+            <section className="card">
+                <div className="card-h">
+                    <h2 className="card-t">{t('tpa.reservoir')}</h2>
+                </div>
+                <div className="row">
+                    <span className="row-k">{t('tpa.safetyMargin')}</span>
+                    <span className="row-v">{status?.reservoirSafetyML ?? '--'} mL</span>
+                </div>
+                <div className="row">
+                    <span className="row-k">{t('tpa.fillTimeout')}</span>
+                    <span className="row-v">{status?.reservoirFillTimeoutMin ? `${status.reservoirFillTimeoutMin} min` : '—'}</span>
+                </div>
+                <div className="row">
+                    <span className="row-k">{t('tpa.mechFloat')}</span>
+                    <span className="row-v">{status?.reservoirMechFloat ? t('header.on') : t('header.off')}</span>
+                </div>
+                <button onClick={() => setSheet('reservoir')} className="btn btn-n mt-3 w-full">
+                    {t('config.edit')}
+                </button>
+            </section>
+
+            {/* FLOW RATES — the measured numbers; nominal values and the
+                recalibration live in a sheet */}
+            <section className="card">
+                <div className="card-h">
+                    <h2 className="card-t">{t('tpa.flowRates')}</h2>
+                </div>
+                <div className="flex flex-col">
+                    <div className="row">
+                        <span className="row-k">{t('tpa.drainPump')}</span>
+                        <span className="row-v text-accent">
+                            {status?.drainFlowRate ? `${status.drainFlowRate.toFixed(2)} mL/s` : '--'}
+                        </span>
+                    </div>
+                    <div className="row">
+                        <span className="row-k">{t('tpa.refillPump')}</span>
+                        <span className="row-v text-accent2">
+                            {status?.refillFlowRate ? `${status.refillFlowRate.toFixed(2)} mL/s` : '--'}
+                        </span>
+                    </div>
+                </div>
+                <button onClick={() => setSheet('flow')} className="btn btn-n mt-3 w-full">
+                    {t('tpa.editCalibration')}
+                </button>
+            </section>
+
+            {/* PRIME (CH5) — dosed into the reservoir by the TPA, never by a schedule */}
+            <section className="card">
+                <div className="card-h">
+                    <h2 className="card-t">{t('tpa.primeSection')}</h2>
+                    <button
+                        onClick={async () => {
+                            const next = !primeEnabled;
+                            // Turning Prime on erases CH5's weekly schedule on
+                            // the controller; say so while it can still be kept.
+                            const scheduled = status?.stocks?.[4]?.doses?.some(d => Number(d) > 0);
+                            if (next && scheduled && !(await ask(t('confirm.primeClearSchedule')))) return;
+                            setPrimeEnabled(next);
+                            api('POST', '/api/config/aquarium', { primeEnabled: next ? 1 : 0 });
+                        }}
+                        aria-pressed={primeEnabled}
+                        aria-label={t('tpa.primeEnabled')}
+                        className={`inline-flex h-6 w-11 flex-none items-center rounded-full p-0.5 transition-colors ${primeEnabled ? 'bg-accent' : 'bg-white/20'}`}
+                    >
+                        <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-md transition-transform ${primeEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                </div>
+                <p className="hint mb-3">{primeEnabled ? t('tpa.primeOnHint') : t('tpa.primeEnabledHint')}</p>
+
+                {primeEnabled && (
+                    <div className="flex flex-col gap-4">
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm text-muted">
+                                {t('tpa.primeRatioShort')}: <strong className="font-mono text-text">{status?.primeRatio ?? '--'}</strong> mL/L
+                            </span>
+                            <button onClick={() => { setPrimeSaved(false); setSheet('prime'); }} className="btn btn-n btn-xs flex-none">
+                                {t('config.edit')}
+                            </button>
+                        </div>
+
+                        <div className="flex min-h-[44px] flex-wrap items-center justify-between gap-2 rounded-lg bg-accent/10 px-3 py-2">
+                            <span className="text-[11px] text-muted">{t('tpa.primeDose')}</span>
+                            <strong className="font-mono text-sm text-accent">
+                                {/* From the stored ratio, so a value typed but not saved
+                                    does not look like it is already in force. */}
+                                {resVolume > 0 && (status?.primeRatio ?? 0) > 0
+                                    ? `${(resVolume * (status?.primeRatio ?? 0)).toFixed(2)} mL`
+                                    : t('tpa.primeDoseUnset')}
+                            </strong>
+                        </div>
+                        <span className="hint -mt-2">{t('tpa.autoCalc')}</span>
+
+                        {status?.stocks && status.stocks.length >= 5 && (
+                            <FertCard index={4} s={status.stocks[4]} onConfig={() => setShowPrimeConfig(true)} />
+                        )}
+                    </div>
+                )}
+            </section>
+
+            {sheet === 'schedule' && (
+                <Sheet title={t('tpa.auto')} onClose={() => setSheet(null)}>
+                    <div className="flex flex-col gap-4">
                     <label className="flex min-h-[56px] cursor-pointer items-center gap-3 rounded-xl border border-border bg-white/5 px-3 py-2">
                         <input
                             type="checkbox"
@@ -390,46 +544,15 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                         </p>
                     </div>
 
-                    <button onClick={handleSaveSchedule} className="btn btn-p w-full">
+                    <button onClick={() => { handleSaveSchedule(); setSheet(null); }} className="btn btn-p w-full">
                         {t('tpa.saveSchedule')}
                     </button>
 
-                    <div className="rounded-xl bg-white/5 px-4 py-3">
-                        <span className="lbl">{t('tpa.lastRun')}</span>
-                        <p className="mt-0.5 text-sm font-bold text-accent">
-                            {status?.tpaLastRun
-                                ? dateFromDeviceEpoch(status.tpaLastRun).toLocaleString(dateLocale, {
-                                    day: '2-digit', month: '2-digit', year: 'numeric',
-                                    hour: '2-digit', minute: '2-digit',
-                                })
-                                : t('tpa.lastRunNever')}
-                        </p>
-                        <div className="mt-3 grid grid-cols-2 gap-3">
-                            <button
-                                className="btn btn-s"
-                                disabled={!status?.tpaLastRun}
-                                onClick={() => setLastRun(0, 'confirm.tpaResetLastRun')}
-                            >
-                                {t('tpa.resetLastRun')}
-                            </button>
-                            <button
-                                className="btn btn-s"
-                                onClick={() => setLastRun(deviceEpochNow(), 'confirm.tpaMarkLastRun')}
-                            >
-                                {t('tpa.markLastRun')}
-                            </button>
-                        </div>
-                        <span className="hint mt-2 block">{t('tpa.lastRunHint')}</span>
                     </div>
-                </div>
-            </section>
-
-            {/* RESERVOIR & PRIME */}
-            <section className="card">
-                <div className="card-h">
-                    <h2 className="card-t">{t('tpa.reservoir')}</h2>
-                </div>
-
+                </Sheet>
+            )}
+            {sheet === 'reservoir' && (
+                <Sheet title={t('tpa.reservoir')} onClose={() => setSheet(null)}>
                 <div className="flex flex-col gap-4">
                     <div className="field">
                         <label className="lbl">{t('tpa.safetyMargin')}</label>
@@ -470,32 +593,15 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                         </span>
                     </label>
 
-                    <button onClick={handleSaveConfig} className="btn btn-p2 w-full">
+                    <button onClick={() => { handleSaveConfig(); setSheet(null); }} className="btn btn-p w-full">
                         {t('tpa.saveConfig')}
                     </button>
                 </div>
-            </section>
-
-            {/* FLOW RATES */}
-            <section className="card">
-                <div className="card-h">
-                    <h2 className="card-t">{t('tpa.flowRates')}</h2>
-                </div>
-                <div className="flex flex-col">
-                    <div className="row">
-                        <span className="row-k">{t('tpa.drainPump')}</span>
-                        <span className="row-v text-accent">
-                            {status?.drainFlowRate ? `${status.drainFlowRate.toFixed(2)} mL/s` : '--'}
-                        </span>
-                    </div>
-                    <div className="row">
-                        <span className="row-k">{t('tpa.refillPump')}</span>
-                        <span className="row-v text-accent2">
-                            {status?.refillFlowRate ? `${status.refillFlowRate.toFixed(2)} mL/s` : '--'}
-                        </span>
-                    </div>
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-3">
+                </Sheet>
+            )}
+            {sheet === 'flow' && (
+                <Sheet title={t('tpa.flowRates')} onClose={() => setSheet(null)}>
+                <div className="grid grid-cols-2 gap-3">
                     <div>
                         <label className="lbl">{t('tpa.drainNominal')}</label>
                         <input
@@ -520,40 +626,17 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                     </div>
                 </div>
                 <p className="hint">{t('tpa.nominalHint')}</p>
-                <button onClick={handleCalibrateBoth} className="btn btn-p2 mt-3 w-full">
+                <button onClick={handleCalibrateBoth} className="btn btn-p mt-3 w-full">
                     {(status?.drainFlowRate && status?.refillFlowRate)
                         ? t('tpa.recalibrateBoth')
                         : t('tpa.calibrateBoth')}
                 </button>
                 <p className="hint">{t('tpa.calibrateBothHint')}</p>
                 <p className="hint mt-2">{t('tpa.autoCalibrated')}</p>
-            </section>
-
-            {/* PRIME (CH5) — dosed into the reservoir by the TPA, never by a schedule */}
-            <section className="card">
-                <div className="card-h">
-                    <h2 className="card-t">{t('tpa.primeSection')}</h2>
-                    <button
-                        onClick={async () => {
-                            const next = !primeEnabled;
-                            // Turning Prime on erases CH5's weekly schedule on
-                            // the controller; say so while it can still be kept.
-                            const scheduled = status?.stocks?.[4]?.doses?.some(d => Number(d) > 0);
-                            if (next && scheduled && !(await ask(t('confirm.primeClearSchedule')))) return;
-                            setPrimeEnabled(next);
-                            api('POST', '/api/config/aquarium', { primeEnabled: next ? 1 : 0 });
-                        }}
-                        aria-pressed={primeEnabled}
-                        aria-label={t('tpa.primeEnabled')}
-                        className={`inline-flex h-6 w-11 flex-none items-center rounded-full p-0.5 transition-colors ${primeEnabled ? 'bg-accent' : 'bg-white/20'}`}
-                    >
-                        <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-md transition-transform ${primeEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
-                    </button>
-                </div>
-                <p className="hint mb-3">{primeEnabled ? t('tpa.primeOnHint') : t('tpa.primeEnabledHint')}</p>
-
-                {primeEnabled && (
-                    <div className="flex flex-col gap-4">
+                </Sheet>
+            )}
+            {sheet === 'prime' && (
+                <Sheet title={t('tpa.primeSection')} onClose={() => setSheet(null)}>
                         <div className="field">
                             <label className="lbl">{t('tpa.primeRatio')}</label>
                             <div className="flex gap-2">
@@ -566,7 +649,7 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                                 <button
                                     onClick={handleSavePrimeRatio}
                                     disabled={!(parseFloat(primeRatio) > 0)}
-                                    className="btn btn-p2 flex-none"
+                                    className="btn btn-p flex-none"
                                 >
                                     {t('tpa.primeRatioSave')}
                                 </button>
@@ -577,25 +660,8 @@ export default function TPATab({ status }: { status: AQStatus | null }) {
                             <span className="hint">{t('tpa.primeRatioHint')}</span>
                         </div>
 
-                        <div className="flex min-h-[44px] flex-wrap items-center justify-between gap-2 rounded-lg bg-accent/10 px-3 py-2">
-                            <span className="text-[11px] text-muted">{t('tpa.primeDose')}</span>
-                            <strong className="font-mono text-sm text-accent">
-                                {/* From the stored ratio, so a value typed but not saved
-                                    does not look like it is already in force. */}
-                                {resVolume > 0 && (status?.primeRatio ?? 0) > 0
-                                    ? `${(resVolume * (status?.primeRatio ?? 0)).toFixed(2)} mL`
-                                    : t('tpa.primeDoseUnset')}
-                            </strong>
-                        </div>
-                        <span className="hint -mt-2">{t('tpa.autoCalc')}</span>
-
-                        {status?.stocks && status.stocks.length >= 5 && (
-                            <FertCard index={4} s={status.stocks[4]} onConfig={() => setShowPrimeConfig(true)} />
-                        )}
-                    </div>
-                )}
-            </section>
-
+                </Sheet>
+            )}
             {/* Prime Config Modal: bottle, flow calibration, reset */}
             {showPrimeConfig && status?.stocks && status.stocks.length >= 5 && (
                 <FertConfigModal

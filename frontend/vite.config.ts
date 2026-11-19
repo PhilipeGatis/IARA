@@ -28,6 +28,16 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(getDevVersion()),
   },
+  // `IARA_HOST=192.168.0.13 npm run dev` serves this UI against a live board.
+  server: process.env.IARA_HOST
+    ? {
+      proxy: {
+        '/api': { target: `http://${process.env.IARA_HOST}`, changeOrigin: true },
+        '/events': { target: `http://${process.env.IARA_HOST}`, changeOrigin: true },
+        '/version.json': { target: `http://${process.env.IARA_HOST}`, changeOrigin: true },
+      },
+    }
+    : undefined,
   plugins: [
     react(),
     viteCompression({

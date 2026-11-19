@@ -4,6 +4,7 @@ import { api, dateFromDeviceEpoch } from '../api';
 import { useT, tpaStateKey } from '../i18n';
 import { useConfirm } from '../Confirm';
 import { levelPercent } from '../LevelBadge';
+import { doseGroups, daysLabel, hhmm } from '../schedule';
 
 /* ── Shared "what is still missing" checklist ─────────────────── */
 export function ConfigChecklist({ status }: { status: AQStatus | null }) {
@@ -53,7 +54,9 @@ function StockBar({ label, stock, cap, color }: { label: string; stock: number; 
                 />
                 <div className="absolute inset-0 rounded-md border" style={{ borderColor: color, opacity: 0.4 }} />
             </div>
-            <span className="w-full truncate text-center text-[10px] font-bold tracking-wide" style={{ color }}>{label}</span>
+            {/* Whole name on up to two lines: cut to six letters, "Potassio" and
+                "Fosforo" read as "Potass" and "Fosfor". */}
+            <span className="line-clamp-2 w-full break-words text-center text-[10px] font-bold leading-tight tracking-wide" style={{ color }}>{label}</span>
             <span className="text-[10px] tabular-nums text-muted">{stock.toFixed(0)} mL</span>
         </div>
     );
@@ -64,7 +67,7 @@ const STOCK_COLORS = ['#00E5FF', '#FF4FD8', '#FFE45C', '#FFA726', '#66E06A'];
 export default function HomeTab({ status }: { status: AQStatus | null }) {
     const { t, lang } = useT();
     const { ask, dialog } = useConfirm();
-    const shortDays = t('home.shortDays').split(',');
+    const shortDays = t('fert.shortDays').split(',');
     const dateLocale = lang === 'ja' ? 'ja-JP' : lang === 'en' ? 'en-US' : 'pt-BR';
 
     /* ── Water level ─────────────────────────────────────────── */
@@ -113,50 +116,31 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
             return <div className="hint italic">{t('home.noActiveSchedule')}</div>;
         }
 
+        // One line per distinct dose instead of a 7-column grid: the grid was
+        // the same number repeated seven times for nearly every channel.
         return (
-            <div className="bleed">
-                <table className="w-full min-w-[300px] border-collapse text-left">
-                    <thead>
-                        <tr className="border-b border-border/60 text-[10px] uppercase tracking-wider text-muted">
-                            <th className="py-2 pr-2 font-medium">{t('home.channel')}</th>
-                            {shortDays.map((d, i) => (
-                                <th key={i} className="px-1 py-2 text-center font-medium">{d}</th>
+            <div className="flex flex-col">
+                {activeStocks.map((s) => (
+                    <div key={s.originalIndex} className="flex items-start justify-between gap-3 border-b border-border/40 py-2.5 last:border-0">
+                        <span className="min-w-0 truncate text-sm font-medium text-text">
+                            {s.name || `CH ${s.originalIndex + 1}`}
+                        </span>
+                        <div className="flex flex-none flex-col items-end gap-0.5">
+                            {doseGroups(s).map((g, gi) => (
+                                <span key={gi} className="text-xs tabular-nums text-muted">
+                                    {daysLabel(g.days, shortDays, t('sched.everyDay'))} · {hhmm(g.h, g.m)} ·{' '}
+                                    <strong className="text-accent2">{g.dose} mL</strong>
+                                </span>
                             ))}
-                        </tr>
-                    </thead>
-                    <tbody className="text-xs">
-                        {activeStocks.map((s, i) => (
-                            <tr key={i} className="border-b border-border/40 last:border-0">
-                                <td className="max-w-[86px] truncate py-3 pr-2 font-medium text-text">
-                                    {s.name || `CH ${s.originalIndex + 1}`}
-                                </td>
-                                {[0, 1, 2, 3, 4, 5, 6].map(di => {
-                                    const vol = s.doses?.[di] || 0;
-                                    const h = Array.isArray(s.sH) ? String(s.sH[di] ?? 0).padStart(2, '0') : '00';
-                                    const m = Array.isArray(s.sM) ? String(s.sM[di] ?? 0).padStart(2, '0') : '00';
-                                    return (
-                                        <td key={di} className="px-1 py-2.5 text-center align-middle">
-                                            {Number(vol) > 0 ? (
-                                                <div className="flex flex-col items-center leading-tight">
-                                                    <span className="font-bold tabular-nums text-accent2">{Number(vol)}</span>
-                                                    <span className="text-[9px] tabular-nums text-muted">{h}:{m}</span>
-                                                </div>
-                                            ) : (
-                                                <span className="text-muted/40">-</span>
-                                            )}
-                                        </td>
-                                    );
-                                })}
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </div>
+                    </div>
+                ))}
             </div>
         );
     };
 
     return (
-        <div className="flex flex-col gap-3">
+        <div className="tab-grid">
             {dialog}
             {/* 1 — Anything blocking the TPA comes first */}
             <ConfigChecklist status={status} />
@@ -394,7 +378,7 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
                                 stock={s.stock}
                                 cap={s.cap}
                                 color={STOCK_COLORS[i] || STOCK_COLORS[4]}
-                                label={i === 4 && status.primeEnabled ? (s.name || 'Prime') : (s.name || `F${i + 1}`).substring(0, 6)}
+                                label={i === 4 && status.primeEnabled ? (s.name || 'Prime') : (s.name || `F${i + 1}`)}
                             />
                         ))}
                     </div>
@@ -405,7 +389,6 @@ export default function HomeTab({ status }: { status: AQStatus | null }) {
             <section className="card">
                 <div className="card-h">
                     <h2 className="card-t">{t('home.fertTable')}</h2>
-                    <span className="pill bg-accent2/15 text-accent2">{t('home.inMl')}</span>
                 </div>
                 {renderFertTable()}
             </section>

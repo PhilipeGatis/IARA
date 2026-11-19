@@ -110,18 +110,15 @@ void DisplayManager::showBootStatus(const char *msg, const char *detail) {
     _display.print(F("IARA > Boot"));
   }
 
-  // Mark previous line as OK (if any)
-  if (_bootLine > 0 && _bootLine <= maxLines) {
-    uint8_t prevY = startY + (_bootLine - 1) * lineH;
-    _display.setCursor(140, prevY);
-    _display.setTextSize(1);
-    _display.setTextColor(COL_GOOD, COL_BG);
-    _display.print(F("OK"));
-  }
+  // A step that never reported its outcome is assumed to have worked.
+  if (!_bootMarked)
+    markBootResult(true);
 
   // Add new log line
   if (_bootLine < maxLines) {
     uint8_t y = startY + _bootLine * lineH;
+    _bootLastY = y;
+    _bootMarked = false;
     _display.setTextSize(1);
     _display.setTextColor(COL_TEXT, COL_BG);
     _display.setCursor(4, y);
@@ -137,6 +134,16 @@ void DisplayManager::showBootStatus(const char *msg, const char *detail) {
   }
 
   _bootLine++;
+}
+
+void DisplayManager::markBootResult(bool ok) {
+  if (_bootMarked)
+    return;
+  _bootMarked = true;
+  _display.setTextSize(1);
+  _display.setTextColor(ok ? COL_GOOD : COL_ERR, COL_BG);
+  _display.setCursor(ok ? 140 : 138, _bootLastY);
+  _display.print(ok ? F("OK") : F("ERR"));
 }
 
 // =============================================================================

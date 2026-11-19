@@ -319,6 +319,7 @@ void setup() {
   displayMgr.showBootStatus("LittleFS");
   if (!LittleFS.begin(true)) {
     Serial.println("[LittleFS] Mount Failed. Formatting...");
+    displayMgr.markBootResult(false);
   } else {
     Serial.println("[LittleFS] Mounted successfully.");
   }
@@ -405,6 +406,7 @@ void setup() {
       attempts++;
     }
   }
+  displayMgr.markBootResult(WiFi.status() == WL_CONNECTED);
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println(" OK!");
     Serial.print("[WiFi] IP: ");
@@ -470,12 +472,15 @@ void setup() {
   }
 
   // --- Step 4: Safety Watchdog (sensors) ---
-  displayMgr.showBootStatus("Sensors");
+  displayMgr.showBootStatus("Level sensor");
   safety.begin();
+  displayMgr.markBootResult(safety.areSensorsConnected());
 
   // --- Step 5: Time Manager (RTC + NTP — needs WiFi) ---
-  displayMgr.showBootStatus("RTC + NTP");
+  displayMgr.showBootStatus("RTC clock");
   timeMgr.begin();
+  // NTP syncs later in loop(); this line is about the DS3231 answering on I2C.
+  displayMgr.markBootResult(timeMgr.isRtcConnected());
   pumpLogInit([]() -> String { return timeMgr.getFormattedTime(); });
 
   // --- Step 5: Fertilizer Manager (NVS state) ---

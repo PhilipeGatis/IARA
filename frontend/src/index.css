@@ -199,15 +199,17 @@ body.ap-mode .tab-pane {
 
   /* ── Buttons — every one clears a 44px touch target ───────── */
   .btn {
-    @apply inline-flex min-h-[44px] select-none items-center justify-center gap-1.5 rounded-xl px-4 text-center text-sm font-bold leading-tight tracking-wide transition-all active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40;
+    @apply inline-flex min-h-[44px] select-none items-center justify-center gap-1.5 rounded-xl px-4 text-center text-sm font-bold leading-tight tracking-wide transition-all active:scale-[0.97] disabled:pointer-events-none disabled:opacity-35 disabled:shadow-none disabled:grayscale;
   }
 
   .btn-xs {
     @apply min-h-[36px] rounded-lg px-3 text-[11px] uppercase tracking-wider;
   }
 
+  /* One colour for "the main action of this card". btn-p was blue and
+     btn-p2 teal for the same role, so the screen read as two kinds of save. */
   .btn-p {
-    @apply bg-accent text-[color:var(--on-accent)] shadow-sm hover:brightness-110;
+    @apply bg-accent2 text-[color:var(--on-accent)] shadow-sm hover:brightness-110;
   }
 
   .btn-p2 {
@@ -238,7 +240,8 @@ body.ap-mode .tab-pane {
     @apply bg-danger text-white shadow-sm hover:brightness-110;
   }
 
-  .btn-n {
+  .btn-n,
+  .btn-s {
     @apply border border-border bg-white/5 text-text hover:bg-white/10;
   }
 
@@ -258,6 +261,26 @@ body.ap-mode .tab-pane {
 
   .note-d {
     @apply border-danger/50 bg-danger/10;
+  }
+
+  /* Tab content: one column on a phone, two balanced columns on a desktop,
+     where a 640px strip in the middle of the screen made everything scroll. */
+  .tab-grid {
+    @apply flex flex-col gap-3;
+  }
+
+  @media (min-width: 1024px) {
+    .tab-grid {
+      display: block;
+      column-count: 2;
+      column-gap: 0.75rem;
+    }
+
+    .tab-grid > * {
+      break-inside: avoid;
+      margin-bottom: 0.75rem;
+      width: 100%;
+    }
   }
 
   /* Bleed a scrolling table to the card edges instead of overflowing */

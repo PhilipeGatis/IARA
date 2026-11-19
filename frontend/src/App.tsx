@@ -5,7 +5,8 @@ import FertsTab from './components/FertsTab';
 import ConfigTab from './components/ConfigTab';
 import LogsTab from './components/LogsTab';
 import { I18nProvider, useT } from './i18n';
-import { setNetErrorMsg } from './api';
+import { api, setNetErrorMsg } from './api';
+import { useConfirm } from './Confirm';
 import LevelBadge, { SensorIcon, StateIcon } from './LevelBadge';
 
 declare const __APP_VERSION__: string;
@@ -86,17 +87,6 @@ export type AQStatus = {
   }[];
 };
 
-/** Compact uptime for the header line: 3d 4h, 4h 12m, or 12m. */
-const formatUptime = (ms: number) => {
-  const totalMin = Math.floor(ms / 60000);
-  const d = Math.floor(totalMin / 1440);
-  const h = Math.floor((totalMin % 1440) / 60);
-  const m = totalMin % 60;
-  if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-};
-
 /** The firmware sends "YYYY/MM/DD HH:MM:SS"; the header only needs HH:MM. */
 const clockOf = (t?: string) => {
   if (!t) return '--:--';
@@ -114,6 +104,8 @@ const TABS = [
 
 function AppContent() {
   const { t } = useT();
+  const { ask, dialog } = useConfirm();
+  const [legend, setLegend] = useState(false);
   const [tab, setTab] = useState<'home' | 'tpa' | 'ferts' | 'logs' | 'config'>('home');
   const [status, setStatus] = useState<AQStatus | null>(null);
   const [wifiDot, setWifiDot] = useState(false);
@@ -200,9 +192,11 @@ function AppContent() {
 
   return (
     <div className="min-h-screen pb-nav">
+      {/* Outside the header: its backdrop-blur would trap a fixed overlay. */}
+      {dialog}
       {/* Header */}
       <header className="sticky top-0 z-20 border-b border-border/60 bg-card/95 shadow-md backdrop-blur">
-        <div className="mx-auto flex w-full max-w-[640px] items-center gap-3 px-4 py-2.5">
+        <div className="mx-auto flex w-full max-w-[640px] items-center gap-2.5 px-4 py-2.5 lg:max-w-[1100px]">
           <span
             className={`h-2.5 w-2.5 flex-none rounded-full ${wifiDot ? 'bg-accent2 shadow-[0_0_8px_var(--accent2)]' : 'bg-danger shadow-[0_0_8px_var(--danger)]'
               }`}
@@ -210,15 +204,16 @@ function AppContent() {
           />
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-[15px] font-medium leading-tight tracking-wide">IARA</h1>
-            <p className="truncate font-mono text-[10px] leading-tight text-muted/80">
-              FW {status?.firmwareVersion || '?'} · UI {uiVersion}
-              {status?.resetReason ? ` · ${status.resetReason}` : ''}
-              {status?.uptimeMs ? ` · ${formatUptime(status.uptimeMs)}` : ''}
-            </p>
           </div>
 
-          {/* State at a glance, on every tab: lit when active, dimmed when not. */}
-          <div className="flex flex-none items-center gap-1.5">
+          {/* State at a glance, on every tab: lit when active, dimmed when not.
+              A title tooltip never shows on a phone, so a tap spells them out. */}
+          <button
+            onClick={() => setLegend(v => !v)}
+            aria-expanded={legend}
+            aria-label={t('header.legend')}
+            className="flex flex-none items-center gap-1.5 rounded-lg px-1 py-1 active:bg-white/10"
+          >
             <StateIcon icon="🌀" on={status?.canister} label={t('home.canister')} />
             <StateIcon icon="🛟" on={status?.float} label={t('home.float')} />
             <StateIcon icon="🔧" on={status?.maintenance} label={t('home.maintenance')} />
@@ -227,29 +222,72 @@ function AppContent() {
               okLabel={t('home.sensorOk')}
               downLabel={t('home.sensorDown')}
             />
-          </div>
+          </button>
 
-          {/* The level matters from every tab, not just Home. */}
-          <LevelBadge status={status} />
+          {/* The level matters from every tab — except Home, whose first card
+              already shows it in large type. */}
+          {tab !== 'home' && <LevelBadge status={status} />}
 
           <span className="flex-none font-mono text-xs tabular-nums text-muted">
             {clockOf(status?.time)}
           </span>
+
+          {/* Reachable from every tab: at the bottom of Config it was the last
+              thing found by someone in a hurry. */}
+          {!status?.emergency && (
+            <button
+              onClick={async () => {
+                if (await ask(t('confirm.emergency'))) api('POST', '/api/emergency/stop');
+              }}
+              aria-label={t('config.emergencyStop')}
+              title={t('config.emergencyStop')}
+              className="flex h-9 w-9 flex-none items-center justify-center rounded-full border border-danger/50 bg-danger/15 text-base active:scale-90"
+            >
+              🛑
+            </button>
+          )}
         </div>
+
+        {legend && (
+          <div className="mx-auto grid w-full max-w-[640px] grid-cols-2 gap-x-3 gap-y-1 px-4 pb-2.5 text-[11px] lg:max-w-[1100px]">
+            {[
+              { icon: '🌀', label: t('home.canister'), on: status?.canister },
+              { icon: '🛟', label: t('home.float'), on: status?.float },
+              { icon: '🔧', label: t('home.maintenance'), on: status?.maintenance },
+              { icon: status?.sensorsOk === false ? '⚠️' : '📡', label: t('header.sensor'), on: status?.sensorsOk !== false },
+            ].map((x) => (
+              <span key={x.label} className="flex items-center gap-1.5">
+                <span>{x.icon}</span>
+                <span className="min-w-0 truncate text-muted">{x.label}</span>
+                <span className={`ml-auto font-bold ${x.on ? 'text-accent2' : 'text-muted/60'}`}>
+                  {x.on ? t('header.on') : t('header.off')}
+                </span>
+              </span>
+            ))}
+          </div>
+        )}
       </header>
 
       {/* Global alerts — visible from every tab */}
       {!wifiDot && (
-        <div className="mx-auto w-full max-w-[640px] px-4 pt-3">
+        <div className="mx-auto w-full max-w-[640px] px-4 pt-3 lg:max-w-[1100px]">
           <div className="note bg-danger/15 text-danger">{t('net.stale')}</div>
         </div>
       )}
 
       {(status?.emergency || status?.maintenance) && (
-        <div className="mx-auto flex w-full max-w-[640px] flex-col gap-2 px-3 pt-3">
+        <div className="mx-auto flex w-full max-w-[640px] flex-col gap-2 px-3 pt-3 lg:max-w-[1100px]">
           {status?.emergency && (
-            <div className="note note-d animate-pulse text-center text-sm font-bold text-danger">
-              {t('emergency.banner')}
+            <div className="note note-d flex flex-col items-center gap-2 text-center text-sm font-bold text-danger">
+              <span className="animate-pulse">{t('emergency.banner')}</span>
+              <button
+                onClick={async () => {
+                  if (await ask(t('confirm.emergencyClear'))) api('POST', '/api/emergency/stop');
+                }}
+                className="btn btn-g btn-xs"
+              >
+                {t('config.emergencyClear')}
+              </button>
             </div>
           )}
           {status?.maintenance && (
@@ -261,12 +299,12 @@ function AppContent() {
       )}
 
       {/* Tab content — single column, phone first */}
-      <main className="mx-auto w-full max-w-[640px] p-3">
+      <main className="mx-auto w-full max-w-[640px] p-3 lg:max-w-[1100px]">
         {tab === 'home' && <HomeTab status={status} />}
         {tab === 'tpa' && <TPATab status={status} />}
         {tab === 'ferts' && <FertsTab status={status} />}
         {tab === 'logs' && <LogsTab rtcConnected={status?.rtcConnected} rtcLostPower={status?.rtcLostPower} />}
-        {tab === 'config' && <ConfigTab status={status} />}
+        {tab === 'config' && <ConfigTab status={status} uiVersion={uiVersion} />}
       </main>
 
       {/* Bottom Navigation */}

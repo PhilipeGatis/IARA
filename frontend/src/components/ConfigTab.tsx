@@ -42,7 +42,18 @@ const LANGS: { code: Lang; flag: string; label: string }[] = [
     { code: 'ja', flag: '🇯🇵', label: '日本語' },
 ];
 
-export default function ConfigTab({ status }: { status: AQStatus | null }) {
+/** Compact uptime: 3d 4h, 4h 12m, or 12m. */
+const formatUptime = (ms: number) => {
+    const totalMin = Math.floor(ms / 60000);
+    const d = Math.floor(totalMin / 1440);
+    const h = Math.floor((totalMin % 1440) / 60);
+    const m = totalMin % 60;
+    if (d > 0) return `${d}d ${h}h`;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+};
+
+export default function ConfigTab({ status, uiVersion }: { status: AQStatus | null; uiVersion: string }) {
     const { t, lang, setLang } = useT();
     const { ask, dialog } = useConfirm();
     const [height, setHeight] = useState('');
@@ -59,6 +70,9 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
     const [pass, setPass] = useState('');
     const [networks, setNetworks] = useState<string[]>([]);
     const [scanning, setScanning] = useState(false);
+    // The change-network form stays folded while the board is online: it read
+    // "no networks (click scan)" right under the network it was connected to.
+    const [wifiForm, setWifiForm] = useState(false);
     // Test-then-save progress: the board tries the new network from its own
     // loop and saves it only once it has an IP, else it goes back to the old one.
     const [wifiJob, setWifiJob] = useState<null | {
@@ -338,7 +352,7 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
     };
 
     return (
-        <div className="flex flex-col gap-3">
+        <div className="tab-grid">
             {dialog}
             {/* LANGUAGE — compact segmented control */}
             <section className="card">
@@ -424,11 +438,16 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                         {wifiJob.phase === 'failed' && t('config.wifiFailed', { ssid: wifiJob.target, why: wifiReasonText(wifiJob.reason) })}
                         {wifiJob.phase === 'lost' && t('config.wifiLost', { ssid: wifiJob.target })}
                         {(wifiJob.phase === 'ok' || wifiJob.phase === 'failed' || wifiJob.phase === 'lost') && (
-                            <button onClick={() => setWifiJob(null)} className="mt-2 block text-xs underline">OK</button>
+                            <button onClick={() => { setWifiJob(null); setWifiForm(false); }} className="mt-2 block text-xs underline">OK</button>
                         )}
                     </div>
                 )}
 
+                {status?.wifiConnected && !wifiForm && !wifiJob ? (
+                    <button onClick={() => setWifiForm(true)} className="btn btn-n w-full">
+                        {t('config.wifiChange')}
+                    </button>
+                ) : (
                 <div className="flex flex-col gap-3">
                     <div className="flex gap-2">
                         <select
@@ -460,11 +479,12 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                     <button
                         onClick={handleSaveWifi}
                         disabled={!ssid || wifiJob?.phase === 'saving' || wifiJob?.phase === 'waiting'}
-                        className="btn btn-p w-full disabled:opacity-50"
+                        className="btn btn-p w-full"
                     >
                         {wifiJob?.phase === 'saving' || wifiJob?.phase === 'waiting' ? t('config.wifiConnectingShort') : t('config.wifiTestSave')}
                     </button>
                 </div>
+                )}
             </section>
 
             {/* NOTIFICATIONS (ntfy.sh) — a summary; the toggles live in a sheet */}
@@ -484,6 +504,29 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                         total: String(NOTIFY_TYPE_KEYS.length),
                     })}
                 </p>
+            </section>
+
+            {/* ABOUT — versions and uptime, moved out of the header */}
+            <section className="card">
+                <div className="card-h">
+                    <h2 className="card-t">{t('about.title')}</h2>
+                </div>
+                <div className="row">
+                    <span className="row-k">{t('about.firmware')}</span>
+                    <span className="row-v text-xs">{status?.firmwareVersion || '?'}</span>
+                </div>
+                <div className="row">
+                    <span className="row-k">{t('about.ui')}</span>
+                    <span className="row-v text-xs">{uiVersion}</span>
+                </div>
+                <div className="row">
+                    <span className="row-k">{t('about.reset')}</span>
+                    <span className="row-v text-xs">{status?.resetReason || '?'}</span>
+                </div>
+                <div className="row">
+                    <span className="row-k">{t('about.uptime')}</span>
+                    <span className="row-v text-xs">{status?.uptimeMs ? formatUptime(status.uptimeMs) : '?'}</span>
+                </div>
             </section>
 
             {/* FIRMWARE UPDATE */}

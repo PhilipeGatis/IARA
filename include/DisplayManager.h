@@ -26,6 +26,11 @@ public:
   /// Show a boot progress line on the display (call during setup steps)
   void showBootStatus(const char *line1, const char *line2 = nullptr);
 
+  /// Marks the last boot line with its real outcome: green "OK" or red "ERR".
+  /// A line left unmarked is marked OK when the next one starts, which used to
+  /// be the only behaviour — so a missing RTC still printed "OK".
+  void markBootResult(bool ok);
+
   /// Full initialization with manager pointers (call after all managers ready)
   void begin(TimeManager *time, WaterManager *water, FertManager *fert,
              SafetyWatchdog *safety, WebManager *web, NotifyManager *notify);
@@ -66,6 +71,8 @@ private:
   static constexpr unsigned long PAGE_CYCLE_MS = 5000; // switch page every 5s
   static constexpr unsigned long REDRAW_MS = 1000; // refresh content every 1s
   uint8_t _bootLine;                               // boot log line counter
+  uint8_t _bootLastY = 0;     // y of the last boot line, for its OK/ERR mark
+  bool _bootMarked = true;    // last boot line already has its mark
 
   // ── Button state ──
   bool _btnLastState;        // previous digitalRead (true=released)
