@@ -1859,6 +1859,31 @@ void WebManager::processSerialCommands() {
       Serial.printf("[CMD] ntfy.sh topic %s.\n",
                     topic.length() > 0 ? "set" : "cleared");
     }
+  } else if (cmd.startsWith("wifi ")) {
+    // "wifi SSID|PASSWORD" — the bar separates them because SSIDs carry spaces.
+    String arg = cmd.substring(5);
+    int bar = arg.indexOf('|');
+    if (bar <= 0) {
+      Serial.println("[CMD] Usage: wifi SSID|PASSWORD");
+    } else {
+      Preferences pref;
+      pref.begin("wifi", false);
+      pref.putString("ssid", arg.substring(0, bar));
+      pref.putString("pass", arg.substring(bar + 1));
+      pref.end();
+      Serial.printf("[CMD] WiFi set to '%s' (pass len=%d). Restarting...\n",
+                    arg.substring(0, bar).c_str(), arg.length() - bar - 1);
+      _rebootPending = true;
+      _rebootMs = millis();
+    }
+  } else if (cmd == "wifi_scan") {
+    // Blocking scan, for telling a dead radio from a router out of range.
+    int n = WiFi.scanNetworks();
+    Serial.printf("[CMD] %d network(s) found:\n", n);
+    for (int i = 0; i < n; i++)
+      Serial.printf("  %4d dBm  ch%2d  %s\n", WiFi.RSSI(i), WiFi.channel(i),
+                    WiFi.SSID(i).c_str());
+    WiFi.scanDelete();
   } else if (cmd == "test_notify") {
     if (_notify) {
       _notify->sendTest();
@@ -1914,6 +1939,8 @@ void WebManager::_printHelp() {
   Serial.println("  notify_topic TOPIC — Set ntfy.sh topic");
   Serial.println("  test_notify   — Send test notification");
   Serial.println("  notify_config — Show notification config");
+  Serial.println("  wifi SSID|PASS — Save WiFi credentials and restart");
+  Serial.println("  wifi_scan     — List visible networks");
   Serial.println("========================\n");
 }
 
