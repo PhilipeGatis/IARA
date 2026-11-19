@@ -12,6 +12,11 @@ declare const __APP_VERSION__: string;
 
 export type AQStatus = {
   wifiConnected: boolean;
+  wifiSsid?: string;
+  wifiRssi?: number;
+  wifiIp?: string;
+  apActive?: boolean;
+  apSsid?: string;
   time: string;
   rtcConnected?: boolean;
   rtcLostPower?: boolean;

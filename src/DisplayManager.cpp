@@ -551,17 +551,47 @@ void DisplayManager::_drawNetworkPage() {
     _display.setCursor(22, y);
     _display.print(STR_DISCONNECTED[lang]);
 
-    _display.setTextSize(2);
-    _display.setTextColor(COL_TEXT);
-    y += 20;
-    _display.setCursor(4, y);
-    _display.print(F("AP Mode"));
+    bool apUp = (WiFi.getMode() & WIFI_MODE_AP) != 0;
+    if (apUp) {
+      // Everything needed to join the fallback AP and reach the dashboard:
+      // network name, password and address.
+      _display.setTextSize(1);
+      _display.setTextColor(COL_DIM);
+      y += 16;
+      _display.setCursor(4, y);
+      _display.print(F("AP: "));
+      _display.setTextColor(COL_TEXT);
+      _display.print(F(AP_SSID));
 
+      y += 14;
+      _display.setTextColor(COL_DIM);
+      _display.setCursor(4, y);
+      _display.print(F("PW: "));
+      _display.setTextColor(COL_ACCENT);
+      _display.setTextSize(2);
+      _display.setCursor(28, y - 4);
+      _display.print(F(AP_PASSWORD));
+
+      _display.setTextSize(1);
+      y += 18;
+      _display.setTextColor(COL_DIM);
+      _display.setCursor(4, y);
+      _display.print(F("IP: "));
+      _display.setTextColor(COL_TEXT);
+      _display.print(WiFi.softAPIP());
+    }
+
+    // The home network the station keeps retrying.
+    extern String wifiSSID;
+    y += apUp ? 16 : 20;
     _display.setTextSize(1);
     _display.setTextColor(COL_DIM);
-    y += 22;
     _display.setCursor(4, y);
-    _display.print(WiFi.softAPIP());
+    _display.print(F("WiFi: "));
+    String target = wifiSSID;
+    if (target.length() > 20)
+      target = target.substring(0, 18) + "..";
+    _display.print(target.length() ? target : String("--"));
   }
 }
 

@@ -59,6 +59,15 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
     const [pass, setPass] = useState('');
     const [networks, setNetworks] = useState<string[]>([]);
     const [scanning, setScanning] = useState(false);
+    // Save & Restart progress: the board reboots and either joins `target`
+    // or falls back to its AP about 30 s later, so we poll to tell them apart.
+    const [wifiJob, setWifiJob] = useState<null | {
+        phase: 'saving' | 'waiting' | 'ok' | 'failed' | 'lost';
+        target: string;
+        startedAt: number;
+        ip?: string;
+    }>(null);
+    const [now, setNow] = useState(0);
 
     // OTA States
     const [otaFile, setOtaFile] = useState<File | null>(null);
@@ -134,6 +143,8 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
 
     const handleSaveWifi = async () => {
         if (!ssid) return;
+        const target = ssid;
+        setWifiJob({ phase: 'saving', target, startedAt: Date.now() });
         try {
             const res = await fetch('/api/wifi', {
                 method: 'POST',
@@ -144,12 +155,53 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                 body: new URLSearchParams({ ssid, pass }).toString(),
             });
             const data = await res.json();
-            if (data.ok) alert(t('config.wifiOk'));
-            else alert(t('config.wifiError'));
+            if (data.ok) { const at = Date.now(); setNow(at); setWifiJob({ phase: 'waiting', target, startedAt: at }); }
+            else { setWifiJob(null); alert(t('config.wifiError')); }
         } catch {
+            setWifiJob(null);
             alert(t('config.commError'));
         }
     };
+
+    // Poll while the board reboots. A reply after the reboot tells us whether
+    // the station joined; no reply for long means this browser was on the AP
+    // the board just left, which is the success case seen from here.
+    useEffect(() => {
+        if (wifiJob?.phase !== 'waiting') return;
+        let stop = false;
+        const tick = setInterval(() => setNow(Date.now()), 1000);
+        const poll = async () => {
+            while (!stop) {
+                await new Promise((r) => setTimeout(r, 3000));
+                if (stop) return;
+                const elapsed = Date.now() - wifiJob.startedAt;
+                try {
+                    const ctl = new AbortController();
+                    const to = setTimeout(() => ctl.abort(), 2500);
+                    const r = await fetch('/api/status', { signal: ctl.signal, cache: 'no-store' });
+                    clearTimeout(to);
+                    const d: AQStatus & { uptimeMs?: number } = await r.json();
+                    // Still the old boot answering before the restart: ignore.
+                    if (d.uptimeMs !== undefined && d.uptimeMs > elapsed + 2000) continue;
+                    if (d.wifiConnected && d.wifiSsid === wifiJob.target) {
+                        setWifiJob({ ...wifiJob, phase: 'ok', ip: d.wifiIp });
+                        return;
+                    }
+                    // Back up on its AP without the station: the join failed.
+                    if (!d.wifiConnected && elapsed > 20000) {
+                        setWifiJob({ ...wifiJob, phase: 'failed' });
+                        return;
+                    }
+                } catch { /* rebooting or out of reach */ }
+                if (elapsed > 120000) {
+                    setWifiJob({ ...wifiJob, phase: 'lost' });
+                    return;
+                }
+            }
+        };
+        poll();
+        return () => { stop = true; clearInterval(tick); };
+    }, [wifiJob]);
 
     const calcVolume = () => {
         const h = parseInt(height) || 0;
@@ -322,7 +374,57 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
             <section className="card">
                 <div className="card-h">
                     <h2 className="card-t">{t('config.network')}</h2>
+                    <span className={`pill ${status?.wifiConnected ? 'bg-accent2/20 text-accent2' : 'bg-danger/20 text-danger'}`}>
+                        {status?.wifiConnected ? t('config.wifiOnline') : t('config.wifiOffline')}
+                    </span>
                 </div>
+
+                <div className="mb-3 rounded-xl bg-white/5 p-3 text-sm">
+                    {status?.wifiConnected ? (
+                        <>
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="truncate font-semibold">📶 {status.wifiSsid || '—'}</span>
+                                {status.wifiRssi !== undefined && status.wifiRssi !== 0 && (
+                                    <span className={`flex-none text-xs ${status.wifiRssi > -60 ? 'text-accent2' : status.wifiRssi > -80 ? 'text-warn' : 'text-danger'}`}>
+                                        {status.wifiRssi} dBm
+                                    </span>
+                                )}
+                            </div>
+                            {status.wifiIp && <div className="mt-1 text-xs text-muted">IP {status.wifiIp} · iara.local</div>}
+                        </>
+                    ) : (
+                        <>
+                            <div className="font-semibold text-danger">{t('config.wifiTrying', { ssid: status?.wifiSsid || '—' })}</div>
+                            {status?.apActive && (
+                                <div className="mt-1 text-xs text-muted">{t('config.wifiApInfo', { ap: status.apSsid || 'AP' })}</div>
+                            )}
+                        </>
+                    )}
+                </div>
+
+                {wifiJob && (
+                    <div className={`mb-3 rounded-xl p-3 text-sm ${wifiJob.phase === 'ok' ? 'bg-accent2/15 text-accent2' : wifiJob.phase === 'failed' || wifiJob.phase === 'lost' ? 'bg-danger/15 text-danger' : 'bg-accent/15'}`}>
+                        {(wifiJob.phase === 'saving' || wifiJob.phase === 'waiting') && (
+                            <div className="flex items-center gap-2">
+                                <span className="inline-block h-4 w-4 flex-none animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                <span>
+                                    {wifiJob.phase === 'saving'
+                                        ? t('config.wifiSaving')
+                                        : t('config.wifiConnecting', { ssid: wifiJob.target, s: Math.max(0, Math.round((now - wifiJob.startedAt) / 1000)) })}
+                                </span>
+                            </div>
+                        )}
+                        {wifiJob.phase === 'waiting' && status?.apActive && !status?.wifiConnected && (
+                            <div className="mt-2 text-xs text-muted">{t('config.wifiApHint', { ssid: wifiJob.target })}</div>
+                        )}
+                        {wifiJob.phase === 'ok' && t('config.wifiDone', { ssid: wifiJob.target, ip: wifiJob.ip || 'iara.local' })}
+                        {wifiJob.phase === 'failed' && t('config.wifiFailed', { ssid: wifiJob.target })}
+                        {wifiJob.phase === 'lost' && t('config.wifiLost', { ssid: wifiJob.target })}
+                        {(wifiJob.phase === 'ok' || wifiJob.phase === 'failed' || wifiJob.phase === 'lost') && (
+                            <button onClick={() => setWifiJob(null)} className="mt-2 block text-xs underline">OK</button>
+                        )}
+                    </div>
+                )}
 
                 <div className="flex flex-col gap-3">
                     <div className="flex gap-2">
@@ -352,8 +454,12 @@ export default function ConfigTab({ status }: { status: AQStatus | null }) {
                         value={pass} onChange={(e) => setPass(e.target.value)}
                     />
 
-                    <button onClick={handleSaveWifi} className="btn btn-p w-full">
-                        {t('config.saveRestart')}
+                    <button
+                        onClick={handleSaveWifi}
+                        disabled={!ssid || wifiJob?.phase === 'saving' || wifiJob?.phase === 'waiting'}
+                        className="btn btn-p w-full disabled:opacity-50"
+                    >
+                        {wifiJob?.phase === 'saving' || wifiJob?.phase === 'waiting' ? t('config.wifiConnectingShort') : t('config.saveRestart')}
                     </button>
                 </div>
             </section>

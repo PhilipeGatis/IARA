@@ -172,12 +172,19 @@ void setup() {
   pumpLogLoad();
 
   // --- Step 3: WiFi (must be before NTP/WebServer) ---
-  displayMgr.showBootStatus("WiFi scan");
   Preferences wifiPref;
   wifiPref.begin("wifi", true); // true = readonly
   wifiSSID = wifiPref.getString("ssid", String(WIFI_SSID));
   wifiPass = wifiPref.getString("pass", String(WIFI_PASSWORD));
   wifiPref.end();
+  {
+    // Name the network being joined; 14 chars keeps clear of the "OK" column.
+    char wifiLine[24];
+    String shown = wifiSSID.length() > 14 ? wifiSSID.substring(0, 13) + "~"
+                                          : wifiSSID;
+    snprintf(wifiLine, sizeof(wifiLine), "WiFi: %s", shown.c_str());
+    displayMgr.showBootStatus(wifiLine);
+  }
   String &savedSSID = wifiSSID;
   String &savedPass = wifiPass;
 
@@ -337,7 +344,7 @@ void setup() {
                   AP_PASSWORD);
     Serial.print("[WiFi] AP IP: ");
     Serial.println(WiFi.softAPIP());
-    displayMgr.showBootStatus("WiFi: AP Mode");
+    displayMgr.showBootStatus("WiFi fail: AP", "PW: " AP_PASSWORD);
     
     // Start mDNS Responder for AP mode
     if (MDNS.begin("iara")) {

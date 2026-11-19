@@ -268,12 +268,29 @@ String WebManager::_buildStatusJSON() {
   // health block pushed it well over the old 1200, and every byte past the
   // reservation is a reallocation on a string the SSE tick rebuilds every
   // three seconds — the cheapest way there is to fragment the heap.
-  json.reserve(1800);
+  json.reserve(1950);
   json += "{";
 
   // WiFi Connection Status
   json += "\"wifiConnected\":" +
           String(WiFi.status() == WL_CONNECTED ? "true" : "false") + ",";
+  {
+    // Which network the station is on (or trying to join), and whether the
+    // AP fallback is up, so the dashboard can say where it is talking from.
+    extern String wifiSSID;
+    auto esc = [](String v) {
+      v.replace("\\", "\\\\");
+      v.replace("\"", "\\\"");
+      return v;
+    };
+    bool sta = WiFi.status() == WL_CONNECTED;
+    bool ap = (WiFi.getMode() & WIFI_MODE_AP) != 0;
+    json += "\"wifiSsid\":\"" + esc(sta ? WiFi.SSID() : wifiSSID) + "\",";
+    json += "\"wifiRssi\":" + String(sta ? WiFi.RSSI() : 0) + ",";
+    json += "\"wifiIp\":\"" + (sta ? WiFi.localIP().toString() : String("")) + "\",";
+    json += "\"apActive\":" + String(ap ? "true" : "false") + ",";
+    json += "\"apSsid\":\"" + String(AP_SSID) + "\",";
+  }
 
   // Boot diagnostics
   extern const char *bootResetReason;
